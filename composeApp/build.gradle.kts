@@ -46,6 +46,10 @@ kotlin {
       implementation(libs.napier)
     }
 
+    commonTest.dependencies {
+      implementation(kotlin("test"))
+    }
+
     androidMain.dependencies {
       implementation(platform(libs.androidx.compose.bom.get()))
       implementation(libs.androidx.compose.ui)
