@@ -63,6 +63,7 @@ kotlin {
       implementation(libs.ktor.client.okhttp)
     }
 
+    val desktopMain by getting
     desktopMain.dependencies {
       implementation(compose.desktop.currentOs)
       implementation(libs.ktor.client.cio)
