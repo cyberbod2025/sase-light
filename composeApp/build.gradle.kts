@@ -47,7 +47,7 @@ kotlin {
     }
 
     androidMain.dependencies {
-      implementation(platform(libs.androidx.compose.bom))
+      implementation(platform(libs.androidx.compose.bom.get()))
       implementation(libs.androidx.compose.ui)
       implementation(libs.androidx.compose.ui.graphics)
       implementation(libs.androidx.compose.ui.tooling.preview)
