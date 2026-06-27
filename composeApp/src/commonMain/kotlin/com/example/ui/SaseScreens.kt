@@ -35,6 +35,7 @@ import com.example.ui.enrollment.SmartEnrollmentTable
 import com.example.ui.student.StudentRecordScreen
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
+import com.example.viewmodel.GeminiViewModel
 import kotlinx.coroutines.launch
 
 // Colors matching palette
@@ -972,11 +973,12 @@ fun SecretaryDashboardScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                val geminiState by viewModel.geminiState.collectAsState()
+                val geminiViewModel = remember { GeminiViewModel() }
+                val geminiState by geminiViewModel.geminiState.collectAsState()
                 GeminiTestCard(
                     geminiState = geminiState,
-                    onGenerate = { prompt -> viewModel.generateGeminiImage(prompt, scope) },
-                    onReset = { viewModel.resetGeminiState() },
+                    onGenerate = { prompt -> geminiViewModel.generateGeminiImage(prompt, scope) },
+                    onReset = { geminiViewModel.resetGeminiState() },
                     modifier = Modifier.fillMaxWidth()
                 )
 
