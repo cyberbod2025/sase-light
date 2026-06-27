@@ -27,5 +27,8 @@ jobs:
       - name: Build Android
         run: ./gradlew :composeApp:assembleDebug
 
+      - name: Test Desktop
+        run: ./gradlew :composeApp:desktopTest
+
       - name: Build Desktop
         run: ./gradlew :composeApp:compileKotlinDesktop
