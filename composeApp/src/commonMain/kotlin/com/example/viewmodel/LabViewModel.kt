@@ -4,6 +4,10 @@ import com.example.api.GeminiImageGenerator
 import com.example.data.MockSaseData
 import com.example.data.SaseAudit
 import com.example.data.Student
+import com.example.data.repository.AuditRepository
+import com.example.data.repository.MockAuditRepositoryImpl
+import com.example.data.repository.MockStudentRepositoryImpl
+import com.example.data.repository.StudentRepository
 import com.example.formatTimestamp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +27,10 @@ sealed class GeminiState {
     data class Error(val message: String) : GeminiState()
 }
 
-class LabViewModel {
+class LabViewModel(
+    private val studentRepository: StudentRepository = MockStudentRepositoryImpl(),
+    private val auditRepository: AuditRepository = MockAuditRepositoryImpl()
+) {
     private val _currentScreen = MutableStateFlow<Screen>(Screen.SecretaryDashboard)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
 
@@ -31,8 +38,8 @@ class LabViewModel {
         _currentScreen.value = screen
     }
 
-    val saseStudents: StateFlow<List<Student>> = MockSaseData.students
-    val saseAudits: StateFlow<List<SaseAudit>> = MockSaseData.audits
+    val saseStudents: StateFlow<List<Student>> = studentRepository.students
+    val saseAudits: StateFlow<List<SaseAudit>> = auditRepository.audits
 
     private val _geminiState = MutableStateFlow<GeminiState>(GeminiState.Idle)
     val geminiState: StateFlow<GeminiState> = _geminiState.asStateFlow()
@@ -58,15 +65,15 @@ class LabViewModel {
     }
 
     fun updateStudent(student: Student) {
-        MockSaseData.updateStudent(student)
+        studentRepository.updateStudent(student)
     }
 
     fun addStudent(student: Student) {
-        MockSaseData.addStudent(student)
+        studentRepository.addStudent(student)
     }
 
     fun logSaseAudit(action: String, role: String, detail: String) {
         val timestamp = "Hoy ${formatTimestamp("hh:mm a")}"
-        MockSaseData.logAudit(action, role, timestamp, detail)
+        auditRepository.logAudit(action, role, timestamp, detail)
     }
 }
