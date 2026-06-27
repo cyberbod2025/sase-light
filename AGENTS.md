@@ -1,0 +1,59 @@
+# SASE-310 — AGENTS.md
+
+## Project
+
+Compose Multiplatform (KMP) app for school administration (SASE = Sistema de Administración de Seguimiento Escolar). Targets Android, Desktop (JVM), iOS.
+
+## Build
+
+- **Only active module**: `:composeApp` (declared in `settings.gradle.kts`). The `app/` directory is **not** part of the build — it's stale and its plugins (KSP, Roborazzi, Firebase) are not in the version catalog.
+- Version catalog: `gradle/libs.versions.toml` — AGP 8.7.3, Kotlin 2.1.20, Compose Multiplatform 1.7.3.
+- Gradle properties enforce `kotlin.compiler.execution.strategy=in-process` (avoids daemon connection issues on some machines).
+
+## Data
+
+All data is **in-memory mock** (`MockSaseData` singleton, `composeApp/src/commonMain/.../data/`). No backend, no database. Student records, audits, documents etc. are hardcoded lists.
+
+## API Keys
+
+- Stored in `.env` file at project root (`GEMINI_API_KEY`).
+- Loaded via the Secrets Gradle Plugin (see `composeApp/build.gradle.kts`).
+- Platform resolution (`expect fun getApiKey()`):
+  - **Android**: `BuildConfig.GEMINI_API_KEY`
+  - **Desktop**: `System.getenv("GEMINI_API_KEY")`
+  - **iOS**: returns `""` (not implemented)
+- **To run locally**: create `.env` with `GEMINI_API_KEY=your_key`, then **delete** `signingConfig = signingConfigs.getByName("debugConfig")` from `app/build.gradle.kts` (README instruction, but the app module is stale — apply to `composeApp/build.gradle.kts` if the same line exists).
+
+## Gemini API
+
+- Model: `gemini-3-pro-image-preview`
+- Ktor HTTP client (commonMain), platform engines: OkHttp (Android), CIO (Desktop), Darwin (iOS).
+- Uses `kotlinx.serialization` for request/response models (`GeminiImageGenerator.kt`).
+
+## Entrypoints
+
+| Target   | File |
+|----------|------|
+| Android  | `composeApp/src/androidMain/.../MainActivity.kt` |
+| Desktop  | `composeApp/src/desktopMain/.../Main.kt` (window 1280x800) |
+| iOS      | `composeApp/src/iosMain/.../MainViewController.kt` |
+
+All three call `SaseAppContent(viewModel = LabViewModel())` from `commonMain`.
+
+## Architecture
+
+Simple single-ViewModel (`LabViewModel` in `commonMain`) with a sealed `Screen` class for navigation (`SecretaryDashboard` / `StudentRecord(id)`). No DI framework. No navigation library.
+
+## Design conventions
+
+- "Liquid Glass" aesthetic — `GlassCard`, `LiquidGlassCard`, `MetricGlassCard` composables with frosted/glossy effects.
+- Custom color palette in `SaseScreens.kt` (top of file): `SaseNavy`, `SaseGreen`, `SaseBlue`, etc.
+- Dark theme is default (`MyApplicationTheme` in `Theme.kt` defaults to `darkTheme = true`).
+- Responsive layout at 850dp and 600dp breakpoints.
+
+## Important gotchas
+
+- The `app/` directory at root is **dead code** — it is not included in `settings.gradle.kts` and references plugins not in the version catalog. Do not edit files there unless explicitly asked.
+- No CI/CD workflows found.
+- No test suites are wired into the active build (the test files in `app/src/test/` belong to the stale module).
+- iOS `getApiKey()` returns empty string — Gemini features will not work on iOS without implementing the actual function.
