@@ -9,6 +9,6 @@ typealias ToastFunction = (String) -> Unit
 
 val LocalToast = compositionLocalOf<ToastFunction> { { message -> println("Toast: $message") } }
 
-fun toast(scope: CoroutineScope, message: String): Unit = scope.launch {
-    println("Toast: $message")
+fun toast(scope: CoroutineScope, message: String) {
+    scope.launch { println("Toast: $message") }
 }
