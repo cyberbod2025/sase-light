@@ -16,7 +16,11 @@ kotlin {
     }
   }
 
-  jvm("desktop")
+  jvm("desktop") {
+    mainRun {
+      mainClass.set("com.example.MainKt")
+    }
+  }
 
   listOf(
     iosX64(),
@@ -76,6 +80,12 @@ kotlin {
     iosMain.dependencies {
       implementation(libs.ktor.client.darwin)
     }
+  }
+}
+
+compose.desktop {
+  application {
+    mainClass = "com.example.MainKt"
   }
 }
 

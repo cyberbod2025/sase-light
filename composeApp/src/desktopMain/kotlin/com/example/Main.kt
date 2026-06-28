@@ -12,7 +12,7 @@ fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "SASE-310 - Sistema de Administración de Secretaría y Expedientes",
-        state = rememberWindowState(width = 1280.dp, height = 800.dp)
+        state = rememberWindowState(width = 1100.dp, height = 700.dp)
     ) {
         MyApplicationTheme {
             SaseAppContent(viewModel = LabViewModel())
