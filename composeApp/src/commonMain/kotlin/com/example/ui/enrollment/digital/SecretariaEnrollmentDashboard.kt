@@ -20,13 +20,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.FactCheck
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.FactCheck
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -128,6 +131,100 @@ fun SecretariaEnrollmentDashboard(
 }
 
 @Composable
+fun EnrollmentSummaryCard(
+    modifier: Modifier = Modifier,
+    enrollments: List<Enrollment> = MockEnrollmentData.enrollments,
+    onOpenModule: () -> Unit
+) {
+    val total = enrollments.size
+    val incomplete = enrollments.count { !it.isComplete }
+    val missingDocuments = enrollments.sumOf { it.missingDocuments.size }
+
+    GlassCard(modifier = modifier) {
+        BoxWithConstraints {
+            val compact = maxWidth < 680.dp
+
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (compact) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        EnrollmentSummaryHeader()
+                        EnrollmentOpenButton(onOpenModule, modifier = Modifier.fillMaxWidth())
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        EnrollmentSummaryHeader(modifier = Modifier.weight(1f))
+                        EnrollmentOpenButton(onOpenModule, modifier = Modifier.width(180.dp))
+                    }
+                }
+
+                val stats = listOf(
+                    MetricItem("Inscritos", total.toString(), Icons.Default.Person, SaseBlue),
+                    MetricItem("Incompletos", incomplete.toString(), Icons.Default.Warning, SaseOrange),
+                    MetricItem("Docs faltantes", missingDocuments.toString(), Icons.Default.ErrorOutline, SaseRed)
+                )
+
+                if (compact) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        stats.forEach { item -> EnrollmentSummaryStat(item, modifier = Modifier.fillMaxWidth()) }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        stats.forEach { item -> EnrollmentSummaryStat(item, modifier = Modifier.weight(1f)) }
+                    }
+                }
+
+            }
+        }
+    }
+}
+
+@Composable
+private fun EnrollmentSummaryHeader(modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(
+            text = "Inscripcion Digital",
+            color = SaseNavy,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
+        Text(
+            text = "Resumen de expedientes de nuevo ingreso",
+            color = SaseMuted,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun EnrollmentOpenButton(
+    onOpenModule: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Button(
+        onClick = onOpenModule,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = SaseNavy,
+            contentColor = Color.White
+        ),
+        shape = RoundedCornerShape(14.dp),
+        modifier = modifier.height(40.dp)
+    ) {
+        Text("Abrir modulo", fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
+        Spacer(modifier = Modifier.width(6.dp))
+        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+    }
+}
+
+@Composable
 private fun EnrollmentMetricsGrid(
     total: Int,
     complete: Int,
@@ -141,7 +238,7 @@ private fun EnrollmentMetricsGrid(
         MetricItem("Completos", complete.toString(), Icons.Default.CheckCircle, SaseGreen),
         MetricItem("Incompletos", incomplete.toString(), Icons.Default.Warning, SaseOrange),
         MetricItem("Docs faltantes", missingDocuments.toString(), Icons.Default.ErrorOutline, SaseRed),
-        MetricItem("Listos firma", readyForSignature.toString(), Icons.Default.FactCheck, SaseGreenDark)
+        MetricItem("Listos firma", readyForSignature.toString(), Icons.AutoMirrored.Filled.FactCheck, SaseGreenDark)
     )
 
     if (compact) {
@@ -157,6 +254,25 @@ private fun EnrollmentMetricsGrid(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             cards.forEach { item -> EnrollmentMetricCard(item, modifier = Modifier.weight(1f)) }
         }
+    }
+}
+
+@Composable
+private fun EnrollmentSummaryStat(item: MetricItem, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.58f))
+            .border(1.dp, SaseBorder, RoundedCornerShape(14.dp))
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(item.label, color = SaseMuted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(item.value, color = SaseNavy, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+        }
+        Icon(item.icon, contentDescription = null, tint = item.color, modifier = Modifier.size(18.dp))
     }
 }
 

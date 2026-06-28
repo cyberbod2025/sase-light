@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 sealed class Screen {
     data object SecretaryDashboard : Screen()
+    data object EnrollmentDashboard : Screen()
     data class StudentRecord(val studentId: String) : Screen()
 }
 

@@ -32,6 +32,7 @@ import com.example.util.LocalToast
 import com.example.ui.gemini.GeminiTestCard
 import com.example.ui.dashboard.LiquidGlassDashboard
 import com.example.ui.enrollment.SmartEnrollmentTable
+import com.example.ui.enrollment.digital.EnrollmentSummaryCard
 import com.example.ui.enrollment.digital.SecretariaEnrollmentDashboard
 import com.example.ui.student.StudentRecordScreen
 import com.example.viewmodel.LabViewModel
@@ -297,7 +298,8 @@ fun HolographicActivityCard(
 @Composable
 fun SaseSidebar(
     activeItem: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onItemClick: (String) -> Unit = {}
 ) {
     val items = listOf(
         "Inicio" to Icons.Default.Home,
@@ -371,7 +373,7 @@ fun SaseSidebar(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
                         .background(if (isActive) Color.White.copy(alpha = 0.12f) else Color.Transparent)
-                        .clickable { /* Sidebar selection simulation */ }
+                        .clickable { onItemClick(name) }
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -966,8 +968,9 @@ fun SecretaryDashboardScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SecretariaEnrollmentDashboard(
-                    modifier = Modifier.fillMaxWidth()
+                EnrollmentSummaryCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    onOpenModule = { viewModel.navigateTo(Screen.EnrollmentDashboard) }
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -1067,7 +1070,14 @@ fun SecretaryDashboardScreen(
                     ) {
                         SaseSidebar(
                             activeItem = "Inicio",
-                            modifier = Modifier.fillMaxHeight()
+                            modifier = Modifier.fillMaxHeight(),
+                            onItemClick = { item ->
+                                when (item) {
+                                    "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
+                                    "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
+                                }
+                                scope.launch { drawerState.close() }
+                            }
                         )
                     }
                 }
@@ -1078,7 +1088,13 @@ fun SecretaryDashboardScreen(
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
                     activeItem = "Inicio",
-                    modifier = Modifier.width(260.dp)
+                    modifier = Modifier.width(260.dp),
+                    onItemClick = { item ->
+                        when (item) {
+                            "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
+                            "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
+                        }
+                    }
                 )
                 Box(modifier = Modifier.weight(1f)) {
                     dashboardContent()
@@ -1323,6 +1339,110 @@ fun TutorItem(
     }
 }
 
+@Composable
+fun EnrollmentDashboardScreen(
+    viewModel: LabViewModel
+) {
+    BoxWithConstraints(modifier = SaseBackgroundModifier()) {
+        val isMobile = maxWidth < 850.dp
+        val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+        val scope = rememberCoroutineScope()
+
+        val navigateFromSidebar: (String) -> Unit = { item ->
+            when (item) {
+                "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
+                "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
+            }
+        }
+
+        val enrollmentContent = @Composable {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(if (isMobile) 16.dp else 24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isMobile) {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Menú", tint = SaseNavy)
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                        Column {
+                            Text(
+                                text = "Inscripcion Digital",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = if (isMobile) 20.sp else 24.sp,
+                                color = SaseNavy
+                            )
+                            Text(
+                                text = "Expediente maestro y validacion documental",
+                                fontSize = if (isMobile) 11.sp else 12.sp,
+                                color = SaseMuted
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(SaseGreen.copy(alpha = 0.12f))
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Text("MVP Phase 1", color = SaseGreenDark, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                SecretariaEnrollmentDashboard(
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        if (isMobile) {
+            ModalNavigationDrawer(
+                drawerState = drawerState,
+                drawerContent = {
+                    ModalDrawerSheet(
+                        drawerContainerColor = SaseNavy,
+                        modifier = Modifier.width(280.dp)
+                    ) {
+                        SaseSidebar(
+                            activeItem = "Inscripciones",
+                            modifier = Modifier.fillMaxHeight(),
+                            onItemClick = { item ->
+                                navigateFromSidebar(item)
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                    }
+                }
+            ) {
+                enrollmentContent()
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxSize()) {
+                SaseSidebar(
+                    activeItem = "Inscripciones",
+                    modifier = Modifier.width(260.dp),
+                    onItemClick = navigateFromSidebar
+                )
+                Box(modifier = Modifier.weight(1f)) {
+                    enrollmentContent()
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SaseAppContent(viewModel: LabViewModel) {
@@ -1351,10 +1471,9 @@ fun SaseAppContent(viewModel: LabViewModel) {
                         studentId = screen.studentId,
                         viewModel = viewModel
                     )
-                    else -> {
-                        // Fallback/Safety
-                        SecretaryDashboardScreen(viewModel = viewModel)
-                    }
+                    is Screen.EnrollmentDashboard -> EnrollmentDashboardScreen(
+                        viewModel = viewModel
+                    )
                 }
             }
         }
