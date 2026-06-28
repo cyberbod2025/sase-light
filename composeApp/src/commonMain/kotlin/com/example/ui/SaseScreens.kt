@@ -32,6 +32,7 @@ import com.example.util.LocalToast
 import com.example.ui.gemini.GeminiTestCard
 import com.example.ui.dashboard.LiquidGlassDashboard
 import com.example.ui.enrollment.SmartEnrollmentTable
+import com.example.ui.enrollment.digital.SecretariaEnrollmentDashboard
 import com.example.ui.student.StudentRecordScreen
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
@@ -960,6 +961,12 @@ fun SecretaryDashboardScreen(
                         dashboardFilter = filter
                         toast("Filtrando expedientes: $filter")
                     },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SecretariaEnrollmentDashboard(
                     modifier = Modifier.fillMaxWidth()
                 )
 
