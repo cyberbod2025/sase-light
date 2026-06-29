@@ -1,5 +1,13 @@
 package com.example.data.enrollment
 
+enum class EnrollmentStatus {
+    Submitted,
+    InReview,
+    MissingDocuments,
+    ReadyToSign,
+    Completed
+}
+
 data class Enrollment(
     val id: String,
     val studentFullName: String,
@@ -7,7 +15,7 @@ data class Enrollment(
     val birthDate: String,
     val gradeGroup: String,
     val schoolYear: String,
-    val status: String,
+    val status: EnrollmentStatus,
     val submittedAt: String,
     val address: Address,
     val contacts: List<Contact>,

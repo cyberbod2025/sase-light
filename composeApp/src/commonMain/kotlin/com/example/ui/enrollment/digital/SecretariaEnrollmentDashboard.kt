@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.enrollment.Enrollment
 import com.example.data.enrollment.EnrollmentDocument
+import com.example.data.enrollment.EnrollmentStatus
 import com.example.data.enrollment.MockEnrollmentData
 import com.example.ui.GlassCard
 import com.example.ui.SaseBgSoft
@@ -326,11 +327,7 @@ private fun EnrollmentList(
 
 @Composable
 private fun EnrollmentListItem(enrollment: Enrollment, selected: Boolean, onClick: () -> Unit) {
-    val statusColor = when {
-        enrollment.isComplete -> SaseGreen
-        enrollment.readyForSignature -> SaseBlue
-        else -> SaseOrange
-    }
+    val statusColor = enrollmentStatusColor(enrollment.status)
 
     Row(
         modifier = Modifier
@@ -356,7 +353,7 @@ private fun EnrollmentListItem(enrollment: Enrollment, selected: Boolean, onClic
             Text(enrollment.studentFullName, color = SaseText, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("${enrollment.id} - ${enrollment.gradeGroup} - ${enrollment.submittedAt}", color = SaseMuted, fontSize = 10.sp, maxLines = 1)
         }
-        StatusBadge(label = enrollment.status, color = statusColor)
+        StatusBadge(label = enrollmentStatusLabel(enrollment.status), color = statusColor)
     }
 }
 
@@ -380,7 +377,7 @@ private fun EnrollmentDetailPanel(enrollment: Enrollment, modifier: Modifier = M
                 Text("CURP ${enrollment.curp} - ${enrollment.gradeGroup} - ${enrollment.schoolYear}", color = SaseMuted, fontSize = 10.sp)
                 Text("Domicilio: ${enrollment.address.street}, ${enrollment.address.neighborhood}", color = SaseMuted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            StatusBadge(label = if (enrollment.isComplete) "Completo" else "Revision", color = if (enrollment.isComplete) SaseGreen else SaseOrange)
+            StatusBadge(label = enrollmentStatusLabel(enrollment.status), color = enrollmentStatusColor(enrollment.status))
         }
 
         SectionTitle("Tutores")
@@ -461,6 +458,22 @@ private fun MedicalChip(label: String, icon: ImageVector, color: Color, modifier
         Spacer(modifier = Modifier.width(6.dp))
         Text(label, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
+}
+
+private fun enrollmentStatusColor(status: EnrollmentStatus): Color = when (status) {
+    EnrollmentStatus.Submitted -> SaseBlue
+    EnrollmentStatus.InReview -> SaseOrange
+    EnrollmentStatus.MissingDocuments -> SaseRed
+    EnrollmentStatus.ReadyToSign -> SaseGreenDark
+    EnrollmentStatus.Completed -> SaseGreen
+}
+
+private fun enrollmentStatusLabel(status: EnrollmentStatus): String = when (status) {
+    EnrollmentStatus.Submitted -> "Recibido"
+    EnrollmentStatus.InReview -> "En revision"
+    EnrollmentStatus.MissingDocuments -> "Faltan docs"
+    EnrollmentStatus.ReadyToSign -> "Listo firma"
+    EnrollmentStatus.Completed -> "Completo"
 }
 
 @Composable

@@ -9,7 +9,7 @@ object MockEnrollmentData {
             birthDate = "12/May/2010",
             gradeGroup = "2B",
             schoolYear = "2024-2025",
-            status = "Listo para firma",
+            status = EnrollmentStatus.ReadyToSign,
             submittedAt = "Hoy 09:35",
             address = Address(
                 street = "Av. Siempre Viva 123",
@@ -59,7 +59,7 @@ object MockEnrollmentData {
             birthDate = "04/Feb/2011",
             gradeGroup = "1A",
             schoolYear = "2024-2025",
-            status = "Completo",
+            status = EnrollmentStatus.Completed,
             submittedAt = "Ayer 13:12",
             address = Address(
                 street = "Paseo de la Reforma 456",
@@ -106,7 +106,7 @@ object MockEnrollmentData {
             birthDate = "12/Ago/2009",
             gradeGroup = "3C",
             schoolYear = "2024-2025",
-            status = "Incompleto",
+            status = EnrollmentStatus.MissingDocuments,
             submittedAt = "Hoy 11:05",
             address = Address(
                 street = "Calle de las Flores 789",
@@ -147,6 +147,103 @@ object MockEnrollmentData {
             riskFlags = listOf(
                 RiskFlag("Documento critico", "Alto", "Comprobante y boleta bloquean firma"),
                 RiskFlag("Salud", "Medio", "Asma declarada por tutor")
+            ),
+            readyForSignature = false
+        ),
+        Enrollment(
+            id = "ENR-2024-004",
+            studentFullName = "Sofia Ramirez Garcia",
+            curp = "RAGS090815MDFXRN07",
+            birthDate = "15/Ago/2009",
+            gradeGroup = "3A",
+            schoolYear = "2024-2025",
+            status = EnrollmentStatus.Submitted,
+            submittedAt = "Hoy 14:20",
+            address = Address(
+                street = "Av. Insurgentes Sur 1500",
+                neighborhood = "Del Valle",
+                municipality = "Benito Juarez",
+                state = "CDMX",
+                zipCode = "03100"
+            ),
+            contacts = listOf(
+                Contact("Pedro Ramirez Lopez", "Padre", "55 9999 8888", "pramirez@example.com", true)
+            ),
+            medicalRecord = MedicalRecord(
+                bloodType = "AB+",
+                allergies = "Ninguna reportada",
+                chronicConditions = "Ninguna",
+                medication = "No aplica",
+                emergencyNotes = "Sin indicaciones especiales"
+            ),
+            socioeconomicRecord = SocioeconomicRecord(
+                householdSize = 3,
+                primaryIncome = "Profesionista independiente",
+                internetAccess = true,
+                transportation = "Automovil particular",
+                notes = "Sin necesidad de apoyo"
+            ),
+            documents = listOf(
+                EnrollmentDocument("Acta de nacimiento", "Entregado", true, "Secretaria"),
+                EnrollmentDocument("CURP", "Entregado", true, "Secretaria"),
+                EnrollmentDocument("Comprobante de domicilio", "Pendiente", true, "", "Por validar con tutor"),
+                EnrollmentDocument("Boleta anterior", "Entregado", true, "Control escolar"),
+                EnrollmentDocument("INE tutor", "Entregado", true, "Secretaria")
+            ),
+            consents = listOf(
+                Consent("Uso de datos personales", false, "", ""),
+                Consent("Autorizacion medica", false, "", "")
+            ),
+            riskFlags = emptyList(),
+            readyForSignature = false
+        ),
+        Enrollment(
+            id = "ENR-2024-005",
+            studentFullName = "Emiliano Torres Cruz",
+            curp = "TOCE100725MDFXRL04",
+            birthDate = "25/Jul/2010",
+            gradeGroup = "2A",
+            schoolYear = "2024-2025",
+            status = EnrollmentStatus.InReview,
+            submittedAt = "Ayer 10:30",
+            address = Address(
+                street = "Cerro del Agua 45",
+                neighborhood = "Coyoacan",
+                municipality = "Coyoacan",
+                state = "CDMX",
+                zipCode = "04020"
+            ),
+            contacts = listOf(
+                Contact("Gabriela Cruz Mendez", "Madre", "55 7777 6666", "gcruz@example.com", true),
+                Contact("Luis Torres Hernandez", "Padre", "55 5555 4444", "ltorres@example.com", false)
+            ),
+            medicalRecord = MedicalRecord(
+                bloodType = "O-",
+                allergies = "Penicilina",
+                chronicConditions = "Ninguna",
+                medication = "No aplica",
+                emergencyNotes = "Alergia a penicilina documentada"
+            ),
+            socioeconomicRecord = SocioeconomicRecord(
+                householdSize = 4,
+                primaryIncome = "Empleado formal",
+                internetAccess = true,
+                transportation = "Transporte publico",
+                notes = "Madre solicita beca de transporte"
+            ),
+            documents = listOf(
+                EnrollmentDocument("Acta de nacimiento", "Entregado", true, "Secretaria"),
+                EnrollmentDocument("CURP", "Entregado", true, "Secretaria"),
+                EnrollmentDocument("Comprobante de domicilio", "Entregado", true, "Secretaria"),
+                EnrollmentDocument("Boleta anterior", "Entregado", true, "Control escolar"),
+                EnrollmentDocument("INE tutor", "Entregado", true, "Secretaria")
+            ),
+            consents = listOf(
+                Consent("Uso de datos personales", true, "Gabriela Cruz Mendez", "Ayer 10:35"),
+                Consent("Autorizacion medica", true, "Gabriela Cruz Mendez", "Ayer 10:36")
+            ),
+            riskFlags = listOf(
+                RiskFlag("Alergia medica", "Alto", "Penicilina - alertar en cada ingreso")
             ),
             readyForSignature = false
         )
