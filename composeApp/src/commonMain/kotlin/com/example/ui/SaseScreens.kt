@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.*
 import com.example.util.LocalToast
-import com.example.ui.gemini.GeminiTestCard
 import com.example.ui.dashboard.LiquidGlassDashboard
 import com.example.ui.enrollment.SmartEnrollmentTable
 import com.example.ui.enrollment.digital.EnrollmentSummaryCard
@@ -37,7 +36,6 @@ import com.example.ui.student.StudentRecordScreen
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
 import com.example.viewmodel.AppRole
-import com.example.viewmodel.GeminiViewModel
 import kotlinx.coroutines.launch
 
 // Colors matching palette
@@ -170,129 +168,7 @@ fun LiquidGlassCard(
     }
 }
 
-@Composable
-fun RealtimeActivityChart(
-    modifier: Modifier = Modifier,
-    lineColor: Color = SaseBlue
-) {
-    Canvas(modifier = modifier) {
-        val width = size.width
-        val height = size.height
-        val path = androidx.compose.ui.graphics.Path()
-        
-        // 5 points to draw a beautiful wave
-        path.moveTo(0f, height * 0.75f)
-        path.cubicTo(
-            width * 0.25f, height * 0.3f,
-            width * 0.45f, height * 0.85f,
-            width * 0.65f, height * 0.15f
-        )
-        path.quadraticTo(
-            width * 0.85f, height * 0.5f,
-            width, height * 0.2f
-        )
-        
-        val fillPath = androidx.compose.ui.graphics.Path().apply {
-            addPath(path)
-            lineTo(width, height)
-            lineTo(0f, height)
-            close()
-        }
-        
-        // Solid glow fill
-        drawPath(
-            path = fillPath,
-            brush = Brush.verticalGradient(
-                colors = listOf(lineColor.copy(alpha = 0.22f), Color.Transparent)
-            )
-        )
-        
-        // Stroke with shadow for high-fidelity glowing line
-        drawPath(
-            path = path,
-            color = lineColor,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(
-                width = 3.dp.toPx(),
-                cap = androidx.compose.ui.graphics.StrokeCap.Round
-            )
-        )
-        
-        // Glowing dot
-        drawCircle(
-            color = lineColor,
-            radius = 6.dp.toPx(),
-            center = Offset(width * 0.65f, height * 0.15f)
-        )
-        drawCircle(
-            color = Color.White,
-            radius = 2.5.dp.toPx(),
-            center = Offset(width * 0.65f, height * 0.15f)
-        )
-    }
-}
 
-@Composable
-fun HolographicActivityCard(
-    students: List<Student>,
-    modifier: Modifier = Modifier
-) {
-    LiquidGlassCard(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "Tendencia de Matrícula y Altas",
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 13.sp,
-                    color = SaseNavy
-                )
-                Text(
-                    text = "Monitoreo de flujo continuo de expedientes",
-                    fontSize = 10.sp,
-                    color = SaseMuted
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(SaseGreen.copy(alpha = 0.15f))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = SaseGreenDark, modifier = Modifier.size(12.dp))
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text("Activo", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = SaseGreenDark)
-                }
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(14.dp))
-        
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.width(80.dp)) {
-                Text("Alta", fontSize = 10.sp, color = SaseMuted)
-                Text("96%", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = SaseNavy)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Baja", fontSize = 10.sp, color = SaseMuted)
-                Text("1.2%", fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = SaseRed)
-            }
-            
-            RealtimeActivityChart(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(65.dp)
-                    .padding(horizontal = 8.dp),
-                lineColor = SaseBlue
-            )
-        }
-    }
-}
 
 // Side bar component
 @Composable
@@ -607,127 +483,6 @@ fun KpiCard(
 // Side details lists
 
 @Composable
-fun SecretaryPendingList(
-    onItemClick: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val items = listOf(
-        "Validar expediente" to Pair("12", SaseOrange),
-        "Captura incompleta" to Pair("9", SaseRed),
-        "Firma pendiente" to Pair("6", SaseOrange),
-        "Solicitud de constancia" to Pair("7", SaseBlue),
-        "Cambio de grupo" to Pair("4", SaseCyan),
-        "Documentos vencidos" to Pair("3", SaseRed),
-        "Tutor sin teléfono" to Pair("5", SaseOrange),
-        "CURP pendiente" to Pair("8", SaseRed)
-    )
-
-    GlassCard(modifier = modifier) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Pendientes de Secretaría", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SaseNavy)
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(SaseBgSoft)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text("Ver todos", color = SaseNavy, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items.forEach { (title, info) ->
-                val (count, color) = info
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.5f))
-                        .clickable { onItemClick(title) }
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(color))
-                        Text(title, color = SaseText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(color.copy(alpha = 0.15f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(count, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun InstitutionalDocumentsPanel(
-    onDocClick: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val docs = listOf(
-        Pair("Constancia", Icons.Default.Description),
-        Pair("Historial", Icons.Default.Assignment),
-        Pair("Carta compromiso", Icons.Default.BorderColor),
-        Pair("Citatorio", Icons.Default.NotificationImportant),
-        Pair("Justificante", Icons.Default.EventNote)
-    )
-
-    GlassCard(modifier = modifier) {
-        Text("Documentos institucionales", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SaseNavy)
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            docs.forEach { (name, icon) ->
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color.White.copy(alpha = 0.5f))
-                        .border(1.dp, SaseBorder, RoundedCornerShape(14.dp))
-                        .clickable { onDocClick(name) }
-                        .padding(vertical = 8.dp, horizontal = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(SaseCyan.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(icon, contentDescription = null, tint = SaseCyan, modifier = Modifier.size(16.dp))
-                    }
-                    Text(
-                        text = name,
-                        color = SaseText,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun ActivityAuditFeed(
     audits: List<SaseAudit>,
     modifier: Modifier = Modifier
@@ -813,24 +568,11 @@ fun SecretaryDashboardScreen(
 
     var dashboardFilter by remember { mutableStateOf("Todos") }
 
-    var showQuickActionDialog by remember { mutableStateOf(false) }
-    var quickActionTitle by remember { mutableStateOf("") }
-
     var showNewStudentDialog by remember { mutableStateOf(false) }
     var newStudentName by remember { mutableStateOf("") }
     var newStudentGroup by remember { mutableStateOf("1°A") }
     var newStudentCurp by remember { mutableStateOf("") }
     var newStudentTutor by remember { mutableStateOf("") }
-
-    // Fast actions trigger
-    val triggerQuickAction = { title: String ->
-        quickActionTitle = title
-        if (title == "Nuevo expediente") {
-            showNewStudentDialog = true
-        } else {
-            showQuickActionDialog = true
-        }
-    }
 
     BoxWithConstraints(modifier = SaseBackgroundModifier()) {
         val isMobile = maxWidth < 850.dp
@@ -885,38 +627,43 @@ fun SecretaryDashboardScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Quick Actions capsule row (Scrollable on mobile)
+                // Quick Actions row (max 3)
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(if (isMobile) Modifier.horizontalScroll(rememberScrollState()) else Modifier),
-                    horizontalArrangement = if (isMobile) Arrangement.spacedBy(8.dp) else Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf(
-                        "Registro veloz" to Icons.Default.FlashOn,
-                        "Nuevo expediente" to Icons.Default.Add,
-                        "Importar alumnos" to Icons.Default.Publish,
-                        "Generar documento" to Icons.Default.Description,
-                        "Cierre de ciclo" to Icons.Default.Lock
-                    ).forEach { (label, icon) ->
-                        Button(
-                            onClick = { triggerQuickAction(label) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (label == "Cierre de ciclo") SaseRed.copy(alpha = 0.1f) else Color.White,
-                                contentColor = if (label == "Cierre de ciclo") SaseRed else SaseNavy
-                            ),
-                            border = BorderStroke(1.dp, if (label == "Cierre de ciclo") SaseRed.copy(alpha = 0.3f) else SaseBorder),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = if (isMobile) {
-                                Modifier.height(44.dp).padding(end = 4.dp)
-                            } else {
-                                Modifier.weight(1f).height(44.dp)
-                            }
-                        ) {
-                            Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(label, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
-                        }
+                    Button(
+                        onClick = { showNewStudentDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = SaseNavy),
+                        border = BorderStroke(1.dp, SaseBorder),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.weight(1f).height(44.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Nuevo expediente", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
+                    }
+                    Button(
+                        onClick = { viewModel.navigateTo(Screen.EnrollmentDashboard) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = SaseNavy),
+                        border = BorderStroke(1.dp, SaseBorder),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.weight(1f).height(44.dp)
+                    ) {
+                        Icon(Icons.Default.School, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Abrir Inscripciones", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
+                    }
+                    Button(
+                        onClick = { viewModel.navigateTo(Screen.PreApplicationFamilyPortal) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = SaseNavy),
+                        border = BorderStroke(1.dp, SaseBorder),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.weight(1f).height(44.dp)
+                    ) {
+                        Icon(Icons.Default.Groups, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Portal Familia", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
                     }
                 }
 
@@ -942,25 +689,6 @@ fun SecretaryDashboardScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Real-time Holographic Wave Chart
-                HolographicActivityCard(
-                    students = students,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                val geminiViewModel = remember { GeminiViewModel() }
-                val geminiState by geminiViewModel.geminiState.collectAsState()
-                GeminiTestCard(
-                    geminiState = geminiState,
-                    onGenerate = { prompt -> geminiViewModel.generateGeminiImage(prompt, scope) },
-                    onReset = { geminiViewModel.resetGeminiState() },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
                 // Filter students list dynamically based on active dashboard filter selection
                 val dashboardFilteredStudents = remember(students, dashboardFilter) {
                     when (dashboardFilter) {
@@ -983,47 +711,7 @@ fun SecretaryDashboardScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Bottom grids (stacked on mobile, split-pane row on desktop)
-                if (isMobile) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        SecretaryPendingList(
-                            onItemClick = { title ->
-                                toast("Abriendo pendiente: $title")
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        InstitutionalDocumentsPanel(
-                            onDocClick = { name ->
-                                toast("Generando previsualización de: $name. PDF listo para descargar.")
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        ActivityAuditFeed(audits = audits, modifier = Modifier.fillMaxWidth())
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        SecretaryPendingList(
-                            onItemClick = { title ->
-                                toast("Abriendo pendiente: $title")
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                        Column(modifier = Modifier.weight(1.2f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            InstitutionalDocumentsPanel(
-                                onDocClick = { name ->
-                                    toast("Generando previsualización de: $name. PDF listo para descargar.")
-                                }
-                            )
-                            ActivityAuditFeed(audits = audits)
-                        }
-                    }
-                }
+                ActivityAuditFeed(audits = audits, modifier = Modifier.fillMaxWidth())
             }
         }
 
@@ -1067,57 +755,6 @@ fun SecretaryDashboardScreen(
                 )
                 Box(modifier = Modifier.weight(1f)) {
                     dashboardContent()
-                }
-            }
-        }
-    }
-
-    // Quick action simulation modal
-    if (showQuickActionDialog) {
-        Dialog(onDismissRequest = { showQuickActionDialog = false }) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, SaseBorder),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(SaseBlue.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Info, contentDescription = null, tint = SaseBlue, modifier = Modifier.size(32.dp))
-                    }
-                    Text(
-                        text = quickActionTitle,
-                        fontWeight = FontWeight.Bold,
-                        color = SaseNavy,
-                        fontSize = 18.sp,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = "Esta acción administrativa está lista para conectarse al backend de Supabase. El sistema de roles y RLS protegerá esta operación de manera segura.",
-                        fontSize = 12.sp,
-                        color = SaseMuted,
-                        textAlign = TextAlign.Center
-                    )
-                    Button(
-                        onClick = { showQuickActionDialog = false },
-                        colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Entendido", fontWeight = FontWeight.Bold)
-                    }
                 }
             }
         }
@@ -1449,27 +1086,24 @@ fun SaseAppContent(viewModel: LabViewModel) {
                 }
             }
 
-            // MOCK GLOBAL ROLE SELECTOR (Fase 1)
+            // Compact dev role toggle — hidden in production
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(16.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(SaseNavy2.copy(alpha = 0.9f))
-                    .border(1.dp, SaseBorder, RoundedCornerShape(8.dp))
+                    .background(SaseNavy2.copy(alpha = 0.5f))
                     .clickable {
-                        // Ciclar roles para testing
                         val roles = AppRole.entries.toTypedArray()
                         val nextIndex = (roles.indexOf(currentRole) + 1) % roles.size
                         viewModel.setRole(roles[nextIndex])
                     }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = "Rol: ${currentRole.label}",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
+                    text = "${currentRole.label}",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 9.sp
                 )
             }
         }

@@ -57,3 +57,49 @@ Simple single-ViewModel (`LabViewModel` in `commonMain`) with a sealed `Screen` 
 - No CI/CD workflows found.
 - No test suites are wired into the active build (the test files in `app/src/test/` belong to the stale module).
 - iOS `getApiKey()` returns empty string — Gemini features will not work on iOS without implementing the actual function.
+
+## Gradle execution
+
+Always use:
+- `.\gradlew.bat` (not `./gradlew`)
+- `--no-daemon` to avoid stale daemon issues
+- No pipes (`|`) during Gradle execution — use `*>` to redirect to log file if needed
+- `Get-Content <log> -Tail 120` to inspect output
+
+## Auto commit + CI rule
+
+After any approved microphase execution:
+
+**IF:**
+- build PASS
+- tests PASS
+- scope is clean
+- no risky unexpected files
+- recommendation is commit ready
+
+**THEN automatically execute:**
+1. `git status`
+2. `git add` only scoped files
+3. `git commit` with suggested conventional commit message
+4. `git push origin main`
+5. `gh run list --branch main --limit 3`
+6. `gh run view <latest-run-id>`
+7. wait until workflow completes
+8. report final CI status
+
+**STRICT RULES:**
+- Never add composeApp/build/
+- Never add untracked files outside scope
+- Never commit if build or tests fail
+- Never commit if unexpected files are modified
+- Never commit if scope is unclear
+- Never proceed to next feature until CI is green
+
+**REPORT FORMAT:**
+- files committed
+- commit hash
+- workflow run ID
+- Build Android
+- Test Desktop
+- Build Desktop
+- errors if any
