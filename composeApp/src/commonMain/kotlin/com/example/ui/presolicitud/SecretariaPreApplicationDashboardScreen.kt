@@ -72,6 +72,7 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                 "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                 "Pre-Solicitudes" -> {}
                 "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
+                "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
             }
         }
 

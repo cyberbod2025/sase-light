@@ -34,6 +34,8 @@ import com.example.ui.enrollment.digital.EnrollmentSummaryCard
 import com.example.ui.enrollment.digital.SecretariaEnrollmentDashboard
 import com.example.data.presolicitud.*
 import com.example.ui.student.StudentRecordScreen
+import com.example.ui.CredentialPreviewScreen
+import com.example.ui.StudentCredentialDashboardScreen
 import com.example.data.StudentAddResult
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
@@ -191,7 +193,8 @@ fun SaseSidebar(
         "Inscripciones" to Icons.Default.School,
         "Portal Familia" to Icons.Default.Groups,
         "Pre-Solicitudes" to Icons.Default.Assignment,
-        "Altas Oficiales" to Icons.Default.AssignmentTurnedIn
+        "Altas Oficiales" to Icons.Default.AssignmentTurnedIn,
+        "Credenciales" to Icons.Default.Badge
     )
 
     Column(
@@ -744,6 +747,7 @@ fun SecretaryDashboardScreen(
                                     "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                                     "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
                                     "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
+                                    "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
                                 }
                                 scope.launch { drawerState.close() }
                             }
@@ -765,6 +769,7 @@ fun SecretaryDashboardScreen(
                             "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                             "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
                             "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
+                            "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
                         }
                     }
                 )
@@ -992,6 +997,7 @@ fun EnrollmentDashboardScreen(
                 "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                 "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
                 "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
+                "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
             }
         }
 
@@ -1116,6 +1122,13 @@ fun SaseAppContent(viewModel: LabViewModel) {
                     is Screen.OfficialEnrollmentDashboard -> OfficialEnrollmentDashboardScreen(
                         viewModel = viewModel
                     )
+                    is Screen.CredentialPreview -> CredentialPreviewScreen(
+                        studentId = screen.studentId,
+                        viewModel = viewModel
+                    )
+                    is Screen.StudentCredentialDashboard -> StudentCredentialDashboardScreen(
+                        viewModel = viewModel
+                    )
                 }
             }
 
@@ -1187,6 +1200,7 @@ fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
                 "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                 "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
                 "Altas Oficiales" -> {}
+                "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
             }
         }
 

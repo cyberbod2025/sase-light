@@ -20,6 +20,8 @@ sealed class Screen {
     data object PreApplicationFamilyPortal : Screen()
     data object SecretariaPreApplicationDashboard : Screen()
     data object OfficialEnrollmentDashboard : Screen()
+    data class CredentialPreview(val studentId: String) : Screen()
+    data object StudentCredentialDashboard : Screen()
 }
 
 // Roles MOCK

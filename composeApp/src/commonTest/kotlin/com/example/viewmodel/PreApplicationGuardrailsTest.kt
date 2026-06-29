@@ -3,6 +3,7 @@ package com.example.viewmodel
 import com.example.data.MockSaseData
 import com.example.data.Student
 import com.example.data.StudentAddResult
+import com.example.data.StudentCredentialPreview
 import com.example.data.presolicitud.AntecedentesUdeii
 import com.example.data.presolicitud.AutorizadoPreSolicitud
 import com.example.data.presolicitud.ConsentimientosFamiliares
@@ -19,6 +20,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class PreApplicationGuardrailsTest {
@@ -480,4 +482,98 @@ class PreApplicationGuardrailsTest {
         val officialList = PreApplicationViewModel.officialStudents.value
         assertTrue(officialList.isNotEmpty())
     }
+
+    // ── Credential preview tests (Phase 7A + 7B) ─────────────────────────
+
+    @Test
+    fun fromStudent_CreatesCorrectProjection() {
+        val student = credentialStudent(
+            curp = "CRED001",
+            enrollmentId = "S310-CRED-001"
+        )
+        val preview = StudentCredentialPreview.fromStudent(student)
+
+        assertEquals(student.enrollmentId, preview.enrollmentId)
+        assertEquals(student.fullName, preview.fullName)
+        assertEquals(student.curp, preview.curp)
+        assertEquals(student.schoolYear, preview.schoolYear)
+        assertEquals(student.status, preview.status)
+    }
+
+    @Test
+    fun fromStudent_HandlesPhotoAbsent() {
+        val student = credentialStudent(
+            curp = "PHOTO1",
+            photoUrl = null
+        )
+        val preview = StudentCredentialPreview.fromStudent(student)
+
+        assertEquals("Sin foto", preview.photoStatus)
+    }
+
+    @Test
+    fun fromStudent_HandlesPhotoPresent() {
+        val student = credentialStudent(
+            curp = "PHOTO2",
+            photoUrl = "captures/student-photo.jpg"
+        )
+        val preview = StudentCredentialPreview.fromStudent(student)
+
+        assertEquals("Con foto", preview.photoStatus)
+    }
+
+    @Test
+    fun fromStudent_DetectsOfficialEnrollmentOrigin() {
+        val student = credentialStudent(
+            curp = "ORIGIN",
+            preApplicationFolio = "PRE-310-ORIGIN"
+        )
+        val preview = StudentCredentialPreview.fromStudent(student)
+
+        assertTrue(preview.generatedFromOfficialEnrollment)
+        assertEquals("PRE-310-ORIGIN", preview.preApplicationFolio)
+    }
+
+    @Test
+    fun fromStudent_DetectsNonOfficialOrigin() {
+        val student = credentialStudent(
+            curp = "NONOFF",
+            preApplicationFolio = null
+        )
+        val preview = StudentCredentialPreview.fromStudent(student)
+
+        assertFalse(preview.generatedFromOfficialEnrollment)
+        assertNull(preview.preApplicationFolio)
+    }
+
+    @Test
+    fun fromStudent_ParsesGradeAndGroup() {
+        val student = credentialStudent(
+            curp = "GRADE1",
+            group = "1\u00b0 A"
+        )
+        val preview = StudentCredentialPreview.fromStudent(student)
+
+        assertEquals("1\u00b0", preview.grade)
+        assertEquals("A", preview.group)
+    }
+
+    private fun credentialStudent(
+        curp: String,
+        enrollmentId: String = "S310-CRED-${uniqueSuffix()}",
+        group: String = "2\u00b0 B",
+        photoUrl: String? = null,
+        preApplicationFolio: String? = "PRE-310-CRED-${uniqueSuffix()}"
+    ): Student = Student(
+        id = "CRED-${uniqueSuffix()}",
+        fullName = "Alumno Credencial Test",
+        group = group,
+        enrollmentId = enrollmentId,
+        curp = uniqueCurp(curp),
+        tutorName = "Tutor Credencial",
+        tutorRelation = "Madre",
+        status = "Activo",
+        photoUrl = photoUrl,
+        preApplicationFolio = preApplicationFolio
+    )
 }
