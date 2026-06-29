@@ -70,7 +70,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
             Spacer(modifier = Modifier.height(20.dp))
 
             // Step indicator
-            val stepTitles = listOf("Datos", "Contactos", "Contexto", "Docs", "Envio")
+            val stepTitles = listOf("Datos", "Contactos", "Médico", "Docs", "Envio")
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -98,7 +98,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                     when (currentStep) {
                         0 -> StepDatosBasicos(familyViewModel)
                         1 -> StepContactos(familyViewModel)
-                        2 -> StepContexto()
+                        2 -> StepMedicoEscolar(familyViewModel)
                         3 -> StepDocumentos()
                         4 -> StepResumenEnvio(familyViewModel)
                     }
@@ -524,16 +524,150 @@ private fun AutorizadoDialog(
     }
 }
 
-// ── STEP 3: Contexto (placeholder) ──────────────────────────────
+// ── STEP 3: Médico Escolar declarativo familiar ────────────────
 
 @Composable
-private fun StepContexto() {
-    PlaceholderStep(
-        title = "Contexto del Alumno",
-        description = "Ficha medica, trabajo social y antecedentes escolares.",
-        phase = "2A",
-        nextSection = "Ficha Medica, Contexto Sociofamiliar, UDEII"
+private fun StepMedicoEscolar(vm: PreApplicationViewModel) {
+    val servicioMedico by vm.servicioMedico.collectAsState()
+    val numeroAfiliacionPoliza by vm.numeroAfiliacionPoliza.collectAsState()
+    val tipoSangre by vm.tipoSangre.collectAsState()
+    val tieneAlergias by vm.tieneAlergias.collectAsState()
+    val alergiasDetalle by vm.alergiasDetalle.collectAsState()
+    val tienePadecimientos by vm.tienePadecimientos.collectAsState()
+    val padecimientosDetalle by vm.padecimientosDetalle.collectAsState()
+    val tomaMedicamentos by vm.tomaMedicamentos.collectAsState()
+    val medicamentosDetalle by vm.medicamentosDetalle.collectAsState()
+    val restriccionActividadFisica by vm.restriccionActividadFisica.collectAsState()
+    val restriccionActividadFisicaDetalle by vm.restriccionActividadFisicaDetalle.collectAsState()
+    val usaLentes by vm.usaLentes.collectAsState()
+    val dificultadVisualReferida by vm.dificultadVisualReferida.collectAsState()
+    val dificultadVisualDetalle by vm.dificultadVisualDetalle.collectAsState()
+    val dificultadAuditivaReferida by vm.dificultadAuditivaReferida.collectAsState()
+    val dificultadAuditivaDetalle by vm.dificultadAuditivaDetalle.collectAsState()
+    val saludBucalReferida by vm.saludBucalReferida.collectAsState()
+    val cartillaVacunacionActualizada by vm.cartillaVacunacionActualizada.collectAsState()
+
+    Text("Médico Escolar", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text(
+        "La familia declara esta informacion. Médico Escolar la validara y complementara despues.",
+        fontSize = 12.sp,
+        color = SaseMuted
     )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(SaseBlue.copy(alpha = 0.06f))
+            .border(1.dp, SaseBlue.copy(alpha = 0.14f), RoundedCornerShape(12.dp))
+            .padding(12.dp)
+    ) {
+        Text(
+            "Estos campos son opcionales y no bloquean el envio de la pre-solicitud.",
+            fontSize = 11.sp,
+            color = SaseNavy,
+            fontWeight = FontWeight.Medium
+        )
+    }
+
+    FormField("Servicio médico", servicioMedico, { vm.setServicioMedico(it) }, false, null)
+    FormField("Número de afiliación/póliza", numeroAfiliacionPoliza, { vm.setNumeroAfiliacionPoliza(it) }, false, null)
+    FormField("Tipo de sangre si se conoce", tipoSangre, { vm.setTipoSangre(it) }, false, null)
+
+    MedicoEscolarCheckbox(
+        label = "Alergias",
+        checked = tieneAlergias,
+        onCheckedChange = { vm.setTieneAlergias(it) }
+    )
+    if (tieneAlergias) {
+        FormField("Detalle de alergias", alergiasDetalle, { vm.setAlergiasDetalle(it) }, false, null)
+    }
+
+    MedicoEscolarCheckbox(
+        label = "Padecimientos relevantes",
+        checked = tienePadecimientos,
+        onCheckedChange = { vm.setTienePadecimientos(it) }
+    )
+    if (tienePadecimientos) {
+        FormField("Detalle de padecimientos", padecimientosDetalle, { vm.setPadecimientosDetalle(it) }, false, null)
+    }
+
+    MedicoEscolarCheckbox(
+        label = "Medicamentos prescritos",
+        checked = tomaMedicamentos,
+        onCheckedChange = { vm.setTomaMedicamentos(it) }
+    )
+    if (tomaMedicamentos) {
+        FormField("Detalle de medicamentos prescritos", medicamentosDetalle, { vm.setMedicamentosDetalle(it) }, false, null)
+    }
+
+    MedicoEscolarCheckbox(
+        label = "Restricción de actividad física",
+        checked = restriccionActividadFisica,
+        onCheckedChange = { vm.setRestriccionActividadFisica(it) }
+    )
+    if (restriccionActividadFisica) {
+        FormField(
+            "Detalle de restricción de actividad física",
+            restriccionActividadFisicaDetalle,
+            { vm.setRestriccionActividadFisicaDetalle(it) },
+            false,
+            null
+        )
+    }
+
+    MedicoEscolarCheckbox(
+        label = "Uso de lentes",
+        checked = usaLentes,
+        onCheckedChange = { vm.setUsaLentes(it) }
+    )
+
+    MedicoEscolarCheckbox(
+        label = "Dificultad visual referida",
+        checked = dificultadVisualReferida,
+        onCheckedChange = { vm.setDificultadVisualReferida(it) }
+    )
+    if (dificultadVisualReferida) {
+        FormField("Detalle de dificultad visual", dificultadVisualDetalle, { vm.setDificultadVisualDetalle(it) }, false, null)
+    }
+
+    MedicoEscolarCheckbox(
+        label = "Dificultad auditiva referida",
+        checked = dificultadAuditivaReferida,
+        onCheckedChange = { vm.setDificultadAuditivaReferida(it) }
+    )
+    if (dificultadAuditivaReferida) {
+        FormField("Detalle de dificultad auditiva", dificultadAuditivaDetalle, { vm.setDificultadAuditivaDetalle(it) }, false, null)
+    }
+
+    FormField("Salud bucal referida", saludBucalReferida, { vm.setSaludBucalReferida(it) }, false, null)
+
+    MedicoEscolarCheckbox(
+        label = "Cartilla de vacunación actualizada",
+        checked = cartillaVacunacionActualizada,
+        onCheckedChange = { vm.setCartillaVacunacionActualizada(it) }
+    )
+}
+
+@Composable
+private fun MedicoEscolarCheckbox(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(SaseBgSoft)
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Checkbox(checked = checked, onCheckedChange = onCheckedChange)
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(label, fontSize = 12.sp, color = SaseNavy, fontWeight = FontWeight.Medium)
+    }
 }
 
 // ── STEP 4: Documentos (placeholder) ────────────────────────────

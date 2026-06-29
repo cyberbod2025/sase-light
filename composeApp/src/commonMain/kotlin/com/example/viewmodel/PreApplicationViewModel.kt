@@ -83,6 +83,61 @@ class PreApplicationViewModel {
     private val _autorizados = MutableStateFlow<List<AutorizadoItem>>(emptyList())
     val autorizados: StateFlow<List<AutorizadoItem>> = _autorizados.asStateFlow()
 
+    // Block E — Médico Escolar declarativo familiar
+    private val _servicioMedico = MutableStateFlow("")
+    val servicioMedico: StateFlow<String> = _servicioMedico.asStateFlow()
+
+    private val _numeroAfiliacionPoliza = MutableStateFlow("")
+    val numeroAfiliacionPoliza: StateFlow<String> = _numeroAfiliacionPoliza.asStateFlow()
+
+    private val _tipoSangre = MutableStateFlow("")
+    val tipoSangre: StateFlow<String> = _tipoSangre.asStateFlow()
+
+    private val _tieneAlergias = MutableStateFlow(false)
+    val tieneAlergias: StateFlow<Boolean> = _tieneAlergias.asStateFlow()
+
+    private val _alergiasDetalle = MutableStateFlow("")
+    val alergiasDetalle: StateFlow<String> = _alergiasDetalle.asStateFlow()
+
+    private val _tienePadecimientos = MutableStateFlow(false)
+    val tienePadecimientos: StateFlow<Boolean> = _tienePadecimientos.asStateFlow()
+
+    private val _padecimientosDetalle = MutableStateFlow("")
+    val padecimientosDetalle: StateFlow<String> = _padecimientosDetalle.asStateFlow()
+
+    private val _tomaMedicamentos = MutableStateFlow(false)
+    val tomaMedicamentos: StateFlow<Boolean> = _tomaMedicamentos.asStateFlow()
+
+    private val _medicamentosDetalle = MutableStateFlow("")
+    val medicamentosDetalle: StateFlow<String> = _medicamentosDetalle.asStateFlow()
+
+    private val _restriccionActividadFisica = MutableStateFlow(false)
+    val restriccionActividadFisica: StateFlow<Boolean> = _restriccionActividadFisica.asStateFlow()
+
+    private val _restriccionActividadFisicaDetalle = MutableStateFlow("")
+    val restriccionActividadFisicaDetalle: StateFlow<String> = _restriccionActividadFisicaDetalle.asStateFlow()
+
+    private val _usaLentes = MutableStateFlow(false)
+    val usaLentes: StateFlow<Boolean> = _usaLentes.asStateFlow()
+
+    private val _dificultadVisualReferida = MutableStateFlow(false)
+    val dificultadVisualReferida: StateFlow<Boolean> = _dificultadVisualReferida.asStateFlow()
+
+    private val _dificultadVisualDetalle = MutableStateFlow("")
+    val dificultadVisualDetalle: StateFlow<String> = _dificultadVisualDetalle.asStateFlow()
+
+    private val _dificultadAuditivaReferida = MutableStateFlow(false)
+    val dificultadAuditivaReferida: StateFlow<Boolean> = _dificultadAuditivaReferida.asStateFlow()
+
+    private val _dificultadAuditivaDetalle = MutableStateFlow("")
+    val dificultadAuditivaDetalle: StateFlow<String> = _dificultadAuditivaDetalle.asStateFlow()
+
+    private val _saludBucalReferida = MutableStateFlow("")
+    val saludBucalReferida: StateFlow<String> = _saludBucalReferida.asStateFlow()
+
+    private val _cartillaVacunacionActualizada = MutableStateFlow(false)
+    val cartillaVacunacionActualizada: StateFlow<Boolean> = _cartillaVacunacionActualizada.asStateFlow()
+
     // Validation errors
     private val _errors = MutableStateFlow<Map<String, String>>(emptyMap())
     val errors: StateFlow<Map<String, String>> = _errors.asStateFlow()
@@ -141,6 +196,25 @@ class PreApplicationViewModel {
     fun removeAutorizado(id: String) {
         _autorizados.value = _autorizados.value.filter { it.id != id }
     }
+
+    fun setServicioMedico(v: String) { _servicioMedico.value = v }
+    fun setNumeroAfiliacionPoliza(v: String) { _numeroAfiliacionPoliza.value = v }
+    fun setTipoSangre(v: String) { _tipoSangre.value = v }
+    fun setTieneAlergias(v: Boolean) { _tieneAlergias.value = v }
+    fun setAlergiasDetalle(v: String) { _alergiasDetalle.value = v }
+    fun setTienePadecimientos(v: Boolean) { _tienePadecimientos.value = v }
+    fun setPadecimientosDetalle(v: String) { _padecimientosDetalle.value = v }
+    fun setTomaMedicamentos(v: Boolean) { _tomaMedicamentos.value = v }
+    fun setMedicamentosDetalle(v: String) { _medicamentosDetalle.value = v }
+    fun setRestriccionActividadFisica(v: Boolean) { _restriccionActividadFisica.value = v }
+    fun setRestriccionActividadFisicaDetalle(v: String) { _restriccionActividadFisicaDetalle.value = v }
+    fun setUsaLentes(v: Boolean) { _usaLentes.value = v }
+    fun setDificultadVisualReferida(v: Boolean) { _dificultadVisualReferida.value = v }
+    fun setDificultadVisualDetalle(v: String) { _dificultadVisualDetalle.value = v }
+    fun setDificultadAuditivaReferida(v: Boolean) { _dificultadAuditivaReferida.value = v }
+    fun setDificultadAuditivaDetalle(v: String) { _dificultadAuditivaDetalle.value = v }
+    fun setSaludBucalReferida(v: String) { _saludBucalReferida.value = v }
+    fun setCartillaVacunacionActualizada(v: Boolean) { _cartillaVacunacionActualizada.value = v }
 
     private fun validateStep(step: Int): Boolean {
         val errs = mutableMapOf<String, String>()
@@ -202,6 +276,24 @@ class PreApplicationViewModel {
         _responsableViveConAlumno.value = true
         _responsablePuedeRecoger.value = true
         _autorizados.value = emptyList()
+        _servicioMedico.value = ""
+        _numeroAfiliacionPoliza.value = ""
+        _tipoSangre.value = ""
+        _tieneAlergias.value = false
+        _alergiasDetalle.value = ""
+        _tienePadecimientos.value = false
+        _padecimientosDetalle.value = ""
+        _tomaMedicamentos.value = false
+        _medicamentosDetalle.value = ""
+        _restriccionActividadFisica.value = false
+        _restriccionActividadFisicaDetalle.value = ""
+        _usaLentes.value = false
+        _dificultadVisualReferida.value = false
+        _dificultadVisualDetalle.value = ""
+        _dificultadAuditivaReferida.value = false
+        _dificultadAuditivaDetalle.value = ""
+        _saludBucalReferida.value = ""
+        _cartillaVacunacionActualizada.value = false
         _errors.value = emptyMap()
         _submittedFolio.value = null
     }
