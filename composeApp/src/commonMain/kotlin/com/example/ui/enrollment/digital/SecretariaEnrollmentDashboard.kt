@@ -44,6 +44,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -388,6 +390,9 @@ private fun EnrollmentListItem(enrollment: Enrollment, selected: Boolean, onClic
 
 @Composable
 private fun EnrollmentDetailPanel(enrollment: Enrollment, modifier: Modifier = Modifier) {
+    val tabs = listOf("Identidad", "Documentos", "Credencial", "Datos")
+    var selectedTab by remember { mutableStateOf(0) }
+
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
@@ -398,7 +403,7 @@ private fun EnrollmentDetailPanel(enrollment: Enrollment, modifier: Modifier = M
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // ── Header ──
+        // ── Header always visible ──
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -412,7 +417,61 @@ private fun EnrollmentDetailPanel(enrollment: Enrollment, modifier: Modifier = M
             StatusBadge(label = enrollmentStatusLabel(enrollment.status), color = enrollmentStatusColor(enrollment.status))
         }
 
-        // ── Tutores ──
+        // ── Tab selector ──
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = Color.Transparent,
+            contentColor = SaseNavy
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                )
+            }
+        }
+
+        // ── Tab content ──
+        when (selectedTab) {
+            0 -> IdentidadTab(enrollment)
+            1 -> DocumentosTab(enrollment)
+            2 -> CredencialTab(enrollment)
+            3 -> DatosTab(enrollment)
+        }
+    }
+}
+
+@Composable
+private fun IdentidadTab(enrollment: Enrollment) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ValidationSection(enrollment.identityChecklist)
+        PresenterSection(enrollment.presenter)
+        AuthorizedPickupsSection(enrollment.authorizedPickups)
+    }
+}
+
+@Composable
+private fun DocumentosTab(enrollment: Enrollment) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        enrollment.documents.forEach { document -> ChecklistRow(document) }
+        if (enrollment.riskFlags.isNotEmpty()) {
+            SectionTitle("Alertas")
+            enrollment.riskFlags.forEach { flag ->
+                DetailLine(flag.label, "${flag.severity}: ${flag.detail}")
+            }
+        }
+    }
+}
+
+@Composable
+private fun CredencialTab(enrollment: Enrollment) {
+    CredentialSection(enrollment)
+}
+
+@Composable
+private fun DatosTab(enrollment: Enrollment) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionTitle("Tutores")
         enrollment.contacts.forEach { contact ->
             DetailLine(
@@ -420,8 +479,6 @@ private fun EnrollmentDetailPanel(enrollment: Enrollment, modifier: Modifier = M
                 value = "${contact.fullName} - ${contact.phone}"
             )
         }
-
-        // ── Ficha medica ──
         SectionTitle("Ficha medica")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             MedicalChip("Sangre ${enrollment.medicalRecord.bloodType}", Icons.Default.HealthAndSafety, SaseRed, Modifier.weight(1f))
@@ -429,55 +486,6 @@ private fun EnrollmentDetailPanel(enrollment: Enrollment, modifier: Modifier = M
         }
         DetailLine("Alergias", enrollment.medicalRecord.allergies)
         DetailLine("Medicacion", enrollment.medicalRecord.medication)
-
-        // ── Checklist documental ──
-        SectionTitle("Checklist documental")
-        enrollment.documents.forEach { document -> ChecklistRow(document) }
-
-        if (enrollment.riskFlags.isNotEmpty()) {
-            SectionTitle("Alertas")
-            enrollment.riskFlags.forEach { flag ->
-                DetailLine(flag.label, "${flag.severity}: ${flag.detail}")
-            }
-        }
-
-        // ══════════════════════════════════════════════════════════
-        //  v1.1A — IDENTITY & CREDENTIAL SECTIONS
-        // ══════════════════════════════════════════════════════════
-
-        IdentitySummarySection(enrollment)
-        PresenterSection(enrollment.presenter)
-        AuthorizedPickupsSection(enrollment.authorizedPickups)
-        ValidationSection(enrollment.identityChecklist)
-        CredentialSection(enrollment)
-    }
-}
-
-// ── v1.1A: Identity Summary (quick-glance badges) ────────────────
-
-@Composable
-private fun IdentitySummarySection(enrollment: Enrollment) {
-    val cl = enrollment.identityChecklist
-    SectionTitleWithIcon("Identidad", Icons.Default.Fingerprint, SaseViolet)
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        IdentityBadge("Foto alumno", cl.studentPhotographed)
-        IdentityBadge("Foto tutor", cl.tutorPhotographed)
-        IdentityBadge("INE", cl.ineVerified)
-    }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        IdentityBadge("Autorizados", cl.authorizedPickupsRegistered)
-        IdentityBadge("Docs", cl.documentsComplete)
-        IdentityBadge(
-            if (cl.expedienteComplete) "Expediente OK" else "Expediente pendiente",
-            cl.expedienteComplete
-        )
     }
 }
 
