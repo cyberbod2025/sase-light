@@ -99,7 +99,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                         0 -> StepDatosBasicos(familyViewModel)
                         1 -> StepContactos(familyViewModel)
                         2 -> StepContextoFamiliar(familyViewModel)
-                        3 -> StepDocumentos()
+                        3 -> StepDocumentos(familyViewModel)
                         4 -> StepResumenEnvio(familyViewModel)
                     }
                 }
@@ -735,6 +735,81 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
         onSelect = { vm.setHorarioPreferenteComunicacion(it) }
     )
     DeclarativeCheckbox("Posibilidad de acudir a citatorios", puedeAcudirCitatorios, { vm.setPuedeAcudirCitatorios(it) })
+
+    Spacer(modifier = Modifier.height(8.dp))
+    UdeiiSection(vm)
+}
+
+@Composable
+private fun UdeiiSection(vm: PreApplicationViewModel) {
+    val antecedenteApoyo by vm.udeiiAntecedenteApoyo.collectAsState()
+    val terapiaLenguaje by vm.udeiiTerapiaLenguaje.collectAsState()
+    val apoyoPsicologico by vm.udeiiApoyoPsicologico.collectAsState()
+    val apoyoPedagogico by vm.udeiiApoyoPedagogico.collectAsState()
+    val documentosDisponibles by vm.udeiiDocumentosDisponibles.collectAsState()
+    val informeEscuelaAnterior by vm.udeiiInformeEscuelaAnterior.collectAsState()
+    val evaluacionPsicopedagogica by vm.udeiiEvaluacionPsicopedagogica.collectAsState()
+    val planIntervencion by vm.udeiiPlanIntervencion.collectAsState()
+    val portafolio by vm.udeiiPortafolio.collectAsState()
+    val observaciones by vm.udeiiObservaciones.collectAsState()
+
+    Text("Apoyos Educativos Previos (UDEII)", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text(
+        "La familia declara antecedentes escolares. UDEII complementara despues la evaluacion funcional.",
+        fontSize = 12.sp, color = SaseMuted
+    )
+
+    Box(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .background(SaseViolet.copy(alpha = 0.06f))
+            .border(1.dp, SaseViolet.copy(alpha = 0.14f), RoundedCornerShape(12.dp))
+            .padding(12.dp)
+    ) {
+        Text("Estos campos son opcionales y no bloquean el envio.", fontSize = 11.sp, color = SaseNavy, fontWeight = FontWeight.Medium)
+    }
+
+    Text("Antecedente de apoyo", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        listOf("USAER", "CAM", "Otro", "Ninguno").forEach { opt ->
+            val selected = antecedenteApoyo == opt
+            Box(
+                modifier = Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                    .background(if (selected) SaseViolet else SaseBgSoft)
+                    .clickable { vm.setUdeiiAntecedenteApoyo(opt) }
+                    .padding(vertical = 9.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(opt, color = if (selected) Color.White else SaseNavy,
+                    fontSize = 10.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(6.dp))
+    Text("Apoyos recibidos", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    DeclarativeCheckbox("Terapia de lenguaje", terapiaLenguaje, { vm.setUdeiiTerapiaLenguaje(it) })
+    DeclarativeCheckbox("Apoyo psicologico externo", apoyoPsicologico, { vm.setUdeiiApoyoPsicologico(it) })
+    DeclarativeCheckbox("Apoyo pedagogico externo", apoyoPedagogico, { vm.setUdeiiApoyoPedagogico(it) })
+
+    Spacer(modifier = Modifier.height(6.dp))
+    FormField("Documentos disponibles (descripcion)", documentosDisponibles, { vm.setUdeiiDocumentosDisponibles(it) }, false, null)
+
+    Spacer(modifier = Modifier.height(6.dp))
+    Text("Documentacion educativa disponible", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    DeclarativeCheckbox("Informe de escuela anterior", informeEscuelaAnterior, { vm.setUdeiiInformeEscuelaAnterior(it) })
+    DeclarativeCheckbox("Evaluacion psicopedagogica", evaluacionPsicopedagogica, { vm.setUdeiiEvaluacionPsicopedagogica(it) })
+    DeclarativeCheckbox("Plan de intervencion", planIntervencion, { vm.setUdeiiPlanIntervencion(it) })
+    DeclarativeCheckbox("Portafolio", portafolio, { vm.setUdeiiPortafolio(it) })
+
+    Spacer(modifier = Modifier.height(6.dp))
+    OutlinedTextField(
+        value = observaciones,
+        onValueChange = { vm.setUdeiiObservaciones(it) },
+        label = { Text("Observaciones familiares sobre aprendizaje") },
+        modifier = Modifier.fillMaxWidth(),
+        maxLines = 4
+    )
+    Spacer(modifier = Modifier.height(6.dp))
 }
 
 @Composable
@@ -797,16 +872,74 @@ private fun CompactOptionGroup(
     }
 }
 
-// ── STEP 4: Documentos (placeholder) ────────────────────────────
+// ── STEP 4: Documentos y Consentimientos ────────────────────────────
 
 @Composable
-private fun StepDocumentos() {
-    PlaceholderStep(
-        title = "Documentos y Consentimientos",
-        description = "Declara los documentos que presentaras y acepta los terminos institucionales.",
-        phase = "2A",
-        nextSection = "Documentos declarados, Consentimientos, Avisos"
-    )
+private fun StepDocumentos(vm: PreApplicationViewModel) {
+    val documentos by vm.documentos.collectAsState()
+    val consentimientos by vm.consentimientos.collectAsState()
+    val errors by vm.errors.collectAsState()
+
+    Text("Documentos", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Indica los documentos que presentaras en Secretaria para cotejo.", fontSize = 12.sp, color = SaseMuted)
+
+    documentos.forEach { doc ->
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(SaseBgSoft)
+                .clickable { vm.toggleDocumento(doc.key) }
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            Checkbox(checked = doc.declarado, onCheckedChange = { vm.toggleDocumento(doc.key) })
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(doc.label, fontSize = 12.sp, color = SaseNavy, fontWeight = FontWeight.Medium)
+        }
+    }
+
+    Spacer(modifier = Modifier.height(4.dp))
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(SaseOrange.copy(alpha = 0.08f))
+            .padding(10.dp)
+    ) {
+        Text(
+            "La entrega y cotejo documental se realizara en Secretaria.",
+            fontSize = 11.sp, color = SaseOrange, fontWeight = FontWeight.Medium
+        )
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+    Text("Consentimientos", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Tu aceptacion es declarativa. Secretaria imprimira y recabara firma despues.", fontSize = 12.sp, color = SaseMuted)
+
+    consentimientos.forEach { cons ->
+        val hasError = errors.containsKey("consentimiento${cons.key.replaceFirstChar { it.uppercaseChar() }}")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (hasError) SaseRed.copy(alpha = 0.08f) else SaseBgSoft)
+                .clickable { vm.toggleConsentimiento(cons.key) }
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            Checkbox(checked = cons.aceptado, onCheckedChange = { vm.toggleConsentimiento(cons.key) })
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(cons.label, fontSize = 12.sp, color = SaseNavy, fontWeight = FontWeight.Medium)
+        }
+    }
+
+    if (errors.containsKey("consentimientoUsoDatos")) {
+        Text("El consentimiento de uso de datos para expediente es obligatorio.", fontSize = 11.sp, color = SaseRed)
+    }
+    if (errors.containsKey("consentimientoCorresponsabilidad")) {
+        Text("El consentimiento de corresponsabilidad familiar es obligatorio.", fontSize = 11.sp, color = SaseRed)
+    }
 }
 
 // ── STEP 5: Resumen y Envio ─────────────────────────────────────
@@ -822,6 +955,8 @@ private fun StepResumenEnvio(vm: PreApplicationViewModel) {
     val telefono by vm.telefonoPrincipal.collectAsState()
     val correo by vm.correo.collectAsState()
     val acepta by vm.aceptaAvisoPrivacidad.collectAsState()
+    val documentos by vm.documentos.collectAsState()
+    val consentimientos by vm.consentimientos.collectAsState()
 
     Text("Resumen y Envio", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
     Text("Revisa tus datos antes de enviar.", fontSize = 12.sp, color = SaseMuted)
@@ -837,6 +972,17 @@ private fun StepResumenEnvio(vm: PreApplicationViewModel) {
             SummaryLine("Telefono", telefono)
             if (correo.isNotBlank()) SummaryLine("Correo", correo)
             SummaryLine("Aviso privacidad", if (acepta) "Aceptado" else "Pendiente", if (acepta) SaseGreen else SaseRed)
+        }
+    }
+
+    Spacer(modifier = Modifier.height(8.dp))
+    GlassCard {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val docsCount = documentos.count { it.declarado }
+            SummaryLine("Documentos declarados", "$docsCount de ${documentos.size}")
+            val reqs = listOf("usoDatos", "corresponsabilidad")
+            val ok = reqs.all { k -> consentimientos.find { it.key == k }?.aceptado == true }
+            SummaryLine("Consentimientos requeridos", if (ok) "Completos" else "Pendientes", if (ok) SaseGreen else SaseRed)
         }
     }
 

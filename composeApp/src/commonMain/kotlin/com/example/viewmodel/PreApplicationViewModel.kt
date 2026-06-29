@@ -193,6 +193,76 @@ class PreApplicationViewModel {
     private val _puedeAcudirCitatorios = MutableStateFlow(false)
     val puedeAcudirCitatorios: StateFlow<Boolean> = _puedeAcudirCitatorios.asStateFlow()
 
+    // ── UDEII (Step 3) ──
+    private val _udeiiAntecedenteApoyo = MutableStateFlow("")
+    val udeiiAntecedenteApoyo: StateFlow<String> = _udeiiAntecedenteApoyo.asStateFlow()
+
+    private val _udeiiTerapiaLenguaje = MutableStateFlow(false)
+    val udeiiTerapiaLenguaje: StateFlow<Boolean> = _udeiiTerapiaLenguaje.asStateFlow()
+
+    private val _udeiiApoyoPsicologico = MutableStateFlow(false)
+    val udeiiApoyoPsicologico: StateFlow<Boolean> = _udeiiApoyoPsicologico.asStateFlow()
+
+    private val _udeiiApoyoPedagogico = MutableStateFlow(false)
+    val udeiiApoyoPedagogico: StateFlow<Boolean> = _udeiiApoyoPedagogico.asStateFlow()
+
+    private val _udeiiDocumentosDisponibles = MutableStateFlow("")
+    val udeiiDocumentosDisponibles: StateFlow<String> = _udeiiDocumentosDisponibles.asStateFlow()
+
+    private val _udeiiInformeEscuelaAnterior = MutableStateFlow(false)
+    val udeiiInformeEscuelaAnterior: StateFlow<Boolean> = _udeiiInformeEscuelaAnterior.asStateFlow()
+
+    private val _udeiiEvaluacionPsicopedagogica = MutableStateFlow(false)
+    val udeiiEvaluacionPsicopedagogica: StateFlow<Boolean> = _udeiiEvaluacionPsicopedagogica.asStateFlow()
+
+    private val _udeiiPlanIntervencion = MutableStateFlow(false)
+    val udeiiPlanIntervencion: StateFlow<Boolean> = _udeiiPlanIntervencion.asStateFlow()
+
+    private val _udeiiPortafolio = MutableStateFlow(false)
+    val udeiiPortafolio: StateFlow<Boolean> = _udeiiPortafolio.asStateFlow()
+
+    private val _udeiiObservaciones = MutableStateFlow("")
+    val udeiiObservaciones: StateFlow<String> = _udeiiObservaciones.asStateFlow()
+
+    // ── Documentos declarativos (Step 4) ──
+    data class DocumentoItem(val key: String, val label: String, val declarado: Boolean = false)
+
+    private val _documentos = MutableStateFlow(listOf(
+        DocumentoItem("actaNacimiento", "Acta de nacimiento"),
+        DocumentoItem("curpDoc", "CURP"),
+        DocumentoItem("boleta", "Boleta / Certificado"),
+        DocumentoItem("comprobanteDomicilio", "Comprobante de domicilio"),
+        DocumentoItem("ineResponsable", "INE del responsable"),
+        DocumentoItem("documentoMedico", "Documento médico (si aplica)"),
+        DocumentoItem("documentoUdeii", "Documento UDEII/USAER/CAM (si aplica)"),
+        DocumentoItem("custodia", "Resolución de custodia (si aplica)"),
+        DocumentoItem("otro", "Otro documento relevante")
+    ))
+    val documentos: StateFlow<List<DocumentoItem>> = _documentos.asStateFlow()
+
+    fun toggleDocumento(key: String) {
+        _documentos.value = _documentos.value.map { if (it.key == key) it.copy(declarado = !it.declarado) else it }
+    }
+
+    // ── Consentimientos (Step 4) ──
+    data class ConsentimientoItem(val key: String, val label: String, val aceptado: Boolean = false)
+
+    private val _consentimientos = MutableStateFlow(listOf(
+        ConsentimientoItem("usoDatos", "Uso de datos para expediente"),
+        ConsentimientoItem("fotoAlumno", "Fotografía del alumno"),
+        ConsentimientoItem("fotoCredencial", "Fotografía para credencial"),
+        ConsentimientoItem("fotoAutorizados", "Fotografía de autorizados"),
+        ConsentimientoItem("comunicacion", "Comunicación por WhatsApp/teléfono/correo"),
+        ConsentimientoItem("reglamento", "Conocimiento del Reglamento Escolar Interno"),
+        ConsentimientoItem("marcoConvivencia", "Conocimiento del Marco para la Convivencia"),
+        ConsentimientoItem("corresponsabilidad", "Corresponsabilidad familiar")
+    ))
+    val consentimientos: StateFlow<List<ConsentimientoItem>> = _consentimientos.asStateFlow()
+
+    fun toggleConsentimiento(key: String) {
+        _consentimientos.value = _consentimientos.value.map { if (it.key == key) it.copy(aceptado = !it.aceptado) else it }
+    }
+
     // Validation errors
     private val _errors = MutableStateFlow<Map<String, String>>(emptyMap())
     val errors: StateFlow<Map<String, String>> = _errors.asStateFlow()
@@ -290,6 +360,17 @@ class PreApplicationViewModel {
     fun setHorarioPreferenteComunicacion(v: String) { _horarioPreferenteComunicacion.value = v }
     fun setPuedeAcudirCitatorios(v: Boolean) { _puedeAcudirCitatorios.value = v }
 
+    fun setUdeiiAntecedenteApoyo(v: String) { _udeiiAntecedenteApoyo.value = v }
+    fun setUdeiiTerapiaLenguaje(v: Boolean) { _udeiiTerapiaLenguaje.value = v }
+    fun setUdeiiApoyoPsicologico(v: Boolean) { _udeiiApoyoPsicologico.value = v }
+    fun setUdeiiApoyoPedagogico(v: Boolean) { _udeiiApoyoPedagogico.value = v }
+    fun setUdeiiDocumentosDisponibles(v: String) { _udeiiDocumentosDisponibles.value = v }
+    fun setUdeiiInformeEscuelaAnterior(v: Boolean) { _udeiiInformeEscuelaAnterior.value = v }
+    fun setUdeiiEvaluacionPsicopedagogica(v: Boolean) { _udeiiEvaluacionPsicopedagogica.value = v }
+    fun setUdeiiPlanIntervencion(v: Boolean) { _udeiiPlanIntervencion.value = v }
+    fun setUdeiiPortafolio(v: Boolean) { _udeiiPortafolio.value = v }
+    fun setUdeiiObservaciones(v: String) { _udeiiObservaciones.value = v }
+
     private fun validateStep(step: Int): Boolean {
         val errs = mutableMapOf<String, String>()
         when (step) {
@@ -306,15 +387,32 @@ class PreApplicationViewModel {
                 if (_responsableParentesco.value.isBlank()) errs["parentesco"] = "Parentesco obligatorio"
                 if (_responsableTelefono.value.length < 10) errs["responsableTel"] = "Teléfono 10 dígitos requerido"
             }
+            4 -> {
+                val usoDatos = _consentimientos.value.find { it.key == "usoDatos" }?.aceptado == true
+                val corresponsabilidad = _consentimientos.value.find { it.key == "corresponsabilidad" }?.aceptado == true
+                if (!usoDatos) errs["consentimientoUsoDatos"] = "Debes aceptar el uso de datos para expediente"
+                if (!corresponsabilidad) errs["consentimientoCorresponsabilidad"] = "Debes aceptar la corresponsabilidad familiar"
+            }
         }
         _errors.value = errs
         return errs.isEmpty()
     }
 
     fun submitApplication() {
-        val success = validateStep(0)
-        if (!success) {
-            _currentStep.value = 0
+        val errs = mutableMapOf<String, String>()
+        if (_nombreCompleto.value.isBlank()) errs["nombre"] = "Obligatorio"
+        if (_curp.value.length != 18) errs["curp"] = "CURP debe tener 18 caracteres"
+        if (_fechaNacimiento.value.isBlank()) errs["fechaNac"] = "Obligatorio"
+        if (_gradoSolicitado.value == 0) errs["grado"] = "Selecciona un grado"
+        if (_telefonoPrincipal.value.length < 10) errs["telefono"] = "10 dígitos requeridos"
+        if (!_aceptaAvisoPrivacidad.value) errs["aviso"] = "Debes aceptar el aviso de privacidad"
+        val usoDatos = _consentimientos.value.find { it.key == "usoDatos" }?.aceptado == true
+        val corresponsabilidad = _consentimientos.value.find { it.key == "corresponsabilidad" }?.aceptado == true
+        if (!usoDatos) errs["consentimientoUsoDatos"] = "Debes aceptar el uso de datos para expediente"
+        if (!corresponsabilidad) errs["consentimientoCorresponsabilidad"] = "Debes aceptar la corresponsabilidad familiar"
+        if (errs.isNotEmpty()) {
+            _errors.value = errs
+            _currentStep.value = if (usoDatos && corresponsabilidad) 0 else 4
             return
         }
 
@@ -386,6 +484,18 @@ class PreApplicationViewModel {
         _personaAtiendeAvisos.value = ""
         _horarioPreferenteComunicacion.value = ""
         _puedeAcudirCitatorios.value = false
+        _udeiiAntecedenteApoyo.value = ""
+        _udeiiTerapiaLenguaje.value = false
+        _udeiiApoyoPsicologico.value = false
+        _udeiiApoyoPedagogico.value = false
+        _udeiiDocumentosDisponibles.value = ""
+        _udeiiInformeEscuelaAnterior.value = false
+        _udeiiEvaluacionPsicopedagogica.value = false
+        _udeiiPlanIntervencion.value = false
+        _udeiiPortafolio.value = false
+        _udeiiObservaciones.value = ""
+        _documentos.value = _documentos.value.map { it.copy(declarado = false) }
+        _consentimientos.value = _consentimientos.value.map { it.copy(aceptado = false) }
         _errors.value = emptyMap()
         _submittedFolio.value = null
     }
