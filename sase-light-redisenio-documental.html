@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rediseño documental institucional — SASE Light</title>
+<style>
+/* ===== RESET ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;scroll-behavior:smooth}
+body{font-family:"Segoe UI",Arial,sans-serif;color:#0a1e2b;background:#f4f8fc;line-height:1.6}
+
+/* ===== PALETTE ===== */
+:root{
+  --navy:#062b3a;--navy2:#021c28;--blue:#1e5b9e;--blue-light:#e8f0fa;
+  --green:#0f9d58;--green-bg:#e6f5ed;--amber:#e67e22;--amber-bg:#fef5e7;
+  --red:#c0392b;--red-bg:#faeceb;--gray:#5a6a7a;--gray-light:#eef2f6;
+  --gray-border:#d0d9e0;--white:#fff;--black:#0a1e2b;
+}
+
+/* ===== PRINT ===== */
+@media print{body{background:#fff;font-size:12pt}.no-print{display:none!important}
+  section{page-break-inside:avoid;break-inside:avoid;padding:1.5rem 0!important}
+  .card,.matrix-table{box-shadow:none!important;border:1px solid #ccc!important}
+  .hero{min-height:auto!important;padding:3rem 1rem!important}
+  .hero-title{font-size:28pt!important}.hero-sub{font-size:14pt!important}
+}
+
+/* ===== LAYOUT ===== */
+.container{max-width:1100px;margin:0 auto;padding:0 1.5rem}
+
+/* ===== HERO ===== */
+.hero{
+  background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);
+  min-height:70vh;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:4rem 1rem;position:relative;overflow:hidden;
+}
+.hero::before{
+  content:"";position:absolute;top:-30%;left:-10%;width:60%;height:80%;
+  background:radial-gradient(circle,rgba(15,157,88,.08) 0%,transparent 70%);
+  pointer-events:none;
+}
+.hero::after{
+  content:"";position:absolute;bottom:-20%;right:-10%;width:50%;height:70%;
+  background:radial-gradient(circle,rgba(30,91,158,.1) 0%,transparent 70%);
+  pointer-events:none;
+}
+.hero-content{position:relative;z-index:1;max-width:900px}
+.hero-badge{
+  display:inline-block;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
+  border-radius:2rem;padding:.35rem 1.2rem;margin-bottom:1.5rem;
+  color:var(--green);font-size:.8rem;font-weight:600;letter-spacing:.5px;
+}
+.hero-title{
+  font-size:clamp(1.8rem,5vw,3.2rem);font-weight:800;color:#fff;
+  line-height:1.2;margin-bottom:.75rem;
+}
+.hero-sub{
+  font-size:clamp(.95rem,2vw,1.25rem);color:rgba(255,255,255,.7);
+  max-width:700px;margin:0 auto 2rem;line-height:1.5;
+}
+.hero-meta{color:rgba(255,255,255,.5);font-size:.8rem;border-top:1px solid rgba(255,255,255,.1);padding-top:1.5rem;margin-top:1rem}
+
+/* Hero folder visual */
+.hero-folder{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:.5rem;
+  margin-bottom:2rem;
+}
+.hero-folder-item{
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+  border-radius:.75rem;padding:.5rem 1rem;font-size:.75rem;font-weight:600;
+  color:rgba(255,255,255,.8);backdrop-filter:blur(4px);
+  display:flex;align-items:center;gap:.4rem;
+}
+.hero-folder-item::before{
+  content:"";display:inline-block;width:10px;height:12px;
+  border-radius:1px;background:currentColor;opacity:.5;
+  border-bottom-left-radius:2px;border-bottom-right-radius:2px;
+}
+
+/* ===== SECTION ===== */
+section{padding:3.5rem 0}
+.section-header{text-align:center;margin-bottom:2.5rem}
+.section-tag{
+  display:inline-block;background:var(--blue-light);color:var(--blue);
+  font-size:.7rem;font-weight:700;padding:.2rem 1rem;border-radius:2rem;
+  text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem;
+}
+.section-title{
+  font-size:clamp(1.4rem,3vw,2rem);font-weight:800;color:var(--navy);
+  margin-bottom:.5rem;
+}
+.section-sub{
+  color:var(--gray);font-size:clamp(.85rem,1.5vw,1rem);max-width:650px;margin:0 auto;
+}
+.section-alt{background:var(--white)}
+.section-muted{background:var(--gray-light)}
+.section-green{background:var(--green-bg)}
+.section-blue{background:var(--blue-light)}
+
+/* ===== CARDS ===== */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem}
+.card{
+  background:var(--white);border-radius:1rem;padding:1.5rem;
+  box-shadow:0 2px 8px rgba(0,0,0,.04);border:1px solid var(--gray-border);
+  transition:box-shadow .2s;
+}
+.card:hover{box-shadow:0 4px 16px rgba(0,0,0,.07)}
+.card-icon{
+  width:2.5rem;height:2.5rem;border-radius:.75rem;display:flex;
+  align-items:center;justify-content:center;margin-bottom:.75rem;
+  font-size:1.2rem;font-weight:700;
+}
+.card-icon--amber{background:var(--amber-bg);color:var(--amber)}
+.card-icon--red{background:var(--red-bg);color:var(--red)}
+.card-icon--green{background:var(--green-bg);color:var(--green)}
+.card-icon--blue{background:var(--blue-light);color:var(--blue)}
+.card-icon--gray{background:var(--gray-light);color:var(--gray)}
+.card h4{font-size:.9rem;font-weight:700;color:var(--navy);margin-bottom:.35rem}
+.card p{font-size:.82rem;color:var(--gray);line-height:1.5}
+.card--warning{border-left:3px solid var(--amber)}
+.card--danger{border-left:3px solid var(--red)}
+.card--success{border-left:3px solid var(--green)}
+.card--info{border-left:3px solid var(--blue)}
+
+/* ===== QUOTE ===== */
+.quote-block{
+  background:var(--navy);color:#fff;border-radius:1rem;padding:2rem;
+  text-align:center;margin:2rem 0;position:relative;
+}
+.quote-block::before{
+  content:""";position:absolute;top:.5rem;left:1.5rem;
+  font-size:5rem;line-height:1;color:rgba(255,255,255,.06);
+}
+.quote-block p{font-size:1.05rem;font-style:italic;max-width:750px;margin:0 auto;line-height:1.6}
+.quote-block--green{background:var(--green)}
+
+/* ===== TABLE ===== */
+.table-wrapper{overflow-x:auto;border-radius:1rem;border:1px solid var(--gray-border);background:var(--white)}
+.matrix-table{width:100%;border-collapse:collapse;font-size:.78rem;min-width:800px}
+.matrix-table th{
+  background:var(--navy);color:#fff;padding:.7rem .6rem;text-align:left;
+  font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.3px;
+  white-space:nowrap;
+}
+.matrix-table td{padding:.65rem .6rem;border-bottom:1px solid var(--gray-light);vertical-align:top}
+.matrix-table tr:last-child td{border-bottom:none}
+.matrix-table tr:hover td{background:var(--blue-light)}
+.badge-area{
+  display:inline-block;font-size:.65rem;font-weight:700;padding:.15rem .6rem;
+  border-radius:2rem;white-space:nowrap;
+}
+.badge-secretaria{background:var(--blue-light);color:var(--blue)}
+.badge-direccion{background:var(--navy);color:#fff}
+.badge-medico{background:var(--green-bg);color:var(--green)}
+.badge-tsocial{background:var(--amber-bg);color:var(--amber)}
+.badge-udeii{background:#e8d5f5;color:#7b2d8e}
+.badge-docente{background:var(--gray-light);color:var(--gray)}
+
+/* ===== DIAGRAM ===== */
+.diagram{
+  display:flex;flex-wrap:wrap;gap:1.5rem;justify-content:center;
+  padding:1.5rem 0;
+}
+.diagram-area{
+  flex:1;min-width:160px;max-width:200px;
+  background:var(--white);border-radius:1rem;padding:1rem;
+  border:1px solid var(--gray-border);text-align:center;
+}
+.diagram-area h5{
+  font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.5rem;
+  padding-bottom:.4rem;border-bottom:2px solid var(--gray-light);
+}
+.diagram-area ul{list-style:none;font-size:.7rem;color:var(--gray);line-height:1.7;text-align:left}
+.diagram-area ul li::before{content:"▸ ";color:var(--blue);font-weight:700}
+.diagram-arrow{
+  display:flex;align-items:center;color:var(--gray);font-size:1.2rem;
+  writing-mode:vertical-lr;padding:.25rem;
+}
+.diagram-flow{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:center;
+  gap:.75rem;padding:1rem 0;
+}
+.diagram-step{
+  background:var(--white);border-radius:.75rem;padding:.6rem 1rem;
+  border:1px solid var(--gray-border);font-size:.75rem;font-weight:600;
+  color:var(--navy);display:flex;align-items:center;gap:.4rem;
+}
+.diagram-step .step-num{
+  background:var(--navy);color:#fff;width:1.5rem;height:1.5rem;
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:.65rem;font-weight:700;flex-shrink:0;
+}
+.diagram-connector{color:var(--gray);font-size:.8rem;font-weight:700}
+
+/* ===== TIMELINE ===== */
+.timeline{position:relative;padding-left:2rem;margin:1.5rem 0}
+.timeline::before{
+  content:"";position:absolute;left:.6rem;top:0;bottom:0;
+  width:2px;background:var(--gray-border);
+}
+.timeline-item{position:relative;padding-bottom:1.5rem}
+.timeline-item::before{
+  content:"";position:absolute;left:-1.65rem;top:.35rem;
+  width:12px;height:12px;border-radius:50%;background:var(--blue);
+  border:2px solid var(--white);box-shadow:0 0 0 2px var(--blue);
+}
+.timeline-item:last-child::before{background:var(--green);box-shadow:0 0 0 2px var(--green)}
+.timeline-item h5{font-size:.9rem;font-weight:700;color:var(--navy);margin-bottom:.2rem}
+.timeline-item p{font-size:.8rem;color:var(--gray);line-height:1.4}
+
+/* ===== FORMAT MOCKUP ===== */
+.format-mockup{
+  background:var(--white);border-radius:1rem;border:2px solid var(--gray-border);
+  padding:0;overflow:hidden;max-width:700px;margin:1.5rem auto;
+  box-shadow:0 4px 20px rgba(0,0,0,.06);
+}
+.format-header{
+  background:var(--navy);color:#fff;padding:.8rem 1.2rem;
+  display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;
+  gap:.5rem;font-size:.75rem;
+}
+.format-header .folio{font-weight:700;letter-spacing:.3px}
+.format-header .status-badge{
+  display:inline-block;padding:.15rem .8rem;border-radius:2rem;
+  font-size:.65rem;font-weight:700;
+}
+.status-pendiente{background:var(--amber);color:#fff}
+.status-observado{background:var(--red);color:#fff}
+.status-validado{background:var(--green);color:#fff}
+.status-cerrado{background:var(--gray);color:#fff}
+.format-body{padding:1.2rem;font-size:.78rem}
+.format-row{
+  display:flex;flex-wrap:wrap;gap:.4rem 1rem;
+  padding:.35rem 0;border-bottom:1px dotted var(--gray-light);
+}
+.format-label{color:var(--gray);min-width:120px;font-weight:600}
+.format-value{color:var(--black);font-weight:500}
+.format-section-title{
+  font-size:.8rem;font-weight:700;color:var(--navy);
+  margin-top:.8rem;margin-bottom:.3rem;padding-top:.5rem;
+  border-top:1px solid var(--gray-border);
+}
+.format-signatures{
+  display:flex;flex-wrap:wrap;gap:1rem;margin-top:1rem;
+  padding-top:.8rem;border-top:2px solid var(--navy);
+}
+.format-signature{flex:1;min-width:180px}
+.format-signature .line{border-bottom:1px solid var(--black);height:2rem;margin-bottom:.2rem}
+.format-signature .label{font-size:.7rem;color:var(--gray);text-align:center}
+.format-footer{
+  background:var(--gray-light);padding:.5rem 1.2rem;
+  display:flex;flex-wrap:wrap;gap:.5rem;font-size:.65rem;color:var(--gray);
+  justify-content:space-between;
+}
+
+/* ===== FLOATING BADGES HERO ===== */
+.floating-badges{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:.4rem;
+  position:relative;margin-top:1.5rem;
+}
+.floating-badges span{
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+  border-radius:2rem;padding:.2rem .9rem;font-size:.7rem;font-weight:600;
+  color:rgba(255,255,255,.85);backdrop-filter:blur(4px);
+}
+
+/* ===== FLOW ARROWS ===== */
+.flow-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.35rem;margin:1.5rem 0}
+.flow-step{
+  background:var(--white);border-radius:.5rem;padding:.4rem .75rem;
+  border:1px solid var(--gray-border);font-size:.72rem;font-weight:600;color:var(--navy);
+  white-space:nowrap;
+}
+.flow-arrow{color:var(--gray);font-size:.8rem;font-weight:700}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:768px){
+  .hero{min-height:auto;padding:3rem 1rem}
+  .card-grid{grid-template-columns:1fr}
+  .diagram-area{min-width:130px}
+  .matrix-table{font-size:.7rem}
+  .matrix-table th,.matrix-table td{padding:.5rem .4rem}
+  .format-row{flex-direction:column;gap:0}
+  .format-label{min-width:auto}
+}
+@media(max-width:480px){
+  section{padding:2rem 0}
+  .hero-title{font-size:1.4rem}
+  .hero-folder-item{font-size:.65rem;padding:.35rem .6rem}
+  .floating-badges span{font-size:.6rem}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+<div class="hero-content">
+  <div class="hero-badge">Frente 1 &middot; Documentaci&oacute;n institucional</div>
+  <h1 class="hero-title">Redise&ntilde;o documental institucional</h1>
+  <p class="hero-sub">Una propuesta para fortalecer formatos escolares, ordenar evidencias y preparar la transici&oacute;n hacia SASE Light.</p>
+  <div class="hero-folder">
+    <span class="hero-folder-item">Inscripci&oacute;n</span>
+    <span class="hero-folder-item">Cotejo documental</span>
+    <span class="hero-folder-item">M&eacute;dico Escolar</span>
+    <span class="hero-folder-item">Trabajo Social</span>
+    <span class="hero-folder-item">UDEEI</span>
+    <span class="hero-folder-item">Credencial</span>
+    <span class="hero-folder-item">Expediente</span>
+  </div>
+  <div class="hero-meta">
+    Escuela Secundaria Diurna No. 310 &ldquo;Presidentes de M&eacute;xico&rdquo; &middot; Turno Vespertino<br>
+    SASE Light &middot; Documento de trabajo para Direcci&oacute;n
+  </div>
+</div>
+</section>
+
+<!-- ===== INTRODUCCION ===== -->
+<section>
+<div class="container">
+  <div class="section-header">
+    <div class="section-tag">Introducci&oacute;n</div>
+    <h2 class="section-title">&iquest;Por qu&eacute; un redise&ntilde;o documental?</h2>
+    <p class="section-sub">La escuela maneja datos y procesos que actualmente pueden estar dispersos. Antes de digitalizar, hay que ordenar.</p>
+  </div>
+  <div class="quote-block">
+    <p>La mejora documental no busca sustituir la experiencia del personal ni desconocer los formatos actuales. Busca fortalecerlos para que cada documento sea m&aacute;s claro, m&aacute;s trazable y m&aacute;s &uacute;til para la toma de decisiones.</p>
+  </div>
+  <div class="card-grid" style="margin-top:1.5rem">
+    <div class="card card--info">
+      <div class="card-icon card-icon--blue">E</div>
+      <h4>Evidencia clara</h4>
+      <p>Un formato no solo debe pedir datos; debe dejar evidencia de qui&eacute;n lo llen&oacute;, cu&aacute;ndo y para qu&eacute; sirve.</p>
+    </div>
+    <div class="card card--success">
+      <div class="card-icon card-icon--green">R</div>
+      <h4>Responsable definido</h4>
+      <p>Cada campo debe tener un responsable de revisi&oacute;n y una fecha que permita seguimiento.</p>
+    </div>
+    <div class="card card--warning">
+      <div class="card-icon card-icon--amber">D</div>
+      <h4>Menos duplicidad</h4>
+      <p>Un dato debe capturarse una sola vez y reutilizarse entre &aacute;reas sin redundancia.</p>
+    </div>
+    <div class="card card--info">
+      <div class="card-icon card-icon--blue">P</div>
+      <h4>Preparaci&oacute;n digital</h4>
+      <p>Cada formato debe dise&ntilde;arse para vivir tanto en papel como dentro de un sistema institucional.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ===== DIAGNÓSTICO ===== -->
+<section class="section-muted">
+<div class="container">
+  <div class="section-header">
+    <div class="section-tag">Diagn&oacute;stico</div>
+    <h2 class="section-title">Lo que suele pasar con los formatos escolares</h2>
+    <p class="section-sub">Problemas frecuentes que justifican una revisi&oacute;n estructurada.</p>
+  </div>
+  <div class="card-grid">
+    <div class="card card--warning"><div class="card-icon card-icon--amber">R</div><h4>Datos repetidos</h4><p>La misma informaci&oacute;n del alumno aparece en varios formatos sin conexi&oacute;n entre s&iacute;.</p></div>
+    <div class="card card--danger"><div class="card-icon card-icon--red">C</div><h4>Campos importantes ausentes</h4><p>Faltan datos clave como CURP completa, contactos de emergencia o folio de pre-solicitud.</p></div>
+    <div class="card card--warning"><div class="card-icon card-icon--amber">F</div><h4>Sin folio &uacute;nico</h4><p>Los documentos no siempre tienen un identificador que permita localizarlos y relacionarlos.</p></div>
+    <div class="card card--danger"><div class="card-icon card-icon--red">R</div><h4>Sin responsable de revisi&oacute;n</h4><p>No siempre queda claro qui&eacute;n revis&oacute;, cu&aacute;ndo y con qu&eacute; resultado.</p></div>
+    <div class="card card--warning"><div class="card-icon card-icon--amber">F</div><h4>Sin fecha de actualizaci&oacute;n</h4><p>La vigencia del documento no es evidente, lo que dificulta saber si est&aacute; vigente o desactualizado.</p></div>
+    <div class="card card--danger"><div class="card-icon card-icon--red">O</div><h4>Observaciones sin seguimiento</h4><p>Las notas no siempre tienen un estatus o una fecha de seguimiento.</p></div>
+    <div class="card card--warning"><div class="card-icon card-icon--amber">D</div><h4>Documentos aislados</h4><p>Los formatos de distintas &aacute;reas no se conectan entre s&iacute; ni alimentan un expediente &uacute;nico.</p></div>
+    <div class="card card--danger"><div class="card-icon card-icon--red">P</div><h4>Dif&iacute;cil saber qu&eacute; falta</h4><p>No hay una vista que le indique a Direcci&oacute;n qu&eacute; documentos est&aacute;n completos y cu&aacute;les est&aacute;n pendientes.</p></div>
+    <div class="card card--warning"><div class="card-icon card-icon--amber">E</div><h4>Riesgo de extrav&iacute;o</h4><p>Los formatos f&iacute;sicos pueden perderse si no hay control de recepci&oacute;n y resguardo.</p></div>
+    <div class="card card--danger"><div class="card-icon card-icon--red">R</div><h4>Reportes dif&iacute;ciles de generar</h4><p>Sin datos estructurados, elaborar un reporte para Direcci&oacute;n requiere revisar cada expediente uno por uno.</p></div>
+  </div>
+</div>
+</section>
+
+<!-- ===== CRITERIOS ===== -->
+<section>
+<div class="container">
+  <div class="section-header">
+    <div class="section-tag">Criterios</div>
+    <h2 class="section-title">Criterios del redise&ntilde;o documental</h2>
+    <p class="section-sub">Cada formato mejorado debe cumplir con estos principios.</p>
+  </div>
+  <div class="card-grid">
+    <div class="card card--success"><div class="card-icon card-icon--green">1</div><h4>Claridad</h4><p>Campos etiquetados, instrucciones visibles, lenguaje institucional claro.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">2</div><h4>Trazabilidad</h4><p>Folio, fecha, responsable y estatus en cada documento.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">3</div><h4>Menos duplicidad</h4><p>Cada dato se captura una vez y se reutiliza entre &aacute;reas.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">4</div><h4>Evidencia de revisi&oacute;n</h4><p>Rastro de qui&eacute;n revis&oacute;, cu&aacute;ndo y con qu&eacute; resultado.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">5</div><h4>Responsables definidos</h4><p>Todo campo y proceso tiene un &aacute;rea o persona responsable.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">6</div><h4>Campos &uacute;tiles</h4><p>La informaci&oacute;n capturada debe servir para seguimiento y toma de decisiones.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">7</div><h4>Compatibilidad con SASE</h4><p>El formato debe poder convertirse en una pantalla o m&oacute;dulo digital.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">8</div><h4>Versi&oacute;n imprimible</h4><p>Debe funcionar tanto en papel como en pantalla.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">9</div><h4>Captura digital futura</h4><p>Posibilidad de captura directa sin perder la estructura documental.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">10</div><h4>Lenguaje institucional</h4><p>Claro para familias, docentes y directivos.</p></div>
+  </div>
+  <div class="quote-block quote-block--green" style="margin-top:2rem">
+    <p>La pregunta gu&iacute;a no es &ldquo;&iquest;qu&eacute; datos podemos pedir?&rdquo;, sino &ldquo;&iquest;qu&eacute; informaci&oacute;n necesita la escuela para atender mejor, documentar mejor y decidir mejor?&rdquo;.</p>
+  </div>
+</div>
+</section>
+
+<!-- ===== MAPA DOCUMENTAL ===== -->
+<section class="section-muted">
+<div class="container">
+  <div class="section-header">
+    <div class="section-tag">Mapa documental</div>
+    <h2 class="section-title">&Aacute;reas y sus formatos</h2>
+    <p class="section-sub">Los formatos escolares se organizan por &aacute;rea, pero deben converger en un expediente institucional &uacute;nico.</p>
+  </div>
+  <div class="diagram">
+    <div class="diagram-area">
+      <h5>Secretar&iacute;a</h5>
+      <ul>
+        <li>Pre-solicitud</li>
+        <li>Ficha de inscripci&oacute;n</li>
+        <li>Cotejo documental</li>
+        <li>Alta oficial</li>
+        <li>Asignaci&oacute;n de grupo</li>
+        <li>Credencial escolar</li>
+      </ul>
+    </div>
+    <div class="diagram-area">
+      <h5>Direcci&oacute;n</h5>
+      <ul>
+        <li>Resumen de altas</li>
+        <li>Reporte de pendientes</li>
+        <li>Alertas institucionales</li>
+        <li>Reporte de seguimiento</li>
+      </ul>
+    </div>
+    <div class="diagram-area">
+      <h5>M&eacute;dico Escolar</h5>
+      <ul>
+        <li>Ficha m&eacute;dica</li>
+        <li>Contactos de emergencia</li>
+        <li>Alergias</li>
+        <li>Condiciones relevantes</li>
+        <li>Autorizaci&oacute;n de atenci&oacute;n</li>
+      </ul>
+    </div>
+    <div class="diagram-area">
+      <h5>Trabajo Social</h5>
+      <ul>
+        <li>Ficha sociofamiliar</li>
+        <li>Citatorios</li>
+        <li>Entrevistas</li>
+        <li>Acuerdos</li>
+        <li>Seguimiento de casos</li>
+      </ul>
+    </div>
+    <div class="diagram-area">
+      <h5>UDEEI</h5>
+      <ul>
+        <li>Registro de BAP</li>
+        <li>Necesidades de apoyo</li>
+        <li>Observaciones</li>
+        <li>Canalizaciones</li>
+        <li>Seguimiento</li>
+      </ul>
+    </div>
+    <div class="diagram-area">
+      <h5>Docentes</h5>
+      <ul>
+        <li>Reporte acad&eacute;mico</li>
+        <li>Reporte de conducta</li>
+        <li>Alertas de seguimiento</li>
+        <li>Observaciones por grupo</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ===== MATRIZ ===== -->
+<section>
+<div class="container">
+  <div class="section-header">
+    <div class="section-tag">Matriz de mejora</div>
+    <h2 class="section-title">Formatos a mejorar</h2>
+    <p class="section-sub">An&aacute;lisis de 20 formatos escolares con problema, mejora propuesta y justificaci&oacute;n institucional.</p>
+  </div>
+  <div class="table-wrapper">
+  <table class="matrix-table">
+  <thead>
+  <tr>
+    <th style="width:18%">Formato</th>
+    <th style="width:9%">&Aacute;rea</th>
+    <th style="width:23%">Problema actual probable</th>
+    <th style="width:24%">Mejora propuesta</th>
+    <th style="width:26%">Justificaci&oacute;n institucional</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr>
+    <td><strong>Pre-solicitud de inscripci&oacute;n</strong></td>
+    <td><span class="badge-area badge-secretaria">Secretar&iacute;a</span></td>
+    <td>Puede duplicar datos que despu&eacute;s se vuelven a pedir en inscripci&oacute;n.</td>
+    <td>Usarla como captura inicial &uacute;nica con folio, datos b&aacute;sicos, responsables y autorizaci&oacute;n de tratamiento interno.</td>
+    <td>Permite iniciar expediente desde el primer contacto y evita recaptura. Alimenta la bandeja de Secretar&iacute;a y el expediente provisional en SASE.</td>
+  </tr>
+  <tr>
+    <td><strong>Ficha de inscripci&oacute;n</strong></td>
+    <td><span class="badge-area badge-secretaria">Secretar&iacute;a</span></td>
+    <td>Suele pedir datos que ya se capturaron en la pre-solicitud.</td>
+    <td>Integrarla como complemento de la pre-solicitud, no como formato independiente. Agregar campos &uacute;nicos de inscripci&oacute;n.</td>
+    <td>Reduce carga administrativa y evita errores por doble captura. Conecta con el alta oficial en SASE.</td>
+  </tr>
+  <tr>
+    <td><strong>Cotejo documental</strong></td>
+    <td><span class="badge-area badge-secretaria">Secretar&iacute;a</span></td>
+    <td>Puede limitarse a palomear documentos sin dejar observaciones claras.</td>
+    <td>Agregar estado por documento: recibido, pendiente, ilegible, requiere correcci&oacute;n, cotejado.</td>
+    <td>Da trazabilidad y permite informar a la familia qu&eacute; falta corregir. Activa o bloquea readiness para alta oficial en SASE.</td>
+  </tr>
+  <tr>
+    <td><strong>Alta oficial</strong></td>
+    <td><span class="badge-area badge-secretaria">Secretar&iacute;a</span></td>
+    <td>Puede no dejar evidencia del momento exacto en que un alumno queda oficialmente inscrito.</td>
+    <td>Formato con folio, matr&iacute;cula generada, fecha, validaci&oacute;n de Secretar&iacute;a y v&iacute;nculo con expediente maestro.</td>
+    <td>Blinda la inscripci&oacute;n con guardrails y evita duplicados. En SASE dispara la creaci&oacute;n del expediente maestro.</td>
+  </tr>
+  <tr>
+    <td><strong>Asignaci&oacute;n de grupo</strong></td>
+    <td><span class="badge-area badge-secretaria">Secretar&iacute;a</span></td>
+    <td>Puede basarse solo en criterios informales sin dejar registro.</td>
+    <td>Formato con sugerencia por cupo b&aacute;sico, confirmaci&oacute;n de Direcci&oacute;n y fecha de asignaci&oacute;n.</td>
+    <td>Da transparencia a la asignaci&oacute;n y facilita el balance de grupos. En SASE se sincroniza con el expediente.</td>
+  </tr>
+  <tr>
+    <td><strong>Credencial escolar</strong></td>
+    <td><span class="badge-area badge-secretaria">Secretar&iacute;a</span></td>
+    <td>Puede carecer de control de entrega y renovaci&oacute;n.</td>
+    <td>Formato con datos del alumno, vigencia, fecha de entrega y recepci&oacute;n firmada.</td>
+    <td>Permite controlar ciclos de credencializaci&oacute;n. En SASE se asocia al expediente y genera alertas de renovaci&oacute;n.</td>
+  </tr>
+  <tr>
+    <td><strong>Ficha m&eacute;dica</strong></td>
+    <td><span class="badge-area badge-medico">M&eacute;dico Escolar</span></td>
+    <td>Puede quedar aislada del expediente general.</td>
+    <td>Separar datos sensibles, contactos de emergencia, alergias, medicaci&oacute;n y recomendaciones.</td>
+    <td>Permite respuesta m&aacute;s r&aacute;pida ante incidentes y mejor resguardo de informaci&oacute;n sensible. En SASE: m&oacute;dulo M&eacute;dico Escolar con alertas.</td>
+  </tr>
+  <tr>
+    <td><strong>Contactos de emergencia</strong></td>
+    <td><span class="badge-area badge-medico">M&eacute;dico Escolar</span></td>
+    <td>Pueden estar desactualizados o no tener validaci&oacute;n peri&oacute;dica.</td>
+    <td>Agregar fecha de actualizaci&oacute;n, autorizaci&oacute;n de atenci&oacute;n y segundo contacto.</td>
+    <td>Garantiza que la escuela tenga datos vigentes para responder ante emergencias. En SASE: alerta de actualizaci&oacute;n peri&oacute;dica.</td>
+  </tr>
+  <tr>
+    <td><strong>Ficha sociofamiliar</strong></td>
+    <td><span class="badge-area badge-tsocial">Trabajo Social</span></td>
+    <td>Puede ser muy extensa o tener campos que no se usan para seguimiento.</td>
+    <td>Estructurar por bloques: composici&oacute;n familiar, vivienda, salud, ingresos, observaciones.</td>
+    <td>Facilita la intervenci&oacute;n de Trabajo Social y la detecci&oacute;n temprana de necesidades. En SASE: historial sociofamiliar.</td>
+  </tr>
+  <tr>
+    <td><strong>Citatorio</strong></td>
+    <td><span class="badge-area badge-tsocial">Trabajo Social</span></td>
+    <td>Puede no tener acuse de recibo ni seguimiento de asistencia.</td>
+    <td>Agregar folio, fecha, motivo, acuse, resultado de la cita y reprogramaci&oacute;n si aplica.</td>
+    <td>Mejora la comunicaci&oacute;n con las familias y deja evidencia de la gesti&oacute;n. En SASE: alerta de inasistencia a citatorio.</td>
+  </tr>
+  <tr>
+    <td><strong>Registro de entrevista</strong></td>
+    <td><span class="badge-area badge-tsocial">Trabajo Social</span></td>
+    <td>Las observaciones pueden quedar narrativas sin seguimiento verificable.</td>
+    <td>Agregar motivo, acuerdos, fecha de seguimiento, responsable y estatus.</td>
+    <td>Permite dar continuidad a casos y documentar intervenci&oacute;n. En SASE: historial de seguimiento sociofamiliar.</td>
+  </tr>
+  <tr>
+    <td><strong>Acuerdos con familia</strong></td>
+    <td><span class="badge-area badge-tsocial">Trabajo Social</span></td>
+    <td>Pueden quedar sin firma ni compromiso verificable.</td>
+    <td>Formato con compromisos, fecha de cumplimiento, firmas y campo de seguimiento.</td>
+    <td>Fortalece la corresponsabilidad familia-escuela. En SASE: registro de acuerdos y alertas de vencimiento.</td>
+  </tr>
+  <tr>
+    <td><strong>Registro UDEEI / BAP</strong></td>
+    <td><span class="badge-area badge-udeii">UDEEI</span></td>
+    <td>Puede no quedar claro qu&eacute; barrera se detect&oacute; ni qu&eacute; apoyo se propuso.</td>
+    <td>Registrar BAP, ajuste sugerido, responsable, seguimiento y evidencia.</td>
+    <td>Fortalece atenci&oacute;n a la diversidad y continuidad pedag&oacute;gica. En SASE: m&oacute;dulo de apoyos y alertas educativas.</td>
+  </tr>
+  <tr>
+    <td><strong>Seguimiento de apoyo</strong></td>
+    <td><span class="badge-area badge-udeii">UDEEI</span></td>
+    <td>Puede no haber registro de si el apoyo se est&aacute; implementando o si funciona.</td>
+    <td>Agregar estatus, fecha de revisi&oacute;n, ajustes realizados y evidencia de avance.</td>
+    <td>Permite evaluar la efectividad de los apoyos y tomar decisiones informadas. En SASE: trazabilidad de intervenciones.</td>
+  </tr>
+  <tr>
+    <td><strong>Reporte acad&eacute;mico docente</strong></td>
+    <td><span class="badge-area badge-docente">Docentes</span></td>
+    <td>Puede limitarse a calificaciones sin observaci&oacute;n pedag&oacute;gica.</td>
+    <td>Agregar secci&oacute;n de observaciones por alumno, sugerencias y alertas tempranas.</td>
+    <td>Enriquece el expediente con informaci&oacute;n pedag&oacute;gica &uacute;til para todas las &aacute;reas. En SASE: alertas de desempe&ntilde;o.</td>
+  </tr>
+  <tr>
+    <td><strong>Reporte de conducta</strong></td>
+    <td><span class="badge-area badge-docente">Docentes</span></td>
+    <td>Puede ser subjetivo o no tener seguimiento de acuerdos.</td>
+    <td>Estructurar por: hecho, intervenci&oacute;n, acuerdos, seguimiento y &aacute;reas involucradas.</td>
+    <td>Da objetividad y permite intervenci&oacute;n coordinada. En SASE: historial de incidencias.</td>
+  </tr>
+  <tr>
+    <td><strong>Hoja de observaciones institucionales</strong></td>
+    <td><span class="badge-area badge-direccion">Direcci&oacute;n</span></td>
+    <td>Puede ser un acumulado sin criterios claros de prioridad.</td>
+    <td>Clasificar por &aacute;rea, nivel de atenci&oacute;n, fecha y estado de resoluci&oacute;n.</td>
+    <td>Facilita la gesti&oacute;n directiva y la toma de decisiones. En SASE: bandeja unificada de observaciones.</td>
+  </tr>
+  <tr>
+    <td><strong>Comprobante de recepci&oacute;n documental</strong></td>
+    <td><span class="badge-area badge-secretaria">Secretar&iacute;a</span></td>
+    <td>Puede no existir o ser informal, sin respaldo institucional.</td>
+    <td>Formato con folio, documentos recibidos, fecha, responsable y copia para la familia.</td>
+    <td>Blinda tanto a la escuela como a la familia. En SASE: registro autom&aacute;tico de recepci&oacute;n.</td>
+  </tr>
+  <tr>
+    <td><strong>Reporte de pendientes por alumno</strong></td>
+    <td><span class="badge-area badge-direccion">Direcci&oacute;n</span></td>
+    <td>Puede no existir consolidado, cada &aacute;rea lleva su propio registro.</td>
+    <td>Formato &uacute;nico que consolida los pendientes de todas las &aacute;reas para un alumno.</td>
+    <td>Da visibilidad completa a Direcci&oacute;n y facilita la gesti&oacute;n de casos. En SASE: vista de expediente integral.</td>
+  </tr>
+  <tr>
+    <td><strong>Resumen para Direcci&oacute;n</strong></td>
+    <td><span class="badge-area badge-direccion">Direcci&oacute;n</span></td>
+    <td>Puede requerir revisi&oacute;n manual de cada expediente para generar un reporte.</td>
+    <td>Formato ejecutivo con indicadores, alertas y concentrado de altas, pendientes y casos.</td>
+    <td>Ahorra tiempo directivo y mejora la calidad de la informaci&oacute;n para la toma de decisiones. En SASE: dashboard ejecutivo.</td>
+  </tr>
+  </tbody>
+  </table>
+  </div>
+</div>
+</section>
+
+<!-- ===== FORMATO MODELO ===== -->
+<section class="section-muted">
+<div class="container">
+  <div class="section-header">
+    <div class="section-tag">Modelo</div>
+    <h2 class="section-title">Formato modelo propuesto</h2>
+    <p class="section-sub">Plantilla madre que sirve como referencia para todos los formatos redise&ntilde;ados.</p>
+  </div>
+
+  <div class="format-mockup">
+    <div class="format-header">
+      <span class="folio">FOLIO: SASE-310-F-2025-001</span>
+      <span style="display:flex;gap:.5rem;align-items:center">
+        <span style="font-size:.65rem;opacity:.7">&Aacute;rea: Secretar&iacute;a</span>
+        <span class="status-badge status-validado">Validado</span>
+      </span>
+    </div>
+    <div class="format-body">
+      <div class="format-row"><span class="format-label">Fecha de captura</span><span class="format-value">15 / Oct / 2025</span></div>
+      <div class="format-row"><span class="format-label">Capturado en SASE</span><span class="format-value">S&iacute; &middot; Usuario: Secretar&iacute;a</span></div>
+      <div class="format-row"><span class="format-label">Revisado por</span><span class="format-value">Rosaura M. &middot; 16 / Oct / 2025</span></div>
+
+      <div class="format-section-title">Datos del alumno</div>
+      <div class="format-row"><span class="format-label">Nombre completo</span><span class="format-value">Mariana L&oacute;pez Hern&aacute;ndez</span></div>
+      <div class="format-row"><span class="format-label">CURP</span><span class="format-value">LOHM100512MDFPRRA2</span></div>
+      <div class="format-row"><span class="format-label">Fecha de nacimiento</span><span class="format-value">12 / May / 2010</span></div>
+      <div class="format-row"><span class="format-label">Grado solicitado</span><span class="format-value">1&deg;</span></div>
+
+      <div class="format-section-title">Datos del responsable</div>
+      <div class="format-row"><span class="format-label">Nombre</span><span class="format-value">Laura Hern&aacute;ndez P&eacute;rez</span></div>
+      <div class="format-row"><span class="format-label">Parentesco</span><span class="format-value">Madre</span></div>
+      <div class="format-row"><span class="format-label">Tel&eacute;fono</span><span class="format-value">55 1234 5678</span></div>
+
+      <div class="format-section-title">Proceso</div>
+      <div class="format-row"><span class="format-label">Motivo / proceso</span><span class="format-value">Inscripci&oacute;n nuevo ingreso &middot; Ciclo 2025-2026</span></div>
+      <div class="format-row"><span class="format-label">Documentos / evidencias</span><span class="format-value">Acta nacimiento (Cotejado) &middot; CURP (Cotejado) &middot; Comprobante domicilio (Recibido)</span></div>
+      <div class="format-row"><span class="format-label">Observaciones</span><span class="format-value">Falta comprobante de domicilio actualizado. Se notifica a la familia.</span></div>
+      <div class="format-row"><span class="format-label">Acuerdos</span><span class="format-value">Presentar comprobante antes del 30/Oct/2025</span></div>
+      <div class="format-row"><span class="format-label">Seguimiento</span><span class="format-value">Pendiente de recepci&oacute;n &middot; Pr&oacute;xima revisi&oacute;n: 31/Oct/2025</span></div>
+
+      <div class="format-signatures">
+        <div class="format-signature"><div class="line"></div><div class="label">Captur&oacute; / Secretar&iacute;a</div></div>
+        <div class="format-signature"><div class="line"></div><div class="label">Revis&oacute; / Direcci&oacute;n</div></div>
+        <div class="format-signature"><div class="line"></div><div class="label">Recibi&oacute; / Familia</div></div>
+      </div>
+    </div>
+    <div class="format-footer">
+      <span>Estado: <strong>Observado</strong> &middot; Pendiente de correcci&oacute;n</span>
+      <span>SASE Light &middot; v3.10</span>
+      <span>Impreso: 17/Oct/2025</span>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ===== RELACIÓN CON SASE ===== -->
+<section>
+<div class="container">
+  <div class="section-header">
+    <div class="section-tag">Conexi&oacute;n digital</div>
+    <h2 class="section-title">Relaci&oacute;n entre formatos y SASE Light</h2>
+    <p class="section-sub">Cada formato mejorado debe pensarse como una futura pantalla, base de datos y evidencia institucional.</p>
+  </div>
+
+  <div class="flow-row">
+    <span class="flow-step">Formato actual</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-step">An&aacute;lisis</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-step">Formato mejorado</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-step">Campos digitales</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-step">M&oacute;dulo SASE</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-step">Expediente institucional</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-step">Reporte para Direcci&oacute;n</span>
+  </div>
+
+  <div class="quote-block" style="margin-top:2rem">
+    <p>Cada formato mejorado debe pensarse como una futura pantalla, una futura base de datos y una futura evidencia institucional dentro de SASE Light.</p>
+  </div>
+
+  <div class="card-grid" style="margin-top:1.5rem">
+    <div class="card card--info">
+      <div class="card-icon card-icon--blue">1</div><h4>Formato &rarr; Pantalla</h4>
+      <p>Los campos del formato se convierten directamente en campos de captura en SASE Light.</p>
+    </div>
+    <div class="card card--info">
+      <div class="card-icon card-icon--blue">2</div><h4>Datos &rarr; Base</h4>
+      <p>La informaci&oacute;n capturada alimenta el expediente &uacute;nico del alumno.</p>
+    </div>
+    <div class="card card--info">
+      <div class="card-icon card-icon--blue">3</div><h4>Evidencia &rarr; Reporte</h4>
+      <p>Los estatus y observaciones se consolidan en reportes para Direcci&oacute;n.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ===== BENEFICIOS ===== -->
+<section class="section-green">
+<div class="container">
+  <div class="section-header">
+    <div class="section-tag">Beneficios</div>
+    <h2 class="section-title">Redise&ntilde;ar antes de digitalizar</h2>
+    <p class="section-sub">Ordenar los formatos primero permite que la digitalizaci&oacute;n sea efectiva, no un espejo del desorden.</p>
+  </div>
+  <div class="card-grid">
+    <div class="card card--success"><div class="card-icon card-icon--green">E</div><h4>Evita digitalizar errores</h4><p>Si el formato actual tiene fallas, digitalizarlo sin cambios las perpet&uacute;a.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">R</div><h4>Reduce capturas repetidas</h4><p>Un dato capturado una vez se reutiliza en todas las &aacute;reas.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">C</div><h4>Facilita capacitaci&oacute;n</h4><p>Formatos claros son m&aacute;s f&aacute;ciles de explicar y usar.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">M</div><h4>Mejora control documental</h4><p>Cada documento tiene folio, estatus y responsable.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">R</div><h4>Permite reportes claros</h4><p>Los datos estructurados generan informaci&oacute;n &uacute;til sin esfuerzo adicional.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">D</div><h4>Ayuda a Direcci&oacute;n a decidir</h4><p>Informaci&oacute;n consolidada para tomar decisiones informadas.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">I</div><h4>Integraci&oacute;n por &aacute;reas</h4><p>Todos los formatos convergen en un mismo expediente institucional.</p></div>
+    <div class="card card--success"><div class="card-icon card-icon--green">O</div><h4>Orden antes de automatizar</h4><p>La estructura precede a la tecnolog&iacute;a.</p></div>
+  </div>
+  <div class="quote-block quote-block--green" style="margin-top:2rem">
+    <p>Digitalizar sin redise&ntilde;ar puede convertir el desorden en desorden digital. Redise&ntilde;ar primero permite que SASE Light nazca con orden.</p>
+  </div>
+</div>
+</section>
+
+<!-- ===== RUTA DE TRABAJO ===== -->
+<section>
+<div class="container">
+  <div class="section-header">
+    <div class="section-tag">Ruta</div>
+    <h2 class="section-title">Ruta de trabajo propuesta</h2>
+    <p class="section-sub">Seis etapas para pasar del inventario a la digitalizaci&oacute;n controlada.</p>
+  </div>
+  <div class="timeline">
+    <div class="timeline-item"><h5>Etapa 1 &mdash; Inventario</h5><p>Reunir formatos actuales usados por Direcci&oacute;n, Secretar&iacute;a y &aacute;reas. Clasificarlos por tipo, proceso y frecuencia de uso.</p></div>
+    <div class="timeline-item"><h5>Etapa 2 &mdash; Diagn&oacute;stico</h5><p>Detectar duplicidades, ausencias, campos innecesarios y riesgos documentales. Priorizar los formatos cr&iacute;ticos.</p></div>
+    <div class="timeline-item"><h5>Etapa 3 &mdash; Redise&ntilde;o</h5><p>Crear versiones claras, imprimibles y compatibles con SASE Light. Aplicar la plantilla madre y los criterios de mejora.</p></div>
+    <div class="timeline-item"><h5>Etapa 4 &mdash; Validaci&oacute;n institucional</h5><p>Revisar con Direcci&oacute;n y &aacute;reas responsables. Ajustar con base en la experiencia del personal que usa los formatos.</p></div>
+    <div class="timeline-item"><h5>Etapa 5 &mdash; Digitalizaci&oacute;n</h5><p>Convertir formatos validados en m&oacute;dulos o pantallas de SASE Light. Mantener la versi&oacute;n imprimible disponible.</p></div>
+    <div class="timeline-item"><h5>Etapa 6 &mdash; Prueba controlada</h5><p>Usarlos con un proceso o generaci&oacute;n espec&iacute;fica antes de generalizar. Evaluar y ajustar.</p></div>
+  </div>
+</div>
+</section>
+
+<!-- ===== SOLICITUD A DIRECCIÓN ===== -->
+<section class="section-blue">
+<div class="container">
+  <div class="section-header">
+    <div class="section-tag">Solicitud</div>
+    <h2 class="section-title">Solicitud a Direcci&oacute;n</h2>
+    <p class="section-sub">Pasos concretos para iniciar el proceso de redise&ntilde;o documental.</p>
+  </div>
+  <div class="card-grid">
+    <div class="card card--info"><div class="card-icon card-icon--blue">A</div><h4>Autorizaci&oacute;n para inventariar</h4><p>Permitir que el equipo de SASE Light re&uacute;na y analice los formatos actuales de todas las &aacute;reas.</p></div>
+    <div class="card card--info"><div class="card-icon card-icon--blue">R</div><h4>Revisi&oacute;n de cr&iacute;ticos</h4><p>Validar los formatos de inscripci&oacute;n, cotejo documental, ficha m&eacute;dica y ficha sociofamiliar como prioritarios.</p></div>
+    <div class="card card--info"><div class="card-icon card-icon--blue">P</div><h4>Priorizaci&oacute;n</h4><p>Definir cu&aacute;les formatos se redise&ntilde;an primero con base en su impacto en el ciclo escolar.</p></div>
+    <div class="card card--info"><div class="card-icon card-icon--blue">V</div><h4>Validaci&oacute;n de campos</h4><p>Revisar y aprobar los campos obligatorios propuestos para cada formato.</p></div>
+    <div class="card card--info"><div class="card-icon card-icon--blue">D</div><h4>Digitalizaci&oacute;n</h4><p>Autorizar la conversi&oacute;n de formatos validados en m&oacute;dulos de SASE Light.</p></div>
+  </div>
+  <div class="quote-block" style="margin-top:2rem">
+    <p>La propuesta no busca imponer formatos nuevos de manera unilateral, sino abrir un proceso de mejora con revisi&oacute;n de Direcci&oacute;n y participaci&oacute;n de las &aacute;reas que realmente los utilizan.</p>
+  </div>
+</div>
+</section>
+
+<!-- ===== CIERRE ===== -->
+<section>
+<div class="container" style="text-align:center">
+  <div class="section-header">
+    <div class="section-tag">Cierre</div>
+    <h2 class="section-title">Construir la memoria institucional</h2>
+  </div>
+  <div class="quote-block" style="margin:1.5rem auto">
+    <p>El redise&ntilde;o documental es el puente entre la escuela que trabaja con expedientes f&iacute;sicos y la escuela que puede construir una memoria institucional digital.</p>
+  </div>
+  <div class="quote-block quote-block--green" style="margin:1.5rem auto">
+    <p>SASE Light ser&aacute; m&aacute;s fuerte si nace de documentos claros, &uacute;tiles y validados por la propia escuela.</p>
+  </div>
+  <div style="margin-top:2rem;padding:2rem;border-top:1px solid var(--gray-border)">
+    <p style="color:var(--gray);font-size:.85rem">
+      Escuela Secundaria Diurna No. 310 &ldquo;Presidentes de M&eacute;xico&rdquo; &middot; Turno Vespertino<br>
+      SASE Light &middot; Documento de trabajo para Direcci&oacute;n &middot; Frente 1: Redise&ntilde;o documental institucional<br>
+      Versi&oacute;n 1.0 &middot; Octubre 2025
+    </p>
+  </div>
+</div>
+</section>
+
+</body>
+</html>
