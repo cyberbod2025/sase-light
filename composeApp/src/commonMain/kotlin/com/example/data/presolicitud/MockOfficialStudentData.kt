@@ -6,7 +6,7 @@ object MockOfficialStudentData {
         OfficialStudent(
             id = "OFF-101",
             preApplicationFolio = "PRE-X1A2",
-            status = OfficialStudentStatus.ALTA_SIN_GRUPO,
+            status = OfficialStudentStatus.ALTA_OFICIAL_SIN_GRUPO,
             gradoIngreso = 1,
             grupoSugerido = null,
             curp = "SARH840603MDFRRN09",
@@ -23,9 +23,10 @@ object MockOfficialStudentData {
         OfficialStudent(
             id = "OFF-102",
             preApplicationFolio = "PRE-C9Z3",
-            status = OfficialStudentStatus.ALTA_CON_GRUPO,
+            status = OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO,
             gradoIngreso = 2,
             grupoSugerido = "2B", // Sugerido por el sistema
+            grupoAsignado = "2B",
             curp = "PEGL100810HDFRRN09",
             alumnoNombreCompleto = "Luis Perez Guzman",
             matriculaOficial = OfficialStudent.generateMatricula("PEGL100810HDFRRN09", 2),

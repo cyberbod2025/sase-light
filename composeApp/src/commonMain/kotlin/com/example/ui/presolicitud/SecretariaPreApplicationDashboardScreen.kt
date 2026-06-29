@@ -356,6 +356,7 @@ private fun PreApplicationDetailTabs(
 ) {
     val photos by PreApplicationViewModel.photos.collectAsState()
     val reviewObservations by PreApplicationViewModel.reviewObservations.collectAsState()
+    val officialStudents by PreApplicationViewModel.officialStudents.collectAsState()
 
     if (preApp == null) {
         GlassCard(modifier = modifier) {
@@ -373,6 +374,7 @@ private fun PreApplicationDetailTabs(
     }
 
     var selectedTab by remember(preApp.folio) { mutableStateOf(0) }
+    var showOfficialEnrollmentPanel by remember(preApp.folio) { mutableStateOf(false) }
 
     GlassCard(modifier = modifier) {
         // Folio + Status
@@ -393,6 +395,7 @@ private fun PreApplicationDetailTabs(
         // Photo section
         val photoState = photos[preApp.folio]
         val officialEnrollmentPendingItems = PreApplicationViewModel.officialEnrollmentPendingItems(preApp)
+        val officialStudent = officialStudents.find { it.preApplicationFolio == preApp.folio }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -414,8 +417,19 @@ private fun PreApplicationDetailTabs(
         Spacer(modifier = Modifier.height(10.dp))
 
         OfficialEnrollmentReadinessCard(
-            pendingItems = officialEnrollmentPendingItems
+            pendingItems = officialEnrollmentPendingItems,
+            officialStudent = officialStudent,
+            onStartOfficialEnrollment = { showOfficialEnrollmentPanel = true }
         )
+
+        if (showOfficialEnrollmentPanel) {
+            Spacer(modifier = Modifier.height(10.dp))
+            OfficialEnrollmentContextualPanel(
+                preApp = preApp,
+                officialStudent = officialStudent,
+                onClose = { showOfficialEnrollmentPanel = false }
+            )
+        }
 
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -484,25 +498,6 @@ private fun PreApplicationDetailTabs(
                 }
             }
 
-            // Fase 3C: Crear expediente provisional
-            if (preApp.status == PreApplicationStatus.ACEPTADA) {
-                Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = SaseBorder)
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        val student = PreApplicationViewModel.buildProvisionalStudent(preApp)
-                        onProvisionalCreated("Expediente provisional ${student.id} creado para ${student.fullName}. Pendiente validación documental, fotografías y alta oficial.")
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Crear expediente provisional", fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                }
-            }
         }
     }
 }
@@ -627,9 +622,12 @@ private fun ContextoTab(preApp: PreApplication) {
 
 @Composable
 private fun OfficialEnrollmentReadinessCard(
-    pendingItems: List<String>
+    pendingItems: List<String>,
+    officialStudent: OfficialStudent?,
+    onStartOfficialEnrollment: () -> Unit
 ) {
     val isReady = pendingItems.isEmpty()
+    val officialStarted = officialStudent != null
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -654,7 +652,7 @@ private fun OfficialEnrollmentReadinessCard(
                     fontSize = 12.sp
                 )
                 Text(
-                    "No genera matrícula, grupo ni alta oficial todavía.",
+                    if (officialStarted) "Alta oficial iniciada desde esta pre-solicitud." else "La matrícula se genera solo desde este folio validado.",
                     color = SaseMuted,
                     fontSize = 9.sp
                 )
@@ -681,21 +679,224 @@ private fun OfficialEnrollmentReadinessCard(
 
         Spacer(modifier = Modifier.height(10.dp))
         Button(
-            onClick = {},
-            enabled = false,
+            onClick = onStartOfficialEnrollment,
+            enabled = isReady,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (officialStarted) SaseNavy else SaseGreen,
+                disabledContainerColor = SaseMuted.copy(alpha = 0.18f),
+                disabledContentColor = SaseMuted
+            ),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
+            Icon(if (isReady) Icons.Default.AssignmentTurnedIn else Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
             Spacer(modifier = Modifier.width(6.dp))
-            Text("Continuar a alta oficial", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            Text(
+                if (officialStarted) "Ver alta oficial contextual" else "Dar de alta oficial",
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp
+            )
         }
         Text(
-            "Disponible cuando documentación y fotografías estén completas.",
+            if (officialStarted) "El seguimiento permanece ligado a esta pre-solicitud." else "Disponible cuando documentación y fotografías estén completas.",
             color = SaseMuted,
             fontSize = 9.sp,
             modifier = Modifier.padding(top = 4.dp)
         )
+    }
+}
+
+@Composable
+private fun OfficialEnrollmentContextualPanel(
+    preApp: PreApplication,
+    officialStudent: OfficialStudent?,
+    onClose: () -> Unit
+) {
+    val grade = preApp.gradoSolicitado
+    val matricula = OfficialStudent.generateMatricula(preApp.alumnoCurp, grade)
+    val groupOptions = PreApplicationViewModel.groupOptionsForGrade(grade)
+    val suggestedGroup = remember(preApp.folio, grade) { PreApplicationViewModel.suggestInitialGroup(grade) }
+    var selectedGroup by remember(preApp.folio) { mutableStateOf(suggestedGroup ?: groupOptions.firstOrNull().orEmpty()) }
+    var groupConfirmed by remember(preApp.folio) { mutableStateOf(false) }
+    var result by remember(preApp.folio) { mutableStateOf<String?>(null) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.66f))
+            .border(1.dp, SaseGreen.copy(alpha = 0.28f), RoundedCornerShape(14.dp))
+            .padding(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Alta Oficial contextual", color = SaseNavy, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Folio precargado: ${preApp.folio}", color = SaseMuted, fontSize = 10.sp)
+            }
+            IconButton(onClick = onClose) {
+                Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = SaseMuted)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(SaseOrange.copy(alpha = 0.1f))
+                .padding(10.dp)
+        ) {
+            Text(
+                "Esta acción genera matrícula oficial y debe realizarse solo después de validar documentos, fotografías y firmas.",
+                color = SaseOrange,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+        DetailRow("Nombre", preApp.alumnoNombreCompleto)
+        DetailRow("Grado ingreso", "${grade}°")
+        DetailRow("Matrícula generada", matricula ?: "CURP inválida o menor a 10 caracteres")
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (grade == 1) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(SaseBlue.copy(alpha = 0.08f))
+                    .padding(10.dp)
+            ) {
+                Text("Grupo pendiente para balance institucional.", color = SaseBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+        } else if (grade in 2..3) {
+            SectionHeader("Asignación inicial de grupo")
+            DetailRow("Grupo sugerido por cupo básico", suggestedGroup ?: "Sin sugerencia disponible")
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                groupOptions.forEach { option ->
+                    FilterChip(
+                        selected = selectedGroup == option,
+                        onClick = { selectedGroup = option },
+                        label = { Text(option, fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = SaseGreen.copy(alpha = 0.14f),
+                            selectedLabelColor = SaseGreen,
+                            labelColor = SaseMuted
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selectedGroup == option,
+                            borderColor = SaseBorder,
+                            selectedBorderColor = SaseGreen.copy(alpha = 0.35f)
+                        )
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = 0.42f))
+                    .clickable { groupConfirmed = !groupConfirmed }
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = groupConfirmed,
+                    onCheckedChange = { groupConfirmed = it },
+                    colors = CheckboxDefaults.colors(checkedColor = SaseGreen)
+                )
+                Text(
+                    "Confirmación Secretaría/Dirección para grupo inicial.",
+                    color = SaseText,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (officialStudent == null) {
+            Button(
+                onClick = {
+                    val enrollmentResult = PreApplicationViewModel.startOfficialEnrollment(preApp, selectedGroup)
+                    result = enrollmentResult.message
+                },
+                enabled = matricula != null && (grade == 1 || selectedGroup.isNotBlank()),
+                colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.VerifiedUser, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Generar matrícula oficial", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            }
+        } else {
+            OfficialEnrollmentConfirmation(officialStudent)
+
+            if (officialStudent.status == OfficialStudentStatus.PENDIENTE_ASIGNACION_GRUPO) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        val confirmResult = PreApplicationViewModel.confirmInitialGroup(preApp.folio, selectedGroup)
+                        result = confirmResult.message
+                    },
+                    enabled = groupConfirmed && selectedGroup.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Confirmar grupo inicial", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                }
+                Text(
+                    "Mientras no se confirme, el estado permanece como PENDIENTE_ASIGNACION_GRUPO.",
+                    color = SaseMuted,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+
+        if (result != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(result ?: "", color = SaseGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun OfficialEnrollmentConfirmation(student: OfficialStudent) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(SaseGreen.copy(alpha = 0.08f))
+            .padding(10.dp)
+    ) {
+        Text("Confirmación de alta oficial", color = SaseGreen, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+        Spacer(modifier = Modifier.height(4.dp))
+        DetailRow("Folio", student.preApplicationFolio)
+        DetailRow("Nombre", student.alumnoNombreCompleto)
+        DetailRow("Grado ingreso", "${student.gradoIngreso}°")
+        DetailRow("Matrícula", student.matriculaOficial ?: "Sin matrícula")
+        DetailRow("Estado inicial", student.status.name)
+        if (student.gradoIngreso == 1) {
+            DetailRow("Grupo", "Pendiente para balance institucional")
+        } else {
+            DetailRow("Grupo sugerido", student.grupoSugerido ?: "Sin sugerencia")
+            DetailRow("Grupo asignado", student.grupoAsignado ?: "Pendiente de confirmación")
+        }
     }
 }
 

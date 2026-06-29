@@ -65,6 +65,15 @@ class PreApplicationViewModel {
         private val _reviewObservations = MutableStateFlow<Map<String, List<SecretariaReviewObservation>>>(emptyMap())
         val reviewObservations: StateFlow<Map<String, List<SecretariaReviewObservation>>> = _reviewObservations.asStateFlow()
 
+        private val _officialStudents = MutableStateFlow(MockOfficialStudentData.officialStudents)
+        val officialStudents: StateFlow<List<OfficialStudent>> = _officialStudents.asStateFlow()
+
+        data class OfficialEnrollmentResult(
+            val success: Boolean,
+            val message: String,
+            val student: OfficialStudent? = null
+        )
+
         fun toggleDocumentCotejado(folio: String, docNombre: String) {
             _sharedPreApplications.value = _sharedPreApplications.value.map { app ->
                 if (app.folio != folio) return@map app
@@ -123,6 +132,107 @@ class PreApplicationViewModel {
 
         fun isReadyForOfficialEnrollment(preApp: PreApplication): Boolean =
             officialEnrollmentPendingItems(preApp).isEmpty()
+
+        fun officialEnrollmentForFolio(folio: String): OfficialStudent? =
+            _officialStudents.value.find { it.preApplicationFolio == folio }
+
+        fun groupOptionsForGrade(grado: Int): List<String> = when (grado) {
+            2 -> listOf("2A", "2B", "2C")
+            3 -> listOf("3A", "3B", "3C")
+            else -> emptyList()
+        }
+
+        fun suggestInitialGroup(grado: Int): String? {
+            val options = groupOptionsForGrade(grado)
+            if (options.isEmpty()) return null
+
+            val currentCounts = _officialStudents.value
+                .filter { it.gradoIngreso == grado && it.status == OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO }
+                .groupingBy { it.grupoAsignado ?: it.grupoSugerido.orEmpty() }
+                .eachCount()
+
+            return options.minByOrNull { currentCounts[it] ?: 0 }
+        }
+
+        fun startOfficialEnrollment(preApp: PreApplication, selectedGroup: String?): OfficialEnrollmentResult {
+            val existing = officialEnrollmentForFolio(preApp.folio)
+            if (existing != null) {
+                return OfficialEnrollmentResult(true, "Alta oficial ya iniciada para este folio.", existing)
+            }
+
+            val pendingItems = officialEnrollmentPendingItems(preApp)
+            if (pendingItems.isNotEmpty()) {
+                return OfficialEnrollmentResult(false, "La pre-solicitud aún no está lista para alta oficial.")
+            }
+
+            val matricula = OfficialStudent.generateMatricula(preApp.alumnoCurp, preApp.gradoSolicitado)
+                ?: return OfficialEnrollmentResult(false, "No se puede generar matrícula: CURP inválida o menor a 10 caracteres.")
+
+            val suggestedGroup = if (preApp.gradoSolicitado in 2..3) {
+                selectedGroup?.takeIf { it.isNotBlank() } ?: suggestInitialGroup(preApp.gradoSolicitado)
+            } else {
+                null
+            }
+
+            val initialStatus = when (preApp.gradoSolicitado) {
+                1 -> OfficialStudentStatus.ALTA_OFICIAL_SIN_GRUPO
+                2, 3 -> OfficialStudentStatus.PENDIENTE_ASIGNACION_GRUPO
+                else -> OfficialStudentStatus.PENDIENTE_ASIGNACION_GRUPO
+            }
+
+            val officialStudent = OfficialStudent(
+                id = "OFF-${preApp.folio.takeLast(4)}-${Random.nextInt(100, 999)}",
+                preApplicationFolio = preApp.folio,
+                status = initialStatus,
+                gradoIngreso = preApp.gradoSolicitado,
+                grupoSugerido = suggestedGroup,
+                grupoAsignado = null,
+                curp = preApp.alumnoCurp,
+                alumnoNombreCompleto = preApp.alumnoNombreCompleto,
+                matriculaOficial = matricula,
+                fechaCreacion = "Hoy",
+                validacionSecretaria = ValidacionArea(
+                    area = "Secretaría",
+                    validado = true,
+                    validadoPor = "Secretaría",
+                    fechaValidacion = "Hoy",
+                    observaciones = "Alta oficial iniciada desde pre-solicitud ${preApp.folio}"
+                )
+            )
+
+            _officialStudents.value = _officialStudents.value + officialStudent
+            return OfficialEnrollmentResult(true, "Alta oficial iniciada.", officialStudent)
+        }
+
+        fun confirmInitialGroup(folio: String, selectedGroup: String): OfficialEnrollmentResult {
+            val cleanGroup = selectedGroup.trim().uppercase()
+            if (cleanGroup.isBlank()) {
+                return OfficialEnrollmentResult(false, "Selecciona un grupo para confirmar.")
+            }
+
+            var updatedStudent: OfficialStudent? = null
+            _officialStudents.value = _officialStudents.value.map { student ->
+                if (student.preApplicationFolio != folio) return@map student
+                updatedStudent = student.copy(
+                    status = OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO,
+                    grupoAsignado = cleanGroup,
+                    validacionDireccion = ValidacionArea(
+                        area = "Dirección",
+                        validado = true,
+                        validadoPor = "Secretaría/Dirección",
+                        fechaValidacion = "Hoy",
+                        observaciones = "Grupo $cleanGroup confirmado por cupo básico mock"
+                    )
+                )
+                updatedStudent ?: student
+            }
+
+            return if (updatedStudent == null) {
+                OfficialEnrollmentResult(false, "No se encontró alta oficial para este folio.")
+            } else {
+                OfficialEnrollmentResult(true, "Grupo inicial confirmado.", updatedStudent)
+            }
+        }
 
         fun buildProvisionalStudent(preApp: PreApplication): com.example.data.Student {
             val newId = "PROV-${preApp.folio.takeLast(4)}"
