@@ -65,7 +65,8 @@ data class Student(
     val observations: List<SaseObservation> = emptyList(),
     val schoolIncidents: List<SaseIncident> = emptyList(),
     val audits: List<SaseAudit> = emptyList(),
-    val photoUrl: String? = null
+    val photoUrl: String? = null,
+    val preApplicationFolio: String? = null
 )
 
 sealed class StudentAddResult {

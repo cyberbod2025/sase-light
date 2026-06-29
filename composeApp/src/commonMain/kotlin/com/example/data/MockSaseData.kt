@@ -13,6 +13,11 @@ object MockSaseData {
     private val _audits = MutableStateFlow<List<SaseAudit>>(createInitialAudits())
     val audits: StateFlow<List<SaseAudit>> = _audits.asStateFlow()
 
+    fun resetForTests() {
+        _students.value = createInitialStudents()
+        _audits.value = createInitialAudits()
+    }
+
     private fun createInitialStudents(): List<Student> {
         return listOf(
             Student(
@@ -297,6 +302,16 @@ object MockSaseData {
             currentList[index] = updated
             _students.value = currentList
         }
+    }
+
+    fun studentByCurp(curp: String): Student? {
+        val cleanCurp = curp.trim().uppercase()
+        return _students.value.firstOrNull { it.curp.trim().uppercase() == cleanCurp }
+    }
+
+    fun studentByEnrollmentId(enrollmentId: String): Student? {
+        val cleanEnrollmentId = enrollmentId.trim().uppercase()
+        return _students.value.firstOrNull { it.enrollmentId.trim().uppercase() == cleanEnrollmentId }
     }
 
     fun addStudent(student: Student): StudentAddResult {

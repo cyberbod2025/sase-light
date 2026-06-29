@@ -9,6 +9,13 @@ enum class PreApplicationStatus(val label: String) {
     CANCELADA("Cancelada")
 }
 
+enum class ReadinessStatus(val label: String) {
+    PENDING("Pendiente"),
+    BLOCKED("Con pendientes"),
+    READY("Lista para alta oficial"),
+    CONVERTED("Convertida a alta oficial")
+}
+
 data class PreApplication(
     val folio: String,
     val status: PreApplicationStatus,
@@ -43,7 +50,10 @@ data class PreApplication(
     val consentimientos: ConsentimientosFamiliares,
     // Bloque J: Revisión de Secretaría
     val observacionesSecretaria: String = "",
-    val motivoCorreccion: String = ""
+    val motivoCorreccion: String = "",
+    val readinessStatus: ReadinessStatus = ReadinessStatus.PENDING,
+    val readyAt: String? = null,
+    val readinessNotes: String = ""
 )
 
 data class Responsable(

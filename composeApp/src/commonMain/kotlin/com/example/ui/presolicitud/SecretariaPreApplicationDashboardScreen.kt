@@ -27,6 +27,7 @@ import com.example.util.LocalToast
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.OfficialEnrollmentResult
 import com.example.viewmodel.PreApplicationViewModel
+import com.example.viewmodel.ReadinessResult
 import com.example.viewmodel.Screen
 import kotlinx.coroutines.launch
 
@@ -418,6 +419,7 @@ private fun PreApplicationDetailTabs(
         Spacer(modifier = Modifier.height(10.dp))
 
         OfficialEnrollmentReadinessCard(
+            preApp = preApp,
             pendingItems = officialEnrollmentPendingItems,
             officialStudent = officialStudent,
             onStartOfficialEnrollment = { showOfficialEnrollmentPanel = true }
@@ -623,37 +625,57 @@ private fun ContextoTab(preApp: PreApplication) {
 
 @Composable
 private fun OfficialEnrollmentReadinessCard(
+    preApp: PreApplication,
     pendingItems: List<String>,
     officialStudent: OfficialStudent?,
     onStartOfficialEnrollment: () -> Unit
 ) {
-    val isReady = pendingItems.isEmpty()
+    val isReadyByChecklist = pendingItems.isEmpty()
+    val isPersistedReady = preApp.readinessStatus == ReadinessStatus.READY
     val officialStarted = officialStudent != null
+    var readinessMessage by remember(preApp.folio, preApp.readinessStatus) { mutableStateOf<String?>(null) }
+    var readinessColor by remember(preApp.folio, preApp.readinessStatus) { mutableStateOf(SaseMuted) }
+    val headerColor = when {
+        officialStarted || preApp.readinessStatus == ReadinessStatus.CONVERTED -> SaseNavy
+        isPersistedReady -> SaseGreen
+        pendingItems.isNotEmpty() || preApp.readinessStatus == ReadinessStatus.BLOCKED -> SaseOrange
+        else -> SaseMuted
+    }
+    val headerText = when {
+        officialStarted || preApp.readinessStatus == ReadinessStatus.CONVERTED -> "Convertida a alta oficial"
+        isPersistedReady -> "Lista para alta oficial"
+        pendingItems.isNotEmpty() || preApp.readinessStatus == ReadinessStatus.BLOCKED -> "Con pendientes"
+        else -> "Pendiente de readiness"
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (isReady) SaseGreen.copy(alpha = 0.08f) else SaseOrange.copy(alpha = 0.08f))
-            .border(1.dp, if (isReady) SaseGreen.copy(alpha = 0.25f) else SaseOrange.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+            .background(headerColor.copy(alpha = 0.08f))
+            .border(1.dp, headerColor.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
             .padding(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                if (isReady) Icons.Default.CheckCircle else Icons.Default.Warning,
+                if (isPersistedReady || officialStarted) Icons.Default.CheckCircle else Icons.Default.Warning,
                 contentDescription = null,
-                tint = if (isReady) SaseGreen else SaseOrange,
+                tint = headerColor,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    if (isReady) "Listo para alta oficial" else "Pendiente para alta oficial",
-                    color = if (isReady) SaseGreen else SaseOrange,
+                    headerText,
+                    color = headerColor,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 12.sp
                 )
                 Text(
-                    if (officialStarted) "Alta oficial iniciada desde esta pre-solicitud." else "La matrícula se genera solo desde este folio validado.",
+                    when {
+                        officialStarted -> "Alta oficial iniciada desde esta pre-solicitud."
+                        preApp.readyAt != null -> "Declarada lista: ${preApp.readyAt}"
+                        else -> "La matrícula se genera solo desde este folio validado."
+                    },
                     color = SaseMuted,
                     fontSize = 9.sp
                 )
@@ -679,9 +701,28 @@ private fun OfficialEnrollmentReadinessCard(
         }
 
         Spacer(modifier = Modifier.height(10.dp))
+        if (!officialStarted && !isPersistedReady) {
+            OutlinedButton(
+                onClick = {
+                    val result = PreApplicationViewModel.markReadyForOfficialEnrollment(preApp.folio)
+                    readinessMessage = result.message
+                    readinessColor = result.toUiColor()
+                },
+                enabled = isReadyByChecklist,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = SaseGreen),
+                border = BorderStroke(1.dp, if (isReadyByChecklist) SaseGreen.copy(alpha = 0.55f) else SaseMuted.copy(alpha = 0.22f)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.FactCheck, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Declarar lista institucionalmente", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
         Button(
             onClick = onStartOfficialEnrollment,
-            enabled = isReady,
+            enabled = isPersistedReady || officialStarted,
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (officialStarted) SaseNavy else SaseGreen,
                 disabledContainerColor = SaseMuted.copy(alpha = 0.18f),
@@ -690,7 +731,7 @@ private fun OfficialEnrollmentReadinessCard(
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(if (isReady) Icons.Default.AssignmentTurnedIn else Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
+            Icon(if (isPersistedReady || officialStarted) Icons.Default.AssignmentTurnedIn else Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
             Spacer(modifier = Modifier.width(6.dp))
             Text(
                 if (officialStarted) "Ver alta oficial contextual" else "Dar de alta oficial",
@@ -699,11 +740,20 @@ private fun OfficialEnrollmentReadinessCard(
             )
         }
         Text(
-            if (officialStarted) "El seguimiento permanece ligado a esta pre-solicitud." else "Disponible cuando documentación y fotografías estén completas.",
+            if (officialStarted) "El seguimiento permanece ligado a esta pre-solicitud y al expediente maestro." else "Disponible cuando documentación, fotografías y readiness institucional estén completos.",
             color = SaseMuted,
             fontSize = 9.sp,
             modifier = Modifier.padding(top = 4.dp)
         )
+        if (readinessMessage != null) {
+            Text(
+                readinessMessage ?: "",
+                color = readinessColor,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
     }
 }
 
@@ -884,7 +934,19 @@ private fun OfficialEnrollmentResult.toUiColor(): Color = when (this) {
     is OfficialEnrollmentResult.DuplicateFolio,
     is OfficialEnrollmentResult.DuplicateCurp,
     is OfficialEnrollmentResult.DuplicateMatricula -> SaseRed
+    is OfficialEnrollmentResult.NotReady,
+    is OfficialEnrollmentResult.PreApplicationNotFound,
+    is OfficialEnrollmentResult.MasterStudentPropagationError,
     is OfficialEnrollmentResult.Error -> SaseOrange
+}
+
+private fun ReadinessResult.toUiColor(): Color = when (this) {
+    is ReadinessResult.Success,
+    is ReadinessResult.AlreadyReady -> SaseGreen
+    is ReadinessResult.NotReady,
+    is ReadinessResult.AlreadyConverted,
+    is ReadinessResult.NotFound,
+    is ReadinessResult.Error -> SaseOrange
 }
 
 @Composable

@@ -1,7 +1,10 @@
 package com.example.viewmodel
 
 import com.example.data.MockSaseData
+import com.example.data.SaseAudit
+import com.example.data.SaseDocument
 import com.example.data.Student
+import com.example.data.StudentAddResult
 import com.example.data.presolicitud.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,7 +39,13 @@ sealed class OfficialEnrollmentResult {
 
     data class Success(
         val officialStudent: OfficialStudent,
-        override val message: String = "Alta oficial iniciada."
+        val masterStudent: Student,
+        val masterStudentCreated: Boolean,
+        override val message: String = if (masterStudentCreated) {
+            "Alta oficial iniciada y expediente maestro creado."
+        } else {
+            "Alta oficial iniciada y expediente maestro actualizado."
+        }
     ) : OfficialEnrollmentResult()
 
     data class DuplicateFolio(
@@ -54,9 +63,56 @@ sealed class OfficialEnrollmentResult {
         override val message: String = "Ya existe un alumno con esta matrícula."
     ) : OfficialEnrollmentResult()
 
+    data class NotReady(
+        val pendingItems: List<String>,
+        override val message: String = "La pre-solicitud aún no está lista para alta oficial."
+    ) : OfficialEnrollmentResult()
+
+    data class PreApplicationNotFound(
+        val folio: String,
+        override val message: String = "Pre-solicitud no encontrada."
+    ) : OfficialEnrollmentResult()
+
+    data class MasterStudentPropagationError(
+        override val message: String
+    ) : OfficialEnrollmentResult()
+
     data class Error(
         override val message: String
     ) : OfficialEnrollmentResult()
+}
+
+sealed class ReadinessResult {
+    abstract val message: String
+
+    data class Success(
+        val preApplication: PreApplication,
+        override val message: String = "Pre-solicitud declarada lista para alta oficial."
+    ) : ReadinessResult()
+
+    data class NotReady(
+        val pendingItems: List<String>,
+        override val message: String = "La pre-solicitud conserva pendientes bloqueantes."
+    ) : ReadinessResult()
+
+    data class AlreadyReady(
+        val preApplication: PreApplication,
+        override val message: String = "La pre-solicitud ya estaba lista para alta oficial."
+    ) : ReadinessResult()
+
+    data class AlreadyConverted(
+        val preApplication: PreApplication,
+        override val message: String = "La pre-solicitud ya fue convertida a alta oficial."
+    ) : ReadinessResult()
+
+    data class NotFound(
+        val folio: String,
+        override val message: String = "Pre-solicitud no encontrada."
+    ) : ReadinessResult()
+
+    data class Error(
+        override val message: String
+    ) : ReadinessResult()
 }
 
 class PreApplicationViewModel {
@@ -121,6 +177,14 @@ class PreApplicationViewModel {
 
         private val _officialStudents = MutableStateFlow(MockOfficialStudentData.officialStudents)
         val officialStudents: StateFlow<List<OfficialStudent>> = _officialStudents.asStateFlow()
+
+        fun resetSharedStateForTests() {
+            _sharedPreApplications.value = MockPreApplicationData.preApplications
+            _photos.value = emptyMap()
+            _reviewObservations.value = emptyMap()
+            _officialStudents.value = MockOfficialStudentData.officialStudents
+            MockSaseData.resetForTests()
+        }
 
         fun toggleDocumentCotejado(folio: String, docNombre: String) {
             _sharedPreApplications.value = _sharedPreApplications.value.map { app ->
@@ -246,6 +310,39 @@ class PreApplicationViewModel {
         fun isReadyForOfficialEnrollment(preApp: PreApplication): Boolean =
             officialEnrollmentPendingItems(preApp).isEmpty()
 
+        fun markReadyForOfficialEnrollment(folio: String): ReadinessResult {
+            val preApp = _sharedPreApplications.value.firstOrNull { it.folio == folio }
+                ?: return ReadinessResult.NotFound(folio)
+            if (preApp.readinessStatus == ReadinessStatus.CONVERTED) {
+                return ReadinessResult.AlreadyConverted(preApp)
+            }
+            if (preApp.readinessStatus == ReadinessStatus.READY) {
+                return ReadinessResult.AlreadyReady(preApp)
+            }
+
+            val pendingItems = officialEnrollmentPendingItems(preApp)
+            if (pendingItems.isNotEmpty()) {
+                val blocked = preApp.copy(
+                    readinessStatus = ReadinessStatus.BLOCKED,
+                    readinessNotes = pendingItems.joinToString("; ")
+                )
+                _sharedPreApplications.value = _sharedPreApplications.value.map {
+                    if (it.folio == folio) blocked else it
+                }
+                return ReadinessResult.NotReady(pendingItems)
+            }
+
+            val ready = preApp.copy(
+                readinessStatus = ReadinessStatus.READY,
+                readyAt = "$preApplicationTimestampPrefix${com.example.formatTimestamp("hh:mm a")}",
+                readinessNotes = "Validación institucional lista: documentos y fotos mock completos."
+            )
+            _sharedPreApplications.value = _sharedPreApplications.value.map {
+                if (it.folio == folio) ready else it
+            }
+            return ReadinessResult.Success(ready)
+        }
+
         fun officialEnrollmentForFolio(folio: String): OfficialStudent? =
             _officialStudents.value.find { it.preApplicationFolio == folio }
 
@@ -292,24 +389,40 @@ class PreApplicationViewModel {
                 return OfficialEnrollmentResult.DuplicateFolio(preApp.folio)
             }
 
-            val pendingItems = officialEnrollmentPendingItems(preApp)
-            if (pendingItems.isNotEmpty()) {
-                return OfficialEnrollmentResult.Error("La pre-solicitud aún no está lista para alta oficial.")
-            }
-
             val matricula = OfficialStudent.generateMatricula(preApp.alumnoCurp, preApp.gradoSolicitado)
                 ?: return OfficialEnrollmentResult.Error("No se puede generar matrícula: CURP inválida o menor a 10 caracteres.")
-
             val normalizedCurp = normalizeCurp(preApp.alumnoCurp)
-            if (officialStudentByCurp(normalizedCurp) != null || masterStudentByCurp(normalizedCurp) != null) {
+            if (officialStudentByCurp(normalizedCurp) != null) {
                 return OfficialEnrollmentResult.DuplicateCurp(normalizedCurp)
             }
-            if (officialStudentByMatricula(matricula) != null || masterStudentByMatricula(matricula) != null) {
+            if (officialStudentByMatricula(matricula) != null) {
                 return OfficialEnrollmentResult.DuplicateMatricula(matricula)
             }
-            val sourcePreApplication = preApplicationByCurp(normalizedCurp)
-            if (sourcePreApplication == null || sourcePreApplication.folio != preApp.folio) {
+
+            val sourcePreApplication = _sharedPreApplications.value.firstOrNull { it.folio == preApp.folio }
+                ?: return OfficialEnrollmentResult.PreApplicationNotFound(preApp.folio)
+            val pendingItems = officialEnrollmentPendingItems(preApp)
+            if (pendingItems.isNotEmpty()) {
+                return OfficialEnrollmentResult.NotReady(pendingItems)
+            }
+            if (sourcePreApplication.readinessStatus != ReadinessStatus.READY) {
+                return OfficialEnrollmentResult.NotReady(listOf("Readiness institucional declarada"))
+            }
+
+            if (normalizeCurp(sourcePreApplication.alumnoCurp) != normalizedCurp) {
                 return OfficialEnrollmentResult.Error("La pre-solicitud ya no coincide con la bandeja institucional compartida.")
+            }
+
+            val existingMasterByCurp = masterStudentByCurp(normalizedCurp)
+            val existingMasterByMatricula = masterStudentByMatricula(matricula)
+            if (existingMasterByCurp != null && existingMasterByCurp.preApplicationFolio != preApp.folio) {
+                return OfficialEnrollmentResult.DuplicateCurp(normalizedCurp)
+            }
+            if (existingMasterByMatricula != null && existingMasterByMatricula.preApplicationFolio != preApp.folio) {
+                return OfficialEnrollmentResult.DuplicateMatricula(matricula)
+            }
+            if (existingMasterByCurp != null && existingMasterByMatricula != null && existingMasterByCurp.id != existingMasterByMatricula.id) {
+                return OfficialEnrollmentResult.MasterStudentPropagationError("CURP y matrícula pertenecen a expedientes maestros distintos.")
             }
 
             val suggestedGroup = if (preApp.gradoSolicitado in 2..3) {
@@ -345,7 +458,107 @@ class PreApplicationViewModel {
             )
 
             _officialStudents.value = _officialStudents.value + officialStudent
-            return OfficialEnrollmentResult.Success(officialStudent)
+
+            val masterResult = propagateOfficialEnrollmentToMasterStudent(sourcePreApplication, officialStudent)
+            return when (masterResult) {
+                is StudentAddResult.Added -> {
+                    markConverted(sourcePreApplication.folio)
+                    OfficialEnrollmentResult.Success(
+                        officialStudent = officialStudent,
+                        masterStudent = masterResult.student,
+                        masterStudentCreated = true
+                    )
+                }
+                is StudentAddResult.DuplicateCurp,
+                is StudentAddResult.DuplicateEnrollmentId -> {
+                    val existingMaster = existingMasterByCurp ?: existingMasterByMatricula
+                    if (existingMaster?.preApplicationFolio == preApp.folio) {
+                        val updatedMaster = masterStudentFromOfficial(sourcePreApplication, officialStudent, existingMaster.id)
+                        MockSaseData.updateStudent(updatedMaster)
+                        markConverted(sourcePreApplication.folio)
+                        OfficialEnrollmentResult.Success(
+                            officialStudent = officialStudent,
+                            masterStudent = updatedMaster,
+                            masterStudentCreated = false
+                        )
+                    } else {
+                        _officialStudents.value = _officialStudents.value.filterNot { it.id == officialStudent.id }
+                        when (masterResult) {
+                            is StudentAddResult.DuplicateCurp -> OfficialEnrollmentResult.DuplicateCurp(masterResult.curp)
+                            is StudentAddResult.DuplicateEnrollmentId -> OfficialEnrollmentResult.DuplicateMatricula(masterResult.enrollmentId)
+                            else -> OfficialEnrollmentResult.MasterStudentPropagationError("Resultado de propagación inesperado.")
+                        }
+                    }
+                }
+                is StudentAddResult.InvalidData -> {
+                    _officialStudents.value = _officialStudents.value.filterNot { it.id == officialStudent.id }
+                    OfficialEnrollmentResult.MasterStudentPropagationError(masterResult.message)
+                }
+            }
+        }
+
+        private fun markConverted(folio: String) {
+            _sharedPreApplications.value = _sharedPreApplications.value.map { app ->
+                if (app.folio == folio) {
+                    app.copy(
+                        readinessStatus = ReadinessStatus.CONVERTED,
+                        readinessNotes = "Alta oficial generada y expediente maestro sincronizado."
+                    )
+                } else {
+                    app
+                }
+            }
+        }
+
+        private fun propagateOfficialEnrollmentToMasterStudent(
+            preApp: PreApplication,
+            officialStudent: OfficialStudent
+        ): StudentAddResult {
+            val existingMaster = MockSaseData.studentByCurp(officialStudent.curp)
+                ?: officialStudent.matriculaOficial?.let { MockSaseData.studentByEnrollmentId(it) }
+            if (existingMaster?.preApplicationFolio == preApp.folio) {
+                val updated = masterStudentFromOfficial(preApp, officialStudent, existingMaster.id)
+                MockSaseData.updateStudent(updated)
+                return StudentAddResult.DuplicateCurp(updated.curp, updated)
+            }
+            return MockSaseData.addStudent(masterStudentFromOfficial(preApp, officialStudent))
+        }
+
+        private fun masterStudentFromOfficial(
+            preApp: PreApplication,
+            officialStudent: OfficialStudent,
+            existingId: String? = null
+        ): Student {
+            val responsable = preApp.responsables.firstOrNull()
+            val group = officialStudent.grupoAsignado ?: officialStudent.grupoSugerido.orEmpty()
+            return Student(
+                id = existingId ?: "MASTER-${preApp.folio.takeLast(4)}",
+                fullName = preApp.alumnoNombreCompleto,
+                group = group,
+                enrollmentId = officialStudent.matriculaOficial.orEmpty(),
+                curp = officialStudent.curp,
+                schoolYear = preApp.cicloEscolar,
+                status = when (officialStudent.status) {
+                    OfficialStudentStatus.ALTA_OFICIAL_SIN_GRUPO -> "Alta oficial sin grupo"
+                    OfficialStudentStatus.PENDIENTE_ASIGNACION_GRUPO -> "Alta oficial / pendiente asignación de grupo"
+                    else -> "Alta oficial"
+                },
+                riskLevel = "Bajo",
+                documentationStatus = "Completa",
+                birthDate = preApp.alumnoFechaNacimiento,
+                address = preApp.alumnoDomicilio,
+                tutorName = responsable?.nombreCompleto.orEmpty(),
+                tutorRelation = responsable?.parentesco.orEmpty(),
+                tutorPhone = responsable?.telefono.orEmpty(),
+                tutorEmail = responsable?.correo.orEmpty(),
+                documents = preApp.documentosDeclarados.map { doc ->
+                    SaseDocument(doc.nombre, officialStudent.fechaCreacion, if (doc.cotejadoSecretaria) "Vigente" else "En revisión")
+                },
+                audits = listOf(
+                    SaseAudit("Alta oficial propagada", "Secretaría", officialStudent.fechaCreacion, "Origen ${preApp.folio}")
+                ),
+                preApplicationFolio = preApp.folio
+            )
         }
 
         fun confirmInitialGroup(folio: String, selectedGroup: String): OfficialEnrollmentResult {
@@ -374,7 +587,32 @@ class PreApplicationViewModel {
             return if (updatedStudent == null) {
                 OfficialEnrollmentResult.Error("No se encontró alta oficial para este folio.")
             } else {
-                OfficialEnrollmentResult.Success(updatedStudent)
+                val currentStudent = updatedStudent ?: return OfficialEnrollmentResult.Error("No se encontró alta oficial para este folio.")
+                val existingMaster = MockSaseData.studentByCurp(currentStudent.curp)
+                val syncedMaster = if (existingMaster != null) {
+                    val updatedMaster = existingMaster.copy(
+                        group = cleanGroup,
+                        status = "Alta oficial con grupo"
+                    )
+                    MockSaseData.updateStudent(updatedMaster)
+                    updatedMaster
+                } else {
+                    Student(
+                        id = "MASTER-${folio.takeLast(4)}",
+                        fullName = currentStudent.alumnoNombreCompleto,
+                        group = cleanGroup,
+                        enrollmentId = currentStudent.matriculaOficial.orEmpty(),
+                        curp = currentStudent.curp,
+                        status = "Alta oficial con grupo",
+                        preApplicationFolio = folio
+                    )
+                }
+                OfficialEnrollmentResult.Success(
+                    officialStudent = currentStudent,
+                    masterStudent = syncedMaster,
+                    masterStudentCreated = false,
+                    message = "Grupo inicial confirmado y expediente maestro sincronizado."
+                )
             }
         }
 
