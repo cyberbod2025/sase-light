@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -353,6 +354,8 @@ private fun PreApplicationDetailTabs(
     onProvisionalCreated: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val photos by PreApplicationViewModel.photos.collectAsState()
+
     if (preApp == null) {
         GlassCard(modifier = modifier) {
             Column(
@@ -384,7 +387,29 @@ private fun PreApplicationDetailTabs(
             Text("Enviado: ${preApp.submittedAt}", color = SaseMuted, fontSize = 10.sp)
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Photo section
+        val photoState = photos[preApp.folio]
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            PhotoPlaceholderBox(
+                label = "Foto alumno",
+                photoUrl = photoState?.studentPhotoMockUrl,
+                onCapture = { PreApplicationViewModel.simulateCaptureStudentPhoto(preApp.folio) },
+                modifier = Modifier.weight(1f)
+            )
+            PhotoPlaceholderBox(
+                label = "Foto responsable",
+                photoUrl = photoState?.responsablePhotoMockUrl,
+                onCapture = { PreApplicationViewModel.simulateCaptureResponsablePhoto(preApp.folio) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Tab Row
         TabRow(
@@ -587,35 +612,133 @@ private fun ContextoTab(preApp: PreApplication) {
     DetailRow("Observaciones", u.observacionesFamiliares.ifBlank { "Sin observaciones" })
 }
 
+// ── Photo Placeholder ──────────────────────────────────────────────────────
+
+@Composable
+private fun PhotoPlaceholderBox(
+    label: String,
+    photoUrl: String?,
+    onCapture: () -> Unit,
+    modifier: Modifier = Modifier,
+    boxSize: Dp = 64.dp
+) {
+    val hasPhoto = photoUrl != null
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (hasPhoto) SaseGreen.copy(alpha = 0.08f) else SaseBorder.copy(alpha = 0.2f))
+            .border(1.dp, if (hasPhoto) SaseGreen.copy(alpha = 0.3f) else SaseBorder.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(boxSize)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (hasPhoto) SaseGreen.copy(alpha = 0.12f) else SaseMuted.copy(alpha = 0.08f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (hasPhoto) {
+                    Icon(Icons.Default.Face, contentDescription = null, tint = SaseGreen, modifier = Modifier.size(28.dp))
+                } else {
+                    Icon(Icons.Default.Person, contentDescription = null, tint = SaseMuted.copy(alpha = 0.5f), modifier = Modifier.size(28.dp))
+                }
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(label, color = SaseMuted, fontSize = 8.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(
+                if (hasPhoto) "Capturada" else "Pendiente",
+                color = if (hasPhoto) SaseGreen else SaseOrange,
+                fontSize = 7.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (hasPhoto) SaseMuted.copy(alpha = 0.1f) else SaseCyan.copy(alpha = 0.12f))
+                    .clickable { onCapture() }
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    if (hasPhoto) "Restaurar" else "Simular captura",
+                    color = if (hasPhoto) SaseMuted else SaseCyan,
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
 // ── Tab 4: Documentos ──────────────────────────────────────────────────────
 
 @Composable
 private fun DocumentosTab(preApp: PreApplication) {
     SectionHeader("Bloque H — Documentos Declarados")
     Spacer(modifier = Modifier.height(4.dp))
+
+    val docsCount = preApp.documentosDeclarados.size
+    val cotejadosCount = preApp.documentosDeclarados.count { it.cotejadoSecretaria }
+    Box(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(SaseBlue.copy(alpha = 0.05f)).padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text("$cotejadosCount de $docsCount documentos cotejados", color = SaseBlue, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+
     preApp.documentosDeclarados.forEach { doc ->
+        val declarado = doc.declarado
+        val cotejado = doc.cotejadoSecretaria
+        val canCotejar = declarado && !cotejado
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(8.dp))
-                .background(if (doc.declarado) SaseGreen.copy(alpha = 0.05f) else SaseRed.copy(alpha = 0.05f))
+                .background(
+                    when {
+                        cotejado -> SaseGreen.copy(alpha = 0.08f)
+                        declarado -> Color.White.copy(alpha = 0.5f)
+                        else -> SaseRed.copy(alpha = 0.05f)
+                    }
+                )
                 .padding(horizontal = 8.dp, vertical = 6.dp)
         ) {
-            if (doc.declarado) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SaseGreen, modifier = Modifier.size(16.dp))
-            } else {
-                Icon(Icons.Default.Warning, contentDescription = null, tint = SaseRed.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(doc.nombre, color = if (doc.declarado) SaseText else SaseRed, fontSize = 11.sp, fontWeight = if (doc.declarado) FontWeight.Normal else FontWeight.SemiBold)
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                if (doc.declarado) "Declarado" else "Falta",
-                color = if (doc.declarado) SaseGreen else SaseRed,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold
+            // Declarado indicator
+            Icon(
+                if (declarado) Icons.Default.CheckCircle else Icons.Default.Warning,
+                contentDescription = null,
+                tint = if (declarado) SaseGreen else SaseRed.copy(alpha = 0.7f),
+                modifier = Modifier.size(14.dp)
             )
+            Spacer(modifier = Modifier.width(6.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(doc.nombre, color = if (declarado) SaseText else SaseRed, fontSize = 10.sp, fontWeight = if (declarado) FontWeight.Normal else FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Declarado", color = if (declarado) SaseGreen else SaseRed, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                    if (cotejado) {
+                        Box(modifier = Modifier.size(2.dp).clip(CircleShape).background(SaseGreen))
+                        Text("Cotejado", color = SaseGreen, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            // Cotejo button
+            if (canCotejar) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(SaseBlue.copy(alpha = 0.1f))
+                        .clickable { PreApplicationViewModel.toggleDocumentCotejado(preApp.folio, doc.nombre) }
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                ) {
+                    Text("Cotejar", color = SaseBlue, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                }
+            } else if (cotejado) {
+                Icon(Icons.Default.VerifiedUser, contentDescription = "Cotejado", tint = SaseGreen, modifier = Modifier.size(14.dp))
+            }
         }
         Spacer(modifier = Modifier.height(2.dp))
     }

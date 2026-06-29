@@ -46,6 +46,36 @@ class PreApplicationViewModel {
             }
         }
 
+        data class PreApplicationPhotoState(
+            val studentPhotoMockUrl: String? = null,
+            val responsablePhotoMockUrl: String? = null
+        )
+
+        private val _photos = MutableStateFlow<Map<String, PreApplicationPhotoState>>(emptyMap())
+        val photos: StateFlow<Map<String, PreApplicationPhotoState>> = _photos.asStateFlow()
+
+        fun toggleDocumentCotejado(folio: String, docNombre: String) {
+            _sharedPreApplications.value = _sharedPreApplications.value.map { app ->
+                if (app.folio != folio) return@map app
+                app.copy(documentosDeclarados = app.documentosDeclarados.map { doc ->
+                    if (doc.nombre != docNombre || !doc.declarado) doc
+                    else doc.copy(cotejadoSecretaria = !doc.cotejadoSecretaria)
+                })
+            }
+        }
+
+        fun simulateCaptureStudentPhoto(folio: String) {
+            val current = _photos.value.toMutableMap()
+            current[folio] = (current[folio] ?: PreApplicationPhotoState()).copy(studentPhotoMockUrl = "mock://photo/student/$folio.jpg")
+            _photos.value = current
+        }
+
+        fun simulateCaptureResponsablePhoto(folio: String) {
+            val current = _photos.value.toMutableMap()
+            current[folio] = (current[folio] ?: PreApplicationPhotoState()).copy(responsablePhotoMockUrl = "mock://photo/responsable/$folio.jpg")
+            _photos.value = current
+        }
+
         fun buildProvisionalStudent(preApp: PreApplication): com.example.data.Student {
             val newId = "PROV-${preApp.folio.takeLast(4)}"
             val resp = preApp.responsables.firstOrNull()
