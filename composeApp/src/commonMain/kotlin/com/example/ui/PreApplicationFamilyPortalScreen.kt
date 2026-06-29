@@ -97,7 +97,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                 ) {
                     when (currentStep) {
                         0 -> StepDatosBasicos(familyViewModel)
-                        1 -> StepContactos()
+                        1 -> StepContactos(familyViewModel)
                         2 -> StepContexto()
                         3 -> StepDocumentos()
                         4 -> StepResumenEnvio(familyViewModel)
@@ -380,16 +380,148 @@ private fun FormField(label: String, value: String, onChange: (String) -> Unit, 
     }
 }
 
-// ── STEP 2: Contactos (placeholder) ─────────────────────────────
+// ── STEP 2: Contactos ───────────────────────────────────────────
 
 @Composable
-private fun StepContactos() {
-    PlaceholderStep(
-        title = "Responsables y Contactos",
-        description = "Registra a la madre, padre o tutor legal.",
-        phase = "2A",
-        nextSection = "Contactos, Autorizados para recoger"
+private fun StepContactos(vm: PreApplicationViewModel) {
+    val responsableNombre by vm.responsableNombre.collectAsState()
+    val responsableParentesco by vm.responsableParentesco.collectAsState()
+    val responsableTelefono by vm.responsableTelefono.collectAsState()
+    val responsableCorreo by vm.responsableCorreo.collectAsState()
+    val responsableVive by vm.responsableViveConAlumno.collectAsState()
+    val responsablePuede by vm.responsablePuedeRecoger.collectAsState()
+    val autorizados by vm.autorizados.collectAsState()
+
+    var showAddDialog by remember { mutableStateOf(false) }
+
+    Text("Responsable Principal", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Registra a la madre, padre o tutor legal.", fontSize = 12.sp, color = SaseMuted)
+
+    OutlinedTextField(
+        value = responsableNombre,
+        onValueChange = { vm.setResponsableNombre(it) },
+        label = { Text("Nombre completo del responsable") },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true
     )
+    Spacer(modifier = Modifier.height(6.dp))
+
+    Text("Parentesco", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        listOf("Madre", "Padre", "Tutor", "Otro").forEach { opt ->
+            val selected = responsableParentesco == opt
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (selected) SaseBlue else SaseBgSoft)
+                    .clickable { vm.setResponsableParentesco(opt) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(opt, color = if (selected) Color.White else SaseNavy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(6.dp))
+    OutlinedTextField(
+        value = responsableTelefono,
+        onValueChange = { vm.setResponsableTelefono(it) },
+        label = { Text("Telefono (10 digitos)") },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true
+    )
+    Spacer(modifier = Modifier.height(6.dp))
+    OutlinedTextField(
+        value = responsableCorreo,
+        onValueChange = { vm.setResponsableCorreo(it) },
+        label = { Text("Correo electronico (opcional)") },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = responsableVive, onCheckedChange = { vm.setResponsableViveConAlumno(it) })
+        Text("Vive con el alumno", fontSize = 13.sp, color = SaseNavy)
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = responsablePuede, onCheckedChange = { vm.setResponsablePuedeRecoger(it) })
+        Text("Puede recoger al alumno", fontSize = 13.sp, color = SaseNavy)
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+    Text("Autorizados para Recoger", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Personas adicionales autorizadas para recoger al alumno.", fontSize = 11.sp, color = SaseMuted)
+
+    autorizados.forEach { a ->
+        Row(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(SaseBgSoft).padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(a.nombre, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+                Text("${a.parentesco} — ${a.telefono}", fontSize = 10.sp, color = SaseMuted)
+            }
+            IconButton(onClick = { vm.removeAutorizado(a.id) }, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.Close, contentDescription = "Eliminar", tint = SaseRed, modifier = Modifier.size(16.dp))
+            }
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+    }
+
+    OutlinedButton(
+        onClick = { showAddDialog = true },
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+        Text("Agregar autorizado", color = SaseBlue)
+    }
+
+    if (showAddDialog) {
+        AutorizadoDialog(
+            onDismiss = { showAddDialog = false },
+            onConfirm = { nombre, parentesco, telefono ->
+                vm.addAutorizado(nombre, parentesco, telefono)
+                showAddDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun AutorizadoDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (nombre: String, parentesco: String, telefono: String) -> Unit
+) {
+    var nombre by remember { mutableStateOf("") }
+    var parentesco by remember { mutableStateOf("") }
+    var telefono by remember { mutableStateOf("") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        GlassCard {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Agregar Autorizado", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+
+                OutlinedTextField(value = nombre, onValueChange = { nombre = it }, label = { Text("Nombre completo") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = parentesco, onValueChange = { parentesco = it }, label = { Text("Parentesco") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = telefono, onValueChange = { telefono = it.take(10) }, label = { Text("Telefono (10 digitos)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancelar", color = SaseNavy) }
+                    Button(
+                        onClick = { onConfirm(nombre, parentesco, telefono) },
+                        enabled = nombre.isNotBlank() && parentesco.isNotBlank() && telefono.length == 10,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) { Text("Agregar", color = Color.White) }
+                }
+            }
+        }
+    }
 }
 
 // ── STEP 3: Contexto (placeholder) ──────────────────────────────

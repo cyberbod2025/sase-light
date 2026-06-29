@@ -58,6 +58,31 @@ class PreApplicationViewModel {
     private val _telefonoCasa = MutableStateFlow("")
     val telefonoCasa: StateFlow<String> = _telefonoCasa.asStateFlow()
 
+    // Block C — Responsable principal
+    private val _responsableNombre = MutableStateFlow("")
+    val responsableNombre: StateFlow<String> = _responsableNombre.asStateFlow()
+
+    private val _responsableParentesco = MutableStateFlow("")
+    val responsableParentesco: StateFlow<String> = _responsableParentesco.asStateFlow()
+
+    private val _responsableTelefono = MutableStateFlow("")
+    val responsableTelefono: StateFlow<String> = _responsableTelefono.asStateFlow()
+
+    private val _responsableCorreo = MutableStateFlow("")
+    val responsableCorreo: StateFlow<String> = _responsableCorreo.asStateFlow()
+
+    private val _responsableViveConAlumno = MutableStateFlow(true)
+    val responsableViveConAlumno: StateFlow<Boolean> = _responsableViveConAlumno.asStateFlow()
+
+    private val _responsablePuedeRecoger = MutableStateFlow(true)
+    val responsablePuedeRecoger: StateFlow<Boolean> = _responsablePuedeRecoger.asStateFlow()
+
+    // Block D — Autorizados para recoger
+    data class AutorizadoItem(val id: String, val nombre: String, val parentesco: String, val telefono: String)
+
+    private val _autorizados = MutableStateFlow<List<AutorizadoItem>>(emptyList())
+    val autorizados: StateFlow<List<AutorizadoItem>> = _autorizados.asStateFlow()
+
     // Validation errors
     private val _errors = MutableStateFlow<Map<String, String>>(emptyMap())
     val errors: StateFlow<Map<String, String>> = _errors.asStateFlow()
@@ -101,6 +126,22 @@ class PreApplicationViewModel {
     fun setDomicilio(v: String) { _domicilio.value = v }
     fun setTelefonoCasa(v: String) { _telefonoCasa.value = v.take(10) }
 
+    fun setResponsableNombre(v: String) { _responsableNombre.value = v }
+    fun setResponsableParentesco(v: String) { _responsableParentesco.value = v }
+    fun setResponsableTelefono(v: String) { _responsableTelefono.value = v.take(10) }
+    fun setResponsableCorreo(v: String) { _responsableCorreo.value = v }
+    fun setResponsableViveConAlumno(v: Boolean) { _responsableViveConAlumno.value = v }
+    fun setResponsablePuedeRecoger(v: Boolean) { _responsablePuedeRecoger.value = v }
+
+    fun addAutorizado(nombre: String, parentesco: String, telefono: String) {
+        val id = "AUT-${_autorizados.value.size + 1}-${Random.nextInt(100, 999)}"
+        _autorizados.value = _autorizados.value + AutorizadoItem(id, nombre, parentesco, telefono.take(10))
+    }
+
+    fun removeAutorizado(id: String) {
+        _autorizados.value = _autorizados.value.filter { it.id != id }
+    }
+
     private fun validateStep(step: Int): Boolean {
         val errs = mutableMapOf<String, String>()
         when (step) {
@@ -111,6 +152,11 @@ class PreApplicationViewModel {
                 if (_gradoSolicitado.value == 0) errs["grado"] = "Selecciona un grado"
                 if (_telefonoPrincipal.value.length < 10) errs["telefono"] = "10 dígitos requeridos"
                 if (!_aceptaAvisoPrivacidad.value) errs["aviso"] = "Debes aceptar el aviso de privacidad"
+            }
+            1 -> {
+                if (_responsableNombre.value.isBlank()) errs["responsable"] = "Nombre del responsable obligatorio"
+                if (_responsableParentesco.value.isBlank()) errs["parentesco"] = "Parentesco obligatorio"
+                if (_responsableTelefono.value.length < 10) errs["responsableTel"] = "Teléfono 10 dígitos requerido"
             }
         }
         _errors.value = errs
@@ -149,6 +195,13 @@ class PreApplicationViewModel {
         _aceptaAvisoPrivacidad.value = false
         _domicilio.value = ""
         _telefonoCasa.value = ""
+        _responsableNombre.value = ""
+        _responsableParentesco.value = ""
+        _responsableTelefono.value = ""
+        _responsableCorreo.value = ""
+        _responsableViveConAlumno.value = true
+        _responsablePuedeRecoger.value = true
+        _autorizados.value = emptyList()
         _errors.value = emptyMap()
         _submittedFolio.value = null
     }
