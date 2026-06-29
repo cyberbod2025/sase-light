@@ -138,6 +138,61 @@ class PreApplicationViewModel {
     private val _cartillaVacunacionActualizada = MutableStateFlow(false)
     val cartillaVacunacionActualizada: StateFlow<Boolean> = _cartillaVacunacionActualizada.asStateFlow()
 
+    // Block F — Trabajo Social declarativo familiar
+    private val _viveConQuien = MutableStateFlow("")
+    val viveConQuien: StateFlow<String> = _viveConQuien.asStateFlow()
+
+    private val _tipoFamilia = MutableStateFlow("")
+    val tipoFamilia: StateFlow<String> = _tipoFamilia.asStateFlow()
+
+    private val _hijoUnico = MutableStateFlow(false)
+    val hijoUnico: StateFlow<Boolean> = _hijoUnico.asStateFlow()
+
+    private val _lugarEntreHermanos = MutableStateFlow("")
+    val lugarEntreHermanos: StateFlow<String> = _lugarEntreHermanos.asStateFlow()
+
+    private val _hermanosEnEscuela = MutableStateFlow(false)
+    val hermanosEnEscuela: StateFlow<Boolean> = _hermanosEnEscuela.asStateFlow()
+
+    private val _integrantesHogar = MutableStateFlow("")
+    val integrantesHogar: StateFlow<String> = _integrantesHogar.asStateFlow()
+
+    private val _principalSostenEconomico = MutableStateFlow("")
+    val principalSostenEconomico: StateFlow<String> = _principalSostenEconomico.asStateFlow()
+
+    private val _ingresoFamiliarRango = MutableStateFlow("")
+    val ingresoFamiliarRango: StateFlow<String> = _ingresoFamiliarRango.asStateFlow()
+
+    private val _tipoVivienda = MutableStateFlow("")
+    val tipoVivienda: StateFlow<String> = _tipoVivienda.asStateFlow()
+
+    private val _serviciosBasicos = MutableStateFlow(false)
+    val serviciosBasicos: StateFlow<Boolean> = _serviciosBasicos.asStateFlow()
+
+    private val _internetCasa = MutableStateFlow(false)
+    val internetCasa: StateFlow<Boolean> = _internetCasa.asStateFlow()
+
+    private val _dispositivoTareas = MutableStateFlow("")
+    val dispositivoTareas: StateFlow<String> = _dispositivoTareas.asStateFlow()
+
+    private val _becaApoyoSocial = MutableStateFlow("")
+    val becaApoyoSocial: StateFlow<String> = _becaApoyoSocial.asStateFlow()
+
+    private val _medioTransporte = MutableStateFlow("")
+    val medioTransporte: StateFlow<String> = _medioTransporte.asStateFlow()
+
+    private val _dificultadComprarMateriales = MutableStateFlow(false)
+    val dificultadComprarMateriales: StateFlow<Boolean> = _dificultadComprarMateriales.asStateFlow()
+
+    private val _personaAtiendeAvisos = MutableStateFlow("")
+    val personaAtiendeAvisos: StateFlow<String> = _personaAtiendeAvisos.asStateFlow()
+
+    private val _horarioPreferenteComunicacion = MutableStateFlow("")
+    val horarioPreferenteComunicacion: StateFlow<String> = _horarioPreferenteComunicacion.asStateFlow()
+
+    private val _puedeAcudirCitatorios = MutableStateFlow(false)
+    val puedeAcudirCitatorios: StateFlow<Boolean> = _puedeAcudirCitatorios.asStateFlow()
+
     // Validation errors
     private val _errors = MutableStateFlow<Map<String, String>>(emptyMap())
     val errors: StateFlow<Map<String, String>> = _errors.asStateFlow()
@@ -215,6 +270,25 @@ class PreApplicationViewModel {
     fun setDificultadAuditivaDetalle(v: String) { _dificultadAuditivaDetalle.value = v }
     fun setSaludBucalReferida(v: String) { _saludBucalReferida.value = v }
     fun setCartillaVacunacionActualizada(v: Boolean) { _cartillaVacunacionActualizada.value = v }
+
+    fun setViveConQuien(v: String) { _viveConQuien.value = v }
+    fun setTipoFamilia(v: String) { _tipoFamilia.value = v }
+    fun setHijoUnico(v: Boolean) { _hijoUnico.value = v }
+    fun setLugarEntreHermanos(v: String) { _lugarEntreHermanos.value = v }
+    fun setHermanosEnEscuela(v: Boolean) { _hermanosEnEscuela.value = v }
+    fun setIntegrantesHogar(v: String) { _integrantesHogar.value = v.filter { it.isDigit() }.take(2) }
+    fun setPrincipalSostenEconomico(v: String) { _principalSostenEconomico.value = v }
+    fun setIngresoFamiliarRango(v: String) { _ingresoFamiliarRango.value = v }
+    fun setTipoVivienda(v: String) { _tipoVivienda.value = v }
+    fun setServiciosBasicos(v: Boolean) { _serviciosBasicos.value = v }
+    fun setInternetCasa(v: Boolean) { _internetCasa.value = v }
+    fun setDispositivoTareas(v: String) { _dispositivoTareas.value = v }
+    fun setBecaApoyoSocial(v: String) { _becaApoyoSocial.value = v }
+    fun setMedioTransporte(v: String) { _medioTransporte.value = v }
+    fun setDificultadComprarMateriales(v: Boolean) { _dificultadComprarMateriales.value = v }
+    fun setPersonaAtiendeAvisos(v: String) { _personaAtiendeAvisos.value = v }
+    fun setHorarioPreferenteComunicacion(v: String) { _horarioPreferenteComunicacion.value = v }
+    fun setPuedeAcudirCitatorios(v: Boolean) { _puedeAcudirCitatorios.value = v }
 
     private fun validateStep(step: Int): Boolean {
         val errs = mutableMapOf<String, String>()
@@ -294,6 +368,24 @@ class PreApplicationViewModel {
         _dificultadAuditivaDetalle.value = ""
         _saludBucalReferida.value = ""
         _cartillaVacunacionActualizada.value = false
+        _viveConQuien.value = ""
+        _tipoFamilia.value = ""
+        _hijoUnico.value = false
+        _lugarEntreHermanos.value = ""
+        _hermanosEnEscuela.value = false
+        _integrantesHogar.value = ""
+        _principalSostenEconomico.value = ""
+        _ingresoFamiliarRango.value = ""
+        _tipoVivienda.value = ""
+        _serviciosBasicos.value = false
+        _internetCasa.value = false
+        _dispositivoTareas.value = ""
+        _becaApoyoSocial.value = ""
+        _medioTransporte.value = ""
+        _dificultadComprarMateriales.value = false
+        _personaAtiendeAvisos.value = ""
+        _horarioPreferenteComunicacion.value = ""
+        _puedeAcudirCitatorios.value = false
         _errors.value = emptyMap()
         _submittedFolio.value = null
     }

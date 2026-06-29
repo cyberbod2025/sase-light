@@ -70,7 +70,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
             Spacer(modifier = Modifier.height(20.dp))
 
             // Step indicator
-            val stepTitles = listOf("Datos", "Contactos", "Médico", "Docs", "Envio")
+            val stepTitles = listOf("Datos", "Contactos", "Contexto", "Docs", "Envio")
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -98,7 +98,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                     when (currentStep) {
                         0 -> StepDatosBasicos(familyViewModel)
                         1 -> StepContactos(familyViewModel)
-                        2 -> StepMedicoEscolar(familyViewModel)
+                        2 -> StepContextoFamiliar(familyViewModel)
                         3 -> StepDocumentos()
                         4 -> StepResumenEnvio(familyViewModel)
                     }
@@ -524,10 +524,10 @@ private fun AutorizadoDialog(
     }
 }
 
-// ── STEP 3: Médico Escolar declarativo familiar ────────────────
+// ── STEP 3: Contexto declarativo familiar ──────────────────────
 
 @Composable
-private fun StepMedicoEscolar(vm: PreApplicationViewModel) {
+private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
     val servicioMedico by vm.servicioMedico.collectAsState()
     val numeroAfiliacionPoliza by vm.numeroAfiliacionPoliza.collectAsState()
     val tipoSangre by vm.tipoSangre.collectAsState()
@@ -546,6 +546,31 @@ private fun StepMedicoEscolar(vm: PreApplicationViewModel) {
     val dificultadAuditivaDetalle by vm.dificultadAuditivaDetalle.collectAsState()
     val saludBucalReferida by vm.saludBucalReferida.collectAsState()
     val cartillaVacunacionActualizada by vm.cartillaVacunacionActualizada.collectAsState()
+    val viveConQuien by vm.viveConQuien.collectAsState()
+    val tipoFamilia by vm.tipoFamilia.collectAsState()
+    val hijoUnico by vm.hijoUnico.collectAsState()
+    val lugarEntreHermanos by vm.lugarEntreHermanos.collectAsState()
+    val hermanosEnEscuela by vm.hermanosEnEscuela.collectAsState()
+    val integrantesHogar by vm.integrantesHogar.collectAsState()
+    val principalSostenEconomico by vm.principalSostenEconomico.collectAsState()
+    val ingresoFamiliarRango by vm.ingresoFamiliarRango.collectAsState()
+    val tipoVivienda by vm.tipoVivienda.collectAsState()
+    val serviciosBasicos by vm.serviciosBasicos.collectAsState()
+    val internetCasa by vm.internetCasa.collectAsState()
+    val dispositivoTareas by vm.dispositivoTareas.collectAsState()
+    val becaApoyoSocial by vm.becaApoyoSocial.collectAsState()
+    val medioTransporte by vm.medioTransporte.collectAsState()
+    val dificultadComprarMateriales by vm.dificultadComprarMateriales.collectAsState()
+    val personaAtiendeAvisos by vm.personaAtiendeAvisos.collectAsState()
+    val horarioPreferenteComunicacion by vm.horarioPreferenteComunicacion.collectAsState()
+    val puedeAcudirCitatorios by vm.puedeAcudirCitatorios.collectAsState()
+
+    Text("Contexto Familiar", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text(
+        "Esta información ayuda a la escuela a organizar apoyos y comunicación.",
+        fontSize = 12.sp,
+        color = SaseMuted
+    )
 
     Text("Médico Escolar", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
     Text(
@@ -574,7 +599,7 @@ private fun StepMedicoEscolar(vm: PreApplicationViewModel) {
     FormField("Número de afiliación/póliza", numeroAfiliacionPoliza, { vm.setNumeroAfiliacionPoliza(it) }, false, null)
     FormField("Tipo de sangre si se conoce", tipoSangre, { vm.setTipoSangre(it) }, false, null)
 
-    MedicoEscolarCheckbox(
+    DeclarativeCheckbox(
         label = "Alergias",
         checked = tieneAlergias,
         onCheckedChange = { vm.setTieneAlergias(it) }
@@ -583,7 +608,7 @@ private fun StepMedicoEscolar(vm: PreApplicationViewModel) {
         FormField("Detalle de alergias", alergiasDetalle, { vm.setAlergiasDetalle(it) }, false, null)
     }
 
-    MedicoEscolarCheckbox(
+    DeclarativeCheckbox(
         label = "Padecimientos relevantes",
         checked = tienePadecimientos,
         onCheckedChange = { vm.setTienePadecimientos(it) }
@@ -592,7 +617,7 @@ private fun StepMedicoEscolar(vm: PreApplicationViewModel) {
         FormField("Detalle de padecimientos", padecimientosDetalle, { vm.setPadecimientosDetalle(it) }, false, null)
     }
 
-    MedicoEscolarCheckbox(
+    DeclarativeCheckbox(
         label = "Medicamentos prescritos",
         checked = tomaMedicamentos,
         onCheckedChange = { vm.setTomaMedicamentos(it) }
@@ -601,7 +626,7 @@ private fun StepMedicoEscolar(vm: PreApplicationViewModel) {
         FormField("Detalle de medicamentos prescritos", medicamentosDetalle, { vm.setMedicamentosDetalle(it) }, false, null)
     }
 
-    MedicoEscolarCheckbox(
+    DeclarativeCheckbox(
         label = "Restricción de actividad física",
         checked = restriccionActividadFisica,
         onCheckedChange = { vm.setRestriccionActividadFisica(it) }
@@ -616,13 +641,13 @@ private fun StepMedicoEscolar(vm: PreApplicationViewModel) {
         )
     }
 
-    MedicoEscolarCheckbox(
+    DeclarativeCheckbox(
         label = "Uso de lentes",
         checked = usaLentes,
         onCheckedChange = { vm.setUsaLentes(it) }
     )
 
-    MedicoEscolarCheckbox(
+    DeclarativeCheckbox(
         label = "Dificultad visual referida",
         checked = dificultadVisualReferida,
         onCheckedChange = { vm.setDificultadVisualReferida(it) }
@@ -631,7 +656,7 @@ private fun StepMedicoEscolar(vm: PreApplicationViewModel) {
         FormField("Detalle de dificultad visual", dificultadVisualDetalle, { vm.setDificultadVisualDetalle(it) }, false, null)
     }
 
-    MedicoEscolarCheckbox(
+    DeclarativeCheckbox(
         label = "Dificultad auditiva referida",
         checked = dificultadAuditivaReferida,
         onCheckedChange = { vm.setDificultadAuditivaReferida(it) }
@@ -642,15 +667,78 @@ private fun StepMedicoEscolar(vm: PreApplicationViewModel) {
 
     FormField("Salud bucal referida", saludBucalReferida, { vm.setSaludBucalReferida(it) }, false, null)
 
-    MedicoEscolarCheckbox(
+    DeclarativeCheckbox(
         label = "Cartilla de vacunación actualizada",
         checked = cartillaVacunacionActualizada,
         onCheckedChange = { vm.setCartillaVacunacionActualizada(it) }
     )
+
+    Spacer(modifier = Modifier.height(8.dp))
+    Text("Trabajo Social", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text(
+        "La familia declara información general. Trabajo Social complementará después información especializada o reservada.",
+        fontSize = 12.sp,
+        color = SaseMuted
+    )
+
+    FormField("Vive con quién", viveConQuien, { vm.setViveConQuien(it) }, false, null)
+    CompactOptionGroup(
+        label = "Tipo de familia",
+        options = listOf("Nuclear", "Extensa", "Monoparental", "Reconstituida", "Otra"),
+        selected = tipoFamilia,
+        onSelect = { vm.setTipoFamilia(it) }
+    )
+    DeclarativeCheckbox("Hijo único", hijoUnico, { vm.setHijoUnico(it) })
+    if (!hijoUnico) {
+        FormField("Lugar entre hermanos", lugarEntreHermanos, { vm.setLugarEntreHermanos(it) }, false, null)
+    }
+    DeclarativeCheckbox("Hermanos en la escuela", hermanosEnEscuela, { vm.setHermanosEnEscuela(it) })
+    FormField("Integrantes del hogar", integrantesHogar, { vm.setIntegrantesHogar(it) }, false, null)
+    FormField("Principal sostén económico", principalSostenEconomico, { vm.setPrincipalSostenEconomico(it) }, false, null)
+    CompactOptionGroup(
+        label = "Ingreso familiar por rangos",
+        options = listOf("Hasta 1 SM", "1 a 2 SM", "2 a 4 SM", "Más de 4 SM", "Prefiero no responder"),
+        selected = ingresoFamiliarRango,
+        onSelect = { vm.setIngresoFamiliarRango(it) }
+    )
+    CompactOptionGroup(
+        label = "Tipo de vivienda",
+        options = listOf("Propia", "Rentada", "Prestada", "Compartida", "Otra"),
+        selected = tipoVivienda,
+        onSelect = { vm.setTipoVivienda(it) }
+    )
+    DeclarativeCheckbox("Servicios básicos en casa", serviciosBasicos, { vm.setServiciosBasicos(it) })
+    DeclarativeCheckbox("Internet en casa", internetCasa, { vm.setInternetCasa(it) })
+    CompactOptionGroup(
+        label = "Dispositivo para tareas",
+        options = listOf("Computadora", "Tableta", "Teléfono", "Compartido", "No disponible"),
+        selected = dispositivoTareas,
+        onSelect = { vm.setDispositivoTareas(it) }
+    )
+    FormField("Beca o apoyo social", becaApoyoSocial, { vm.setBecaApoyoSocial(it) }, false, null)
+    CompactOptionGroup(
+        label = "Medio de transporte",
+        options = listOf("Camina", "Transporte público", "Auto familiar", "Transporte escolar", "Otro"),
+        selected = medioTransporte,
+        onSelect = { vm.setMedioTransporte(it) }
+    )
+    DeclarativeCheckbox(
+        "Dificultad para comprar materiales",
+        dificultadComprarMateriales,
+        { vm.setDificultadComprarMateriales(it) }
+    )
+    FormField("Persona que atiende avisos escolares", personaAtiendeAvisos, { vm.setPersonaAtiendeAvisos(it) }, false, null)
+    CompactOptionGroup(
+        label = "Horario preferente de comunicación",
+        options = listOf("Mañana", "Tarde", "Noche", "Indistinto"),
+        selected = horarioPreferenteComunicacion,
+        onSelect = { vm.setHorarioPreferenteComunicacion(it) }
+    )
+    DeclarativeCheckbox("Posibilidad de acudir a citatorios", puedeAcudirCitatorios, { vm.setPuedeAcudirCitatorios(it) })
 }
 
 @Composable
-private fun MedicoEscolarCheckbox(
+private fun DeclarativeCheckbox(
     label: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
@@ -667,6 +755,45 @@ private fun MedicoEscolarCheckbox(
         Checkbox(checked = checked, onCheckedChange = onCheckedChange)
         Spacer(modifier = Modifier.width(6.dp))
         Text(label, fontSize = 12.sp, color = SaseNavy, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun CompactOptionGroup(
+    label: String,
+    options: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+        options.chunked(3).forEach { rowItems ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                rowItems.forEach { option ->
+                    val isSelected = selected == option
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isSelected) SaseNavy else SaseBgSoft)
+                            .clickable { onSelect(option) }
+                            .padding(horizontal = 8.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            option,
+                            color = if (isSelected) Color.White else SaseNavy,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+                repeat(3 - rowItems.size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
     }
 }
 
