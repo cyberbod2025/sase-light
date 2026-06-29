@@ -406,13 +406,20 @@ class PreApplicationViewModel {
         if (_gradoSolicitado.value == 0) errs["grado"] = "Selecciona un grado"
         if (_telefonoPrincipal.value.length < 10) errs["telefono"] = "10 dígitos requeridos"
         if (!_aceptaAvisoPrivacidad.value) errs["aviso"] = "Debes aceptar el aviso de privacidad"
+        if (_responsableNombre.value.isBlank()) errs["responsable"] = "Nombre del responsable obligatorio"
+        if (_responsableParentesco.value.isBlank()) errs["parentesco"] = "Parentesco obligatorio"
+        if (_responsableTelefono.value.length < 10) errs["responsableTel"] = "Teléfono 10 dígitos requerido"
         val usoDatos = _consentimientos.value.find { it.key == "usoDatos" }?.aceptado == true
         val corresponsabilidad = _consentimientos.value.find { it.key == "corresponsabilidad" }?.aceptado == true
         if (!usoDatos) errs["consentimientoUsoDatos"] = "Debes aceptar el uso de datos para expediente"
         if (!corresponsabilidad) errs["consentimientoCorresponsabilidad"] = "Debes aceptar la corresponsabilidad familiar"
         if (errs.isNotEmpty()) {
             _errors.value = errs
-            _currentStep.value = if (usoDatos && corresponsabilidad) 0 else 4
+            _currentStep.value = when {
+                errs.containsKey("consentimientoUsoDatos") || errs.containsKey("consentimientoCorresponsabilidad") -> 4
+                errs.containsKey("responsable") || errs.containsKey("parentesco") || errs.containsKey("responsableTel") -> 1
+                else -> 0
+            }
             return
         }
 
@@ -428,6 +435,8 @@ class PreApplicationViewModel {
 
     fun resetForm() {
         _currentStep.value = 0
+        _tipoTramite.value = "Nuevo Ingreso"
+        _cicloEscolar.value = "2025-2026"
         _nombreCompleto.value = ""
         _curp.value = ""
         _fechaNacimiento.value = ""

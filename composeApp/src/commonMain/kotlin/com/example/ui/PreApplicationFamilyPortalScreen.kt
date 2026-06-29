@@ -174,7 +174,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Pre-solicitud Enviada", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Guarde su folio para continuar el tramite en Secretaria:", textAlign = TextAlign.Center, color = SaseMuted, fontSize = 13.sp)
+                    Text("Guarda este folio para continuar tu tramite:", textAlign = TextAlign.Center, color = SaseMuted, fontSize = 13.sp)
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Box(
@@ -187,24 +187,48 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                         Text(submittedFolio!!, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = SaseBlue)
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Acuda a Secretaria con sus documentos originales para continuar el tramite.",
-                        textAlign = TextAlign.Center,
-                        color = SaseMuted,
-                        fontSize = 11.sp
-                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Guarda este folio.",
+                            fontSize = 12.sp, color = SaseNavy, fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Presentate en Secretaria con documentos originales y copias.",
+                            textAlign = TextAlign.Center, fontSize = 11.sp, color = SaseMuted
+                        )
+                        Text(
+                            text = "Secretaria validara la informacion y finalizara el alta oficial si procede.",
+                            textAlign = TextAlign.Center, fontSize = 11.sp, color = SaseMuted
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                                .background(SaseOrange.copy(alpha = 0.1f)).padding(8.dp)
+                        ) {
+                            Text(
+                                "No se ha generado matricula oficial.",
+                                textAlign = TextAlign.Center, fontSize = 11.sp, color = SaseOrange, fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
 
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(
-                        onClick = {
-                            familyViewModel.resetForm()
-                            viewModel.navigateTo(Screen.SecretaryDashboard)
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Volver al Inicio", color = Color.White)
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { familyViewModel.resetForm() },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text("Nueva solicitud", color = SaseNavy, fontSize = 12.sp) }
+                        Button(
+                            onClick = {
+                                familyViewModel.resetForm()
+                                viewModel.navigateTo(Screen.SecretaryDashboard)
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text("Volver al inicio", color = Color.White, fontSize = 12.sp) }
                     }
                 }
             }
@@ -947,6 +971,7 @@ private fun StepDocumentos(vm: PreApplicationViewModel) {
 @Composable
 private fun StepResumenEnvio(vm: PreApplicationViewModel) {
     val tipoTramite by vm.tipoTramite.collectAsState()
+    val cicloEscolar by vm.cicloEscolar.collectAsState()
     val grado by vm.gradoSolicitado.collectAsState()
     val nombre by vm.nombreCompleto.collectAsState()
     val curp by vm.curp.collectAsState()
@@ -957,6 +982,8 @@ private fun StepResumenEnvio(vm: PreApplicationViewModel) {
     val acepta by vm.aceptaAvisoPrivacidad.collectAsState()
     val documentos by vm.documentos.collectAsState()
     val consentimientos by vm.consentimientos.collectAsState()
+    val responsableNombre by vm.responsableNombre.collectAsState()
+    val responsableParentesco by vm.responsableParentesco.collectAsState()
 
     Text("Resumen y Envio", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
     Text("Revisa tus datos antes de enviar.", fontSize = 12.sp, color = SaseMuted)
@@ -964,14 +991,12 @@ private fun StepResumenEnvio(vm: PreApplicationViewModel) {
     GlassCard {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             SummaryLine("Tramite", tipoTramite)
+            SummaryLine("Ciclo", cicloEscolar)
             SummaryLine("Grado", "${grado}°")
             SummaryLine("Nombre", nombre)
             SummaryLine("CURP", curp)
-            SummaryLine("Fecha Nac.", fechaNac)
-            SummaryLine("Sexo", sexo)
+            if (responsableNombre.isNotBlank()) SummaryLine("Responsable", "$responsableNombre ($responsableParentesco)")
             SummaryLine("Telefono", telefono)
-            if (correo.isNotBlank()) SummaryLine("Correo", correo)
-            SummaryLine("Aviso privacidad", if (acepta) "Aceptado" else "Pendiente", if (acepta) SaseGreen else SaseRed)
         }
     }
 
@@ -987,11 +1012,16 @@ private fun StepResumenEnvio(vm: PreApplicationViewModel) {
     }
 
     Spacer(modifier = Modifier.height(8.dp))
-    Text(
-        text = "Al enviar, genera un folio provisional. Secretaria validara tus datos y documentos.",
-        fontSize = 11.sp,
-        color = SaseMuted
-    )
+    Box(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+            .background(SaseOrange.copy(alpha = 0.08f))
+            .padding(10.dp)
+    ) {
+        Text(
+            "Esta pre-solicitud no confirma inscripcion oficial. Secretaria validara documentos, fotografias, firmas y datos oficiales.",
+            fontSize = 11.sp, color = SaseOrange, fontWeight = FontWeight.Medium
+        )
+    }
 }
 
 @Composable
