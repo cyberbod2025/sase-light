@@ -1,5 +1,6 @@
 package com.example.viewmodel
 
+import com.example.data.Student
 import com.example.data.presolicitud.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,48 @@ class PreApplicationViewModel {
             _sharedPreApplications.value = _sharedPreApplications.value.map {
                 if (it.folio == folio) it.copy(status = PreApplicationStatus.PENDIENTE_CORRECCION) else it
             }
+        }
+
+        fun setObservaciones(folio: String, text: String) {
+            _sharedPreApplications.value = _sharedPreApplications.value.map {
+                if (it.folio == folio) it.copy(observacionesSecretaria = text) else it
+            }
+        }
+
+        fun setMotivoCorreccion(folio: String, text: String) {
+            _sharedPreApplications.value = _sharedPreApplications.value.map {
+                if (it.folio == folio) it.copy(motivoCorreccion = text) else it
+            }
+        }
+
+        fun notifyFamily(folio: String): String {
+            val app = _sharedPreApplications.value.find { it.folio == folio } ?: return "Solicitud no encontrada"
+            return when (app.status) {
+                PreApplicationStatus.ACEPTADA -> "Notificación mock enviada: Solicitud ACEPTADA. Próximos pasos para inscripción."
+                PreApplicationStatus.PENDIENTE_CORRECCION -> "Notificación mock enviada: Se requiere corrección. Motivo: ${app.motivoCorreccion.ifBlank { "No especificado" }}"
+                PreApplicationStatus.CANCELADA -> "Notificación mock enviada: Solicitud cancelada."
+                else -> "Notificación mock enviada: Estado actualizado a ${app.status.label}"
+            }
+        }
+
+        fun buildProvisionalStudent(preApp: PreApplication): com.example.data.Student {
+            val newId = "PROV-${preApp.folio.takeLast(4)}"
+            val resp = preApp.responsables.firstOrNull()
+            return com.example.data.Student(
+                id = newId,
+                fullName = preApp.alumnoNombreCompleto,
+                group = "${preApp.gradoSolicitado}°",
+                enrollmentId = "PRE-${preApp.folio.takeLast(4)}",
+                curp = preApp.alumnoCurp,
+                status = "Alta pendiente",
+                tutorName = resp?.nombreCompleto ?: "",
+                tutorRelation = resp?.parentesco ?: "",
+                tutorPhone = resp?.telefono ?: "",
+                tutorEmail = resp?.correo ?: "",
+                birthDate = preApp.alumnoFechaNacimiento,
+                address = preApp.alumnoDomicilio,
+                documentationStatus = "Pendiente"
+            )
         }
     }
 

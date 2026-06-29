@@ -15,9 +15,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.data.presolicitud.*
 import com.example.ui.*
 import com.example.util.LocalToast
@@ -52,6 +54,9 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
         preApps.find { it.folio == selectedFolio }
     }
 
+    var showProvisionalDialog by remember { mutableStateOf(false) }
+    var provisionalResult by remember { mutableStateOf<String?>(null) }
+
     BoxWithConstraints(modifier = SaseBackgroundModifier()) {
         val isMobile = maxWidth < 850.dp
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -70,6 +75,7 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
             if (isMobile && selectedApp != null) {
                 MobilePreApplicationDetail(
                     preApp = selectedApp,
+                    viewModel = viewModel,
                     onBack = { selectedFolio = null },
                     onApprove = { folio ->
                         PreApplicationViewModel.approvePreApplication(folio)
@@ -78,7 +84,8 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                     onMarkCorrection = { folio ->
                         PreApplicationViewModel.markForCorrection(folio)
                         toast("Pre-solicitud $folio marcada para corrección — se notificará a la familia")
-                    }
+                    },
+                    onProvisionalCreated = { msg -> provisionalResult = msg; showProvisionalDialog = true }
                 )
             } else {
                 Column(
@@ -124,7 +131,6 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Search + toggle
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -170,14 +176,12 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                     Spacer(modifier = Modifier.height(16.dp))
 
                     if (isMobile) {
-                        // Mobile: just list
                         PreApplicationList(
                             apps = visibleApps,
                             selectedFolio = selectedFolio,
                             onSelect = { selectedFolio = it.folio }
                         )
                     } else {
-                        // Desktop: split pane
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -188,7 +192,7 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                                 onSelect = { selectedFolio = it.folio },
                                 modifier = Modifier.width(320.dp)
                             )
-                            PreApplicationDetail(
+                            PreApplicationDetailTabs(
                                 preApp = selectedApp,
                                 onApprove = { folio ->
                                     PreApplicationViewModel.approvePreApplication(folio)
@@ -198,6 +202,7 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                                     PreApplicationViewModel.markForCorrection(folio)
                                     toast("Pre-solicitud $folio marcada para corrección — se notificará a la familia")
                                 },
+                                onProvisionalCreated = { msg -> provisionalResult = msg; showProvisionalDialog = true },
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -240,6 +245,35 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
             }
         }
     }
+
+    if (showProvisionalDialog && provisionalResult != null) {
+        Dialog(onDismissRequest = { showProvisionalDialog = false; provisionalResult = null }) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, SaseBorder),
+                modifier = Modifier.fillMaxWidth().padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SaseGreen, modifier = Modifier.size(48.dp))
+                    Text("Expediente Provisional Creado", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 18.sp)
+                    Text(provisionalResult ?: "", color = SaseText, fontSize = 12.sp, textAlign = TextAlign.Center)
+                    Button(
+                        onClick = { showProvisionalDialog = false; provisionalResult = null },
+                        colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cerrar", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -271,6 +305,12 @@ private fun PreApplicationList(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(app.alumnoNombreCompleto, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
                             Text(app.folio, color = SaseMuted, fontSize = 10.sp)
+                            if (app.documentosDeclarados.count { it.declarado } < app.documentosDeclarados.size) {
+                                Text(
+                                    "Faltan ${app.documentosDeclarados.size - app.documentosDeclarados.count { it.declarado }} docs",
+                                    color = SaseOrange, fontSize = 9.sp
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         StatusBadge(app.status)
@@ -301,11 +341,16 @@ private fun StatusBadge(status: PreApplicationStatus) {
     }
 }
 
+// ── Tabbed Detail ──────────────────────────────────────────────────────────
+
+private val TAB_LABELS = listOf("Resumen A-I", "Observaciones", "Documentos")
+
 @Composable
-private fun PreApplicationDetail(
+private fun PreApplicationDetailTabs(
     preApp: PreApplication?,
     onApprove: (String) -> Unit,
     onMarkCorrection: (String) -> Unit,
+    onProvisionalCreated: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (preApp == null) {
@@ -323,88 +368,54 @@ private fun PreApplicationDetail(
         return
     }
 
+    var selectedTab by remember(preApp.folio) { mutableStateOf(0) }
+
     GlassCard(modifier = modifier) {
+        // Folio + Status
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(preApp.folio, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = SaseNavy)
+            StatusBadge(preApp.status)
+        }
+        if (preApp.submittedAt != null) {
+            Text("Enviado: ${preApp.submittedAt}", color = SaseMuted, fontSize = 10.sp)
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Tab Row
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = Color.Transparent,
+            contentColor = SaseNavy,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            TAB_LABELS.forEachIndexed { index, label ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { Text(label, fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal, fontSize = 11.sp) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-            // Folio + Status
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(preApp.folio, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = SaseNavy)
-                StatusBadge(preApp.status)
-            }
-            if (preApp.submittedAt != null) {
-                Text("Enviado: ${preApp.submittedAt}", color = SaseMuted, fontSize = 10.sp)
+            when (selectedTab) {
+                0 -> ResumenTab(preApp)
+                1 -> ObservacionesTab(preApp)
+                2 -> DocumentosTab(preApp)
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Datos del Alumno
-            SectionHeader("Datos del Alumno")
-            DetailField("Nombre completo", preApp.alumnoNombreCompleto)
-            DetailField("CURP", preApp.alumnoCurp)
-            DetailField("Fecha de nacimiento", preApp.alumnoFechaNacimiento)
-            DetailField("Sexo", preApp.alumnoSexo)
-            DetailField("Nacionalidad", preApp.alumnoNacionalidad)
-            DetailField("Entidad de nacimiento", preApp.alumnoEntidadNacimiento)
-            DetailField("Domicilio", preApp.alumnoDomicilio)
-            DetailField("Teléfono", preApp.alumnoTelefonoCasa)
-
-            Spacer(modifier = Modifier.height(12.dp))
-            SectionHeader("Trámite")
-            DetailField("Tipo", preApp.tramite)
-            DetailField("Ciclo escolar", preApp.cicloEscolar)
-            DetailField("Grado solicitado", "${preApp.gradoSolicitado}°")
-            DetailField("Escuela de procedencia", preApp.escuelaProcedencia)
-
-            // Responsable principal
-            if (preApp.responsables.isNotEmpty()) {
-                val r = preApp.responsables.first()
-                Spacer(modifier = Modifier.height(12.dp))
-                SectionHeader("Responsable Principal")
-                DetailField("Nombre", r.nombreCompleto)
-                DetailField("Parentesco", r.parentesco)
-                DetailField("Teléfono", r.telefono)
-                if (r.correo != null) DetailField("Correo", r.correo)
-            }
-
-            // Documentos
-            if (preApp.documentosDeclarados.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                SectionHeader("Documentos Declarados")
-                preApp.documentosDeclarados.forEach { doc ->
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
-                        if (doc.declarado) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SaseGreen, modifier = Modifier.size(14.dp))
-                        } else {
-                            Box(modifier = Modifier.size(14.dp).border(1.5.dp, SaseBorder.copy(alpha = 0.5f), CircleShape))
-                        }
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(doc.nombre, color = SaseText, fontSize = 11.sp)
-                    }
-                }
-            }
-
-            // Consentimientos
-            Spacer(modifier = Modifier.height(12.dp))
-            SectionHeader("Consentimientos")
-            val c = preApp.consentimientos
-            ConsentRow("Aviso de privacidad", c.avisoPrivacidad)
-            ConsentRow("Uso de datos", c.usoDatosExpediente)
-            ConsentRow("Foto del alumno", c.fotoAlumno)
-            ConsentRow("Foto credencial", c.fotoCredencial)
-            ConsentRow("Foto autorizados", c.fotoAutorizados)
-            ConsentRow("Comunicación", c.comunicacionWhatsapp)
-            ConsentRow("Reglamento interno", c.reglamentoInterno)
-            ConsentRow("Marco de convivencia", c.marcoConvivencia)
-            ConsentRow("Corresponsabilidad", c.corresponsabilidadFamiliar)
-
-            // Acciones
+            // Acciones comunes
             if (preApp.status == PreApplicationStatus.ENVIADA || preApp.status == PreApplicationStatus.PENDIENTE_CORRECCION) {
-                Spacer(modifier = Modifier.height(20.dp))
-                HorizontalDivider(color = SaseBorder)
                 Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = SaseBorder)
+                Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -434,16 +445,249 @@ private fun PreApplicationDetail(
                     }
                 }
             }
+
+            // Fase 3C: Crear expediente provisional
+            if (preApp.status == PreApplicationStatus.ACEPTADA) {
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = SaseBorder)
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        val student = PreApplicationViewModel.buildProvisionalStudent(preApp)
+                        val existing = com.example.data.repository.MockStudentRepositoryImpl().students.value
+                        onProvisionalCreated("Expediente provisional ${student.id} creado para ${student.fullName}. Estatus: Alta pendiente. Diríjase a Inscripciones para completar el registro oficial.")
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Crear expediente provisional", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                }
+            }
         }
     }
 }
 
+// ── Tab 1: Resumen A-I ─────────────────────────────────────────────────────
+
+@Composable
+private fun ResumenTab(preApp: PreApplication) {
+    // Bloque A: Pre-solicitud
+    SectionHeader("A — Trámite")
+    DetailRow("Tipo", preApp.tramite)
+    DetailRow("Ciclo", preApp.cicloEscolar)
+    DetailRow("Grado", "${preApp.gradoSolicitado}°")
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // Bloque B: Datos del Alumno
+    SectionHeader("B — Datos del Alumno")
+    DetailRow("Nombre", preApp.alumnoNombreCompleto)
+    DetailRow("CURP", preApp.alumnoCurp)
+    DetailRow("Nacimiento", preApp.alumnoFechaNacimiento)
+    DetailRow("Sexo", preApp.alumnoSexo)
+    DetailRow("Nacionalidad", preApp.alumnoNacionalidad)
+    DetailRow("Entidad", preApp.alumnoEntidadNacimiento)
+    DetailRow("Domicilio", preApp.alumnoDomicilio)
+    DetailRow("Teléfono", preApp.alumnoTelefonoCasa)
+    DetailRow("Escuela", preApp.escuelaProcedencia)
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // Bloque C: Responsables
+    SectionHeader("C — Responsables")
+    if (preApp.responsables.isEmpty()) {
+        Text("Sin responsables registrados", color = SaseOrange, fontSize = 10.sp)
+    } else {
+        preApp.responsables.forEachIndexed { i, r ->
+            Text("Responsable ${i + 1}: ${r.nombreCompleto} (${r.parentesco})", color = SaseText, fontSize = 10.sp)
+            DetailRow("  Teléfono", r.telefono)
+            if (r.correo != null) DetailRow("  Correo", r.correo)
+        }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // Bloque D: Autorizados
+    SectionHeader("D — Autorizados para recoger")
+    if (preApp.autorizados.isEmpty()) {
+        Text("Sin autorizados registrados", color = SaseMuted, fontSize = 10.sp)
+    } else {
+        preApp.autorizados.forEach { a ->
+            Text("${a.nombreCompleto} (${a.parentesco}) - ${a.telefono}", color = SaseText, fontSize = 10.sp)
+        }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // Bloque E: Ficha Médica
+    SectionHeader("E — Ficha Médica Familiar")
+    val m = preApp.fichaMedicaFamiliar
+    DetailRow("Servicio médico", m.servicioMedico)
+    if (m.numeroAfiliacion != null) DetailRow("Afiliación", m.numeroAfiliacion)
+    if (m.tipoSangre != null) DetailRow("Tipo sangre", m.tipoSangre)
+    DetailRow("Alergias", m.alergias.ifBlank { "Ninguna" })
+    DetailRow("Padecimientos", m.padecimientos.ifBlank { "Ninguno" })
+    DetailRow("Medicamentos", m.medicamentos.ifBlank { "Ninguno" })
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // Bloque F: Contexto Sociofamiliar
+    SectionHeader("F — Contexto Sociofamiliar")
+    val s = preApp.contextoSociofamiliar
+    DetailRow("Vive con", s.viveConQuien)
+    DetailRow("Tipo familia", s.tipoFamilia)
+    DetailRow("Sostén económico", s.sostenEconomico)
+    DetailRow("Vivienda", s.tipoVivienda)
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // Bloque G: UDEII
+    SectionHeader("G — Antecedentes UDEII")
+    val u = preApp.antecedentesUdeii
+    Text(u.antecedenteApoyo.ifBlank { "Sin antecedentes de apoyo" }, color = SaseText, fontSize = 10.sp)
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // Bloque H + I: Documentos y Consentimientos (resumen)
+    SectionHeader("H — Documentos Declarados")
+    val totalDocs = preApp.documentosDeclarados.size
+    val declarados = preApp.documentosDeclarados.count { it.declarado }
+    Text("$declarados de $totalDocs documentos declarados", color = if (declarados == totalDocs) SaseGreen else SaseOrange, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+    Spacer(modifier = Modifier.height(4.dp))
+    SectionHeader("I — Consentimientos")
+    val c = preApp.consentimientos
+    val totalCons = 9
+    val aceptados = listOf(c.avisoPrivacidad, c.usoDatosExpediente, c.fotoAlumno, c.fotoCredencial, c.fotoAutorizados, c.comunicacionWhatsapp, c.reglamentoInterno, c.marcoConvivencia, c.corresponsabilidadFamiliar).count { it }
+    Text("$aceptados de $totalCons consentimientos aceptados", color = if (aceptados == totalCons) SaseGreen else SaseOrange, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+}
+
+// ── Tab 2: Observaciones ──────────────────────────────────────────────────
+
+@Composable
+private fun ObservacionesTab(preApp: PreApplication) {
+    var observaciones by remember(preApp.folio) { mutableStateOf(preApp.observacionesSecretaria) }
+    var motivoCorreccion by remember(preApp.folio) { mutableStateOf(preApp.motivoCorreccion) }
+    var notificationResult by remember { mutableStateOf<String?>(null) }
+
+    SectionHeader("Observaciones de Secretaría")
+    Spacer(modifier = Modifier.height(4.dp))
+    OutlinedTextField(
+        value = observaciones,
+        onValueChange = {
+            observaciones = it
+            PreApplicationViewModel.setObservaciones(preApp.folio, it)
+        },
+        placeholder = { Text("Escribe observaciones internas...", color = SaseMuted) },
+        modifier = Modifier.fillMaxWidth().height(100.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = Color.White.copy(alpha = 0.5f),
+            unfocusedContainerColor = Color.White.copy(alpha = 0.3f)
+        )
+    )
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    SectionHeader("Motivo de corrección")
+    Spacer(modifier = Modifier.height(4.dp))
+    OutlinedTextField(
+        value = motivoCorreccion,
+        onValueChange = {
+            motivoCorreccion = it
+            PreApplicationViewModel.setMotivoCorreccion(preApp.folio, it)
+        },
+        placeholder = { Text("Especifica qué debe corregir la familia...", color = SaseMuted) },
+        modifier = Modifier.fillMaxWidth().height(80.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = Color.White.copy(alpha = 0.5f),
+            unfocusedContainerColor = Color.White.copy(alpha = 0.3f)
+        )
+    )
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    Button(
+        onClick = {
+            notificationResult = PreApplicationViewModel.notifyFamily(preApp.folio)
+        },
+        colors = ButtonDefaults.buttonColors(containerColor = SaseCyan),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(14.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+        Text("Enviar notificación mock a la familia", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+    }
+
+    if (notificationResult != null) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(SaseCyan.copy(alpha = 0.08f))
+                .padding(8.dp)
+        ) {
+            Text(notificationResult ?: "", color = SaseCyan, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+// ── Tab 3: Documentos ──────────────────────────────────────────────────────
+
+@Composable
+private fun DocumentosTab(preApp: PreApplication) {
+    SectionHeader("Documentos Declarados por la Familia")
+    Spacer(modifier = Modifier.height(4.dp))
+    preApp.documentosDeclarados.forEach { doc ->
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (doc.declarado) SaseGreen.copy(alpha = 0.05f) else SaseRed.copy(alpha = 0.05f))
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+        ) {
+            if (doc.declarado) {
+                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SaseGreen, modifier = Modifier.size(16.dp))
+            } else {
+                Icon(Icons.Default.Warning, contentDescription = null, tint = SaseRed.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(doc.nombre, color = if (doc.declarado) SaseText else SaseRed, fontSize = 11.sp, fontWeight = if (doc.declarado) FontWeight.Normal else FontWeight.SemiBold)
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                if (doc.declarado) "Declarado" else "Falta",
+                color = if (doc.declarado) SaseGreen else SaseRed,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+    SectionHeader("Consentimientos")
+    Spacer(modifier = Modifier.height(4.dp))
+    val c = preApp.consentimientos
+    ConsentDetailRow("Aviso de privacidad", c.avisoPrivacidad)
+    ConsentDetailRow("Uso de datos para expediente", c.usoDatosExpediente)
+    ConsentDetailRow("Fotografía del alumno", c.fotoAlumno)
+    ConsentDetailRow("Fotografía para credencial", c.fotoCredencial)
+    ConsentDetailRow("Fotografía de autorizados", c.fotoAutorizados)
+    ConsentDetailRow("Comunicación WhatsApp/teléfono/correo", c.comunicacionWhatsapp)
+    ConsentDetailRow("Reglamento Escolar Interno", c.reglamentoInterno)
+    ConsentDetailRow("Marco para la Convivencia", c.marcoConvivencia)
+    ConsentDetailRow("Corresponsabilidad familiar", c.corresponsabilidadFamiliar)
+}
+
+// ── Mobile ─────────────────────────────────────────────────────────────────
+
 @Composable
 private fun MobilePreApplicationDetail(
     preApp: PreApplication,
+    viewModel: LabViewModel,
     onBack: () -> Unit,
     onApprove: (String) -> Unit,
-    onMarkCorrection: (String) -> Unit
+    onMarkCorrection: (String) -> Unit,
+    onProvisionalCreated: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -462,38 +706,40 @@ private fun MobilePreApplicationDetail(
             Text("Detalle de solicitud", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = SaseNavy)
         }
         Spacer(modifier = Modifier.height(12.dp))
-        PreApplicationDetail(
+        PreApplicationDetailTabs(
             preApp = preApp,
             onApprove = onApprove,
             onMarkCorrection = onMarkCorrection,
+            onProvisionalCreated = onProvisionalCreated,
             modifier = Modifier.fillMaxWidth()
         )
     }
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+
 @Composable
 private fun SectionHeader(title: String) {
-    Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SaseNavy)
-    Spacer(modifier = Modifier.height(4.dp))
+    Text(title, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SaseNavy)
+    Spacer(modifier = Modifier.height(2.dp))
 }
 
 @Composable
-private fun DetailField(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, color = SaseMuted, fontSize = 10.sp)
+private fun DetailRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
+        Text("$label: ", color = SaseMuted, fontSize = 10.sp)
         Text(value, color = SaseText, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
-private fun ConsentRow(label: String, value: Boolean) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
+private fun ConsentDetailRow(label: String, value: Boolean) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+    ) {
         Icon(
             if (value) Icons.Default.CheckCircle else Icons.Default.Cancel,
             contentDescription = null,
@@ -502,5 +748,12 @@ private fun ConsentRow(label: String, value: Boolean) {
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(label, color = SaseText, fontSize = 10.sp)
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            if (value) "Aceptado" else "Pendiente",
+            color = if (value) SaseGreen else SaseRed,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }

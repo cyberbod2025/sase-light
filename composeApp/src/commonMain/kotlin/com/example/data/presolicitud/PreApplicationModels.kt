@@ -40,7 +40,10 @@ data class PreApplication(
     // Bloque H: Documentos Declarados
     val documentosDeclarados: List<DocumentoDeclarado>,
     // Bloque I: Consentimientos
-    val consentimientos: ConsentimientosFamiliares
+    val consentimientos: ConsentimientosFamiliares,
+    // Bloque J: Revisión de Secretaría
+    val observacionesSecretaria: String = "",
+    val motivoCorreccion: String = ""
 )
 
 data class Responsable(
