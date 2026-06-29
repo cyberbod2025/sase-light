@@ -71,6 +71,7 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                 "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
                 "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                 "Pre-Solicitudes" -> {}
+                "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
             }
         }
 
@@ -1343,13 +1344,13 @@ private fun MobilePreApplicationDetail(
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun SectionHeader(title: String) {
+internal fun SectionHeader(title: String) {
     Text(title, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SaseNavy)
     Spacer(modifier = Modifier.height(2.dp))
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
+internal fun DetailRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
         Text("$label: ", color = SaseMuted, fontSize = 10.sp)
         Text(value, color = SaseText, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

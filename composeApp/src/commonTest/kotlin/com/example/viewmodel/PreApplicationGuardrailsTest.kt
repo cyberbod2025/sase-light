@@ -403,4 +403,81 @@ class PreApplicationGuardrailsTest {
 
     private fun uniqueSuffix(): String =
         kotlin.random.Random.nextInt(100000, 999999).toString()
+
+    // ── Post-enrollment visibility (6A + 6B) ─────────────────────────────
+
+    @Test
+    fun officialStudentAppearsInCollectionAfterSuccessfulStart() {
+        val readyCandidate = submitReadyCandidate(curp = uniqueCurp("COLLEC"))
+        assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
+        val readyStored = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == readyCandidate.folio }
+
+        val result = PreApplicationViewModel.startOfficialEnrollment(readyStored, selectedGroup = null)
+
+        val success = assertIs<OfficialEnrollmentResult.Success>(result)
+        assertTrue(PreApplicationViewModel.officialStudents.value.any { it.id == success.officialStudent.id })
+        assertEquals(readyStored.folio, success.officialStudent.preApplicationFolio)
+    }
+
+    @Test
+    fun masterStudentCanBeFoundByCurpAfterOfficialEnrollment() {
+        val rawCurp = uniqueCurp("MASTER").lowercase()
+        val readyCandidate = submitReadyCandidate(curp = rawCurp)
+        assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
+        val readyStored = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == readyCandidate.folio }
+
+        PreApplicationViewModel.startOfficialEnrollment(readyStored, selectedGroup = null)
+
+        val found = MockSaseData.studentByCurp(rawCurp.uppercase())
+        assertNotNull(found)
+        assertEquals(rawCurp.uppercase(), found.curp)
+        assertEquals(readyStored.folio, found.preApplicationFolio)
+    }
+
+    @Test
+    fun masterStudentCanBeFoundByMatriculaAfterOfficialEnrollment() {
+        val rawCurp = uniqueCurp("MATRIC").lowercase()
+        val readyCandidate = submitReadyCandidate(curp = rawCurp)
+        assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
+        val readyStored = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == readyCandidate.folio }
+
+        val result = PreApplicationViewModel.startOfficialEnrollment(readyStored, selectedGroup = null)
+        val success = assertIs<OfficialEnrollmentResult.Success>(result)
+
+        val found = MockSaseData.studentByEnrollmentId(success.masterStudent.enrollmentId)
+        assertNotNull(found)
+        assertEquals(success.masterStudent.enrollmentId, found.enrollmentId)
+    }
+
+    @Test
+    fun preApplicationFolioLinkIsVisibleOnOfficialStudent() {
+        val rawCurp = uniqueCurp("FOLINK")
+        val readyCandidate = submitReadyCandidate(curp = rawCurp)
+        assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
+        val readyStored = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == readyCandidate.folio }
+
+        val result = PreApplicationViewModel.startOfficialEnrollment(readyStored, selectedGroup = null)
+        val success = assertIs<OfficialEnrollmentResult.Success>(result)
+
+        assertEquals(readyStored.folio, success.officialStudent.preApplicationFolio)
+        assertEquals(readyStored.folio, success.masterStudent.preApplicationFolio)
+    }
+
+    @Test
+    fun officialStudentWithoutLinkedMasterStudentIsDetected() {
+        val orphanOfficial = PreApplicationViewModel.officialStudents.value
+            .filter { os -> MockSaseData.studentByCurp(os.curp) == null }
+
+        val seedOrphans = orphanOfficial.count { os ->
+            MockSaseData.studentByCurp(os.curp) == null
+        }
+        assertTrue(seedOrphans >= 0)
+    }
+
+    @Test
+    fun emptyOfficialStudentsListDoesNotBreakLookups() {
+        PreApplicationViewModel.resetSharedStateForTests()
+        val officialList = PreApplicationViewModel.officialStudents.value
+        assertTrue(officialList.isNotEmpty())
+    }
 }

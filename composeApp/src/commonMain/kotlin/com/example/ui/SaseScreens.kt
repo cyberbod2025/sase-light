@@ -32,13 +32,16 @@ import com.example.ui.dashboard.LiquidGlassDashboard
 import com.example.ui.enrollment.SmartEnrollmentTable
 import com.example.ui.enrollment.digital.EnrollmentSummaryCard
 import com.example.ui.enrollment.digital.SecretariaEnrollmentDashboard
-import com.example.data.presolicitud.OfficialStudent
+import com.example.data.presolicitud.*
 import com.example.ui.student.StudentRecordScreen
 import com.example.data.StudentAddResult
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
 import com.example.viewmodel.AppRole
+import com.example.viewmodel.PreApplicationViewModel
 import com.example.ui.presolicitud.SecretariaPreApplicationDashboardScreen
+import com.example.ui.presolicitud.SectionHeader
+import com.example.ui.presolicitud.DetailRow
 import kotlinx.coroutines.launch
 
 private fun fastTrackGradeFromGroup(group: String): Int =
@@ -187,7 +190,8 @@ fun SaseSidebar(
         "Inicio" to Icons.Default.Home,
         "Inscripciones" to Icons.Default.School,
         "Portal Familia" to Icons.Default.Groups,
-        "Pre-Solicitudes" to Icons.Default.Assignment
+        "Pre-Solicitudes" to Icons.Default.Assignment,
+        "Altas Oficiales" to Icons.Default.AssignmentTurnedIn
     )
 
     Column(
@@ -739,6 +743,7 @@ fun SecretaryDashboardScreen(
                                     "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
                                     "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                                     "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
+                                    "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
                                 }
                                 scope.launch { drawerState.close() }
                             }
@@ -759,6 +764,7 @@ fun SecretaryDashboardScreen(
                             "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
                             "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                             "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
+                            "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
                         }
                     }
                 )
@@ -985,6 +991,7 @@ fun EnrollmentDashboardScreen(
                 "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
                 "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                 "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
+                "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
             }
         }
 
@@ -1140,12 +1147,354 @@ fun SaseAppContent(viewModel: LabViewModel) {
 
 @Composable
 fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
-    Box(modifier = Modifier.fillMaxSize().background(SaseBgSoft), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Dashboard Altas Oficiales (Matriculas)", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = SaseNavy)
-            Text("Fase 1 - En construccion", color = SaseMuted)
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) }) { Text("Volver") }
+    val toast = LocalToast.current
+    val officialStudents by PreApplicationViewModel.officialStudents.collectAsState()
+    val masterStudents = MockSaseData.students
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedOfficialId by remember { mutableStateOf<String?>(null) }
+
+    val filtered = remember(officialStudents, searchQuery) {
+        if (searchQuery.isBlank()) officialStudents
+        else officialStudents.filter { os ->
+            os.alumnoNombreCompleto.contains(searchQuery, ignoreCase = true) ||
+            os.curp.contains(searchQuery, ignoreCase = true) ||
+            (os.matriculaOficial?.contains(searchQuery, ignoreCase = true) == true) ||
+            os.preApplicationFolio.contains(searchQuery, ignoreCase = true)
         }
+    }
+
+    val selectedOfficial = remember(selectedOfficialId, officialStudents) {
+        officialStudents.find { it.id == selectedOfficialId }
+    }
+
+    val linkedMaster = remember(selectedOfficial) {
+        selectedOfficial?.let { os ->
+            MockSaseData.studentByCurp(os.curp)
+        }
+    }
+
+    val hasInconsistency = selectedOfficial != null && linkedMaster == null
+
+    BoxWithConstraints(modifier = SaseBackgroundModifier()) {
+        val isMobile = maxWidth < 850.dp
+        val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+        val scope = rememberCoroutineScope()
+
+        val navigateFromSidebar: (String) -> Unit = { item ->
+            when (item) {
+                "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
+                "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
+                "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
+                "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
+                "Altas Oficiales" -> {}
+            }
+        }
+
+        val content = @Composable {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(if (isMobile) 16.dp else 24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isMobile) {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Menú", tint = SaseNavy)
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                        Column {
+                            Text("Altas Oficiales", fontWeight = FontWeight.ExtraBold, fontSize = if (isMobile) 20.sp else 24.sp, color = SaseNavy)
+                            Text("Matrículas generadas y expedientes maestro", fontSize = if (isMobile) 11.sp else 12.sp, color = SaseMuted)
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SaseCyan.copy(alpha = 0.12f))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                "${officialStudents.size} altas",
+                                color = SaseCyan,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Buscar por nombre, CURP, matrícula o folio...", color = SaseMuted) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = SaseMuted) },
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Close, contentDescription = "Limpiar", tint = SaseMuted)
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(18.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.White.copy(alpha = 0.75f),
+                        unfocusedContainerColor = Color.White.copy(alpha = 0.5f),
+                        focusedBorderColor = SaseBlue,
+                        unfocusedBorderColor = SaseBorder,
+                        focusedTextColor = SaseText,
+                        unfocusedTextColor = SaseText
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (officialStudents.isEmpty()) {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(Icons.Default.AssignmentTurnedIn, contentDescription = null, tint = SaseMuted.copy(alpha = 0.4f), modifier = Modifier.size(56.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("Aún no hay altas oficiales.", fontWeight = FontWeight.Bold, color = SaseMuted, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Cuando una pre-solicitud lista sea convertida, aparecerá aquí con su matrícula y expediente maestro.",
+                                color = SaseMuted.copy(alpha = 0.7f), fontSize = 11.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 32.dp)
+                            )
+                        }
+                    }
+                } else if (filtered.isEmpty()) {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Text("No hay altas oficiales que coincidan con la búsqueda.", color = SaseMuted, fontSize = 11.sp, modifier = Modifier.padding(16.dp))
+                    }
+                } else if (isMobile || selectedOfficial == null) {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Text("Altas Oficiales", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SaseNavy)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            filtered.forEach { os ->
+                                val isSelected = os.id == selectedOfficialId
+                                OfficialStudentListItem(
+                                    os = os,
+                                    isSelected = isSelected,
+                                    onClick = { selectedOfficialId = os.id }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        GlassCard(modifier = Modifier.width(320.dp)) {
+                            Text("Altas Oficiales", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SaseNavy)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                filtered.forEach { os ->
+                                    val isSelected = os.id == selectedOfficialId
+                                    OfficialStudentListItem(
+                                        os = os,
+                                        isSelected = isSelected,
+                                        onClick = { selectedOfficialId = os.id }
+                                    )
+                                }
+                            }
+                        }
+
+                        GlassCard(modifier = Modifier.weight(1f)) {
+                            OfficialStudentDetailWithMaster(
+                                officialStudent = selectedOfficial!!,
+                                masterStudent = linkedMaster,
+                                hasInconsistency = hasInconsistency
+                            )
+                        }
+                    }
+                }
+
+                if (selectedOfficial != null && isMobile) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        OfficialStudentDetailWithMaster(
+                            officialStudent = selectedOfficial!!,
+                            masterStudent = linkedMaster,
+                            hasInconsistency = hasInconsistency
+                        )
+                    }
+                }
+            }
+        }
+
+        if (isMobile) {
+            ModalNavigationDrawer(
+                drawerState = drawerState,
+                drawerContent = {
+                    ModalDrawerSheet(
+                        drawerContainerColor = SaseNavy,
+                        modifier = Modifier.width(280.dp)
+                    ) {
+                        SaseSidebar(
+                            activeItem = "Altas Oficiales",
+                            modifier = Modifier.fillMaxHeight(),
+                            onItemClick = { item ->
+                                navigateFromSidebar(item)
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                    }
+                }
+            ) {
+                content()
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxSize()) {
+                SaseSidebar(
+                    activeItem = "Altas Oficiales",
+                    modifier = Modifier.width(260.dp),
+                    onItemClick = navigateFromSidebar
+                )
+                Box(modifier = Modifier.weight(1f)) {
+                    content()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OfficialStudentListItem(
+    os: OfficialStudent,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val statusColor = when (os.status) {
+        OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO -> SaseGreen
+        OfficialStudentStatus.ALTA_OFICIAL_SIN_GRUPO -> SaseBlue
+        OfficialStudentStatus.PENDIENTE_ASIGNACION_GRUPO -> SaseOrange
+        else -> SaseMuted
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isSelected) SaseBlue.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.5f))
+            .border(if (isSelected) 1.dp else 0.dp, if (isSelected) SaseBlue.copy(alpha = 0.3f) else Color.Transparent, RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(os.alumnoNombreCompleto, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(os.curp, color = SaseMuted, fontSize = 9.sp)
+                if (os.matriculaOficial != null) {
+                    Text("· ${os.matriculaOficial}", color = SaseCyan, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Text("Folio: ${os.preApplicationFolio}", color = SaseMuted.copy(alpha = 0.7f), fontSize = 9.sp)
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(statusColor.copy(alpha = 0.12f))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
+            Text(os.status.label, color = statusColor, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun OfficialStudentDetailWithMaster(
+    officialStudent: OfficialStudent,
+    masterStudent: Student?,
+    hasInconsistency: Boolean
+) {
+    Text("Detalle de alta oficial", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SaseNavy)
+
+    if (hasInconsistency) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(SaseRed.copy(alpha = 0.1f))
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Warning, contentDescription = null, tint = SaseRed, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                "Alta oficial sin expediente maestro vinculado. Revisar integridad.",
+                color = SaseRed, fontSize = 10.sp, fontWeight = FontWeight.Bold
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(10.dp))
+    SectionHeader("Alta oficial")
+    DetailRow("Nombre", officialStudent.alumnoNombreCompleto)
+    DetailRow("CURP", officialStudent.curp)
+    DetailRow("Matrícula", officialStudent.matriculaOficial ?: "Sin asignar")
+    DetailRow("Grado ingreso", "${officialStudent.gradoIngreso}°")
+    DetailRow("Grupo sugerido", officialStudent.grupoSugerido ?: "N/A")
+    DetailRow("Grupo asignado", officialStudent.grupoAsignado ?: "Pendiente")
+    DetailRow("Estado", officialStudent.status.label)
+    DetailRow("Folio pre-solicitud", officialStudent.preApplicationFolio)
+
+    val readinessFromPreApp = PreApplicationViewModel.sharedPreApplications.value
+        .firstOrNull { it.folio == officialStudent.preApplicationFolio }
+    if (readinessFromPreApp != null) {
+        DetailRow("Readiness", readinessFromPreApp.readinessStatus.label)
+        DetailRow("Alta creada", officialStudent.fechaCreacion)
+    }
+
+    Spacer(modifier = Modifier.height(14.dp))
+    HorizontalDivider(color = SaseBorder)
+    Spacer(modifier = Modifier.height(10.dp))
+
+    SectionHeader("Expediente maestro")
+    if (masterStudent != null) {
+        DetailRow("Matrícula oficial", masterStudent.enrollmentId)
+        DetailRow("Nombre", masterStudent.fullName)
+        DetailRow("CURP", masterStudent.curp)
+        DetailRow("Grado", masterStudent.group)
+        DetailRow("Estado institucional", masterStudent.status)
+        if (masterStudent.preApplicationFolio != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(SaseGreen.copy(alpha = 0.08f))
+                    .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SaseGreen, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    "Expediente generado desde pre-solicitud ${masterStudent.preApplicationFolio}.",
+                    color = SaseGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    } else if (!hasInconsistency) {
+        Text("Sin expediente maestro vinculado todavía.", color = SaseMuted, fontSize = 10.sp)
     }
 }
