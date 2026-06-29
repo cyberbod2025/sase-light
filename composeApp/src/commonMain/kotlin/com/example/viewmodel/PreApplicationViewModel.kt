@@ -52,10 +52,10 @@ class PreApplicationViewModel {
             return com.example.data.Student(
                 id = newId,
                 fullName = preApp.alumnoNombreCompleto,
-                group = "${preApp.gradoSolicitado}°",
-                enrollmentId = "PRE-${preApp.folio.takeLast(4)}",
+                group = "", // No se asigna grupo — pendiente alta oficial
+                enrollmentId = "", // No se genera matrícula
                 curp = preApp.alumnoCurp,
-                status = "Alta pendiente",
+                status = "Expediente provisional / En revisión",
                 tutorName = resp?.nombreCompleto ?: "",
                 tutorRelation = resp?.parentesco ?: "",
                 tutorPhone = resp?.telefono ?: "",

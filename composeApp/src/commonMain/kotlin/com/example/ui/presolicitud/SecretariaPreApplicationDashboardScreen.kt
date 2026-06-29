@@ -343,7 +343,7 @@ private fun StatusBadge(status: PreApplicationStatus) {
 
 // ── Tabbed Detail ──────────────────────────────────────────────────────────
 
-private val TAB_LABELS = listOf("Resumen A-I", "Observaciones", "Documentos")
+private val TAB_LABELS = listOf("Datos", "Responsables", "Contexto", "Documentos", "Revisión")
 
 @Composable
 private fun PreApplicationDetailTabs(
@@ -406,9 +406,11 @@ private fun PreApplicationDetailTabs(
 
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
             when (selectedTab) {
-                0 -> ResumenTab(preApp)
-                1 -> ObservacionesTab(preApp)
-                2 -> DocumentosTab(preApp)
+                0 -> DatosTab(preApp)
+                1 -> ResponsablesTab(preApp)
+                2 -> ContextoTab(preApp)
+                3 -> DocumentosTab(preApp)
+                4 -> RevisionTab(preApp)
             }
 
             // Acciones comunes
@@ -454,8 +456,7 @@ private fun PreApplicationDetailTabs(
                 Button(
                     onClick = {
                         val student = PreApplicationViewModel.buildProvisionalStudent(preApp)
-                        val existing = com.example.data.repository.MockStudentRepositoryImpl().students.value
-                        onProvisionalCreated("Expediente provisional ${student.id} creado para ${student.fullName}. Estatus: Alta pendiente. Diríjase a Inscripciones para completar el registro oficial.")
+                        onProvisionalCreated("Expediente provisional ${student.id} creado para ${student.fullName}. Pendiente validación documental, fotografías y alta oficial.")
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
                     shape = RoundedCornerShape(12.dp),
@@ -470,97 +471,174 @@ private fun PreApplicationDetailTabs(
     }
 }
 
-// ── Tab 1: Resumen A-I ─────────────────────────────────────────────────────
+// ── Tab 1: Datos ──────────────────────────────────────────────────────────
 
 @Composable
-private fun ResumenTab(preApp: PreApplication) {
-    // Bloque A: Pre-solicitud
-    SectionHeader("A — Trámite")
-    DetailRow("Tipo", preApp.tramite)
-    DetailRow("Ciclo", preApp.cicloEscolar)
-    DetailRow("Grado", "${preApp.gradoSolicitado}°")
-    Spacer(modifier = Modifier.height(8.dp))
+private fun DatosTab(preApp: PreApplication) {
+    SectionHeader("Bloque A — Pre-solicitud")
+    DetailRow("Tipo de trámite", preApp.tramite)
+    DetailRow("Ciclo escolar", preApp.cicloEscolar)
+    DetailRow("Grado solicitado", "${preApp.gradoSolicitado}°")
+    Spacer(modifier = Modifier.height(10.dp))
 
-    // Bloque B: Datos del Alumno
-    SectionHeader("B — Datos del Alumno")
-    DetailRow("Nombre", preApp.alumnoNombreCompleto)
+    SectionHeader("Bloque B — Datos del Alumno")
+    DetailRow("Nombre completo", preApp.alumnoNombreCompleto)
     DetailRow("CURP", preApp.alumnoCurp)
-    DetailRow("Nacimiento", preApp.alumnoFechaNacimiento)
+    DetailRow("Fecha de nacimiento", preApp.alumnoFechaNacimiento)
     DetailRow("Sexo", preApp.alumnoSexo)
     DetailRow("Nacionalidad", preApp.alumnoNacionalidad)
-    DetailRow("Entidad", preApp.alumnoEntidadNacimiento)
+    DetailRow("Entidad de nacimiento", preApp.alumnoEntidadNacimiento)
     DetailRow("Domicilio", preApp.alumnoDomicilio)
-    DetailRow("Teléfono", preApp.alumnoTelefonoCasa)
-    DetailRow("Escuela", preApp.escuelaProcedencia)
-    Spacer(modifier = Modifier.height(8.dp))
+    DetailRow("Teléfono casa", preApp.alumnoTelefonoCasa)
+    DetailRow("Escuela procedencia", preApp.escuelaProcedencia)
+}
 
-    // Bloque C: Responsables
-    SectionHeader("C — Responsables")
+// ── Tab 2: Responsables ────────────────────────────────────────────────────
+
+@Composable
+private fun ResponsablesTab(preApp: PreApplication) {
+    SectionHeader("Bloque C — Responsables")
     if (preApp.responsables.isEmpty()) {
-        Text("Sin responsables registrados", color = SaseOrange, fontSize = 10.sp)
+        Text("No se registraron responsables", color = SaseOrange, fontSize = 10.sp)
     } else {
         preApp.responsables.forEachIndexed { i, r ->
-            Text("Responsable ${i + 1}: ${r.nombreCompleto} (${r.parentesco})", color = SaseText, fontSize = 10.sp)
-            DetailRow("  Teléfono", r.telefono)
-            if (r.correo != null) DetailRow("  Correo", r.correo)
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Responsable ${i + 1}", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    DetailRow("Nombre", r.nombreCompleto)
+                    DetailRow("Parentesco", r.parentesco)
+                    DetailRow("Teléfono", r.telefono)
+                    if (r.correo != null) DetailRow("Correo", r.correo)
+                    DetailRow("Ocupación", r.ocupacion)
+                    DetailRow("Horario contacto", r.horarioContacto)
+                    DetailRow("Identificación", r.identificacionApresentar)
+                    DetailRow("Vive con alumno", if (r.viveConAlumno) "Sí" else "No")
+                    DetailRow("Puede recoger", if (r.puedeRecoger) "Sí" else "No")
+                }
+            }
         }
     }
-    Spacer(modifier = Modifier.height(8.dp))
 
-    // Bloque D: Autorizados
-    SectionHeader("D — Autorizados para recoger")
+    Spacer(modifier = Modifier.height(10.dp))
+    SectionHeader("Bloque D — Autorizados para recoger")
     if (preApp.autorizados.isEmpty()) {
-        Text("Sin autorizados registrados", color = SaseMuted, fontSize = 10.sp)
+        Text("No se registraron autorizados", color = SaseMuted, fontSize = 10.sp)
     } else {
         preApp.autorizados.forEach { a ->
-            Text("${a.nombreCompleto} (${a.parentesco}) - ${a.telefono}", color = SaseText, fontSize = 10.sp)
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(8.dp))
+                    .background(Color.White.copy(alpha = 0.4f)).padding(8.dp)
+            ) {
+                DetailRow(a.nombreCompleto, "${a.parentesco} — ${a.telefono}")
+            }
         }
     }
-    Spacer(modifier = Modifier.height(8.dp))
+}
 
-    // Bloque E: Ficha Médica
-    SectionHeader("E — Ficha Médica Familiar")
+// ── Tab 3: Contexto ────────────────────────────────────────────────────────
+
+@Composable
+private fun ContextoTab(preApp: PreApplication) {
+    SectionHeader("Bloque E — Ficha Médica Familiar")
     val m = preApp.fichaMedicaFamiliar
     DetailRow("Servicio médico", m.servicioMedico)
-    if (m.numeroAfiliacion != null) DetailRow("Afiliación", m.numeroAfiliacion)
-    if (m.tipoSangre != null) DetailRow("Tipo sangre", m.tipoSangre)
+    if (m.numeroAfiliacion != null) DetailRow("Núm. afiliación", m.numeroAfiliacion)
+    if (m.tipoSangre != null) DetailRow("Tipo de sangre", m.tipoSangre)
     DetailRow("Alergias", m.alergias.ifBlank { "Ninguna" })
     DetailRow("Padecimientos", m.padecimientos.ifBlank { "Ninguno" })
     DetailRow("Medicamentos", m.medicamentos.ifBlank { "Ninguno" })
-    Spacer(modifier = Modifier.height(8.dp))
+    DetailRow("Restricción física", m.restriccionFisica.ifBlank { "Ninguna" })
+    DetailRow("Usa lentes", if (m.usaLentes) "Sí" else "No")
+    DetailRow("Salud bucal", m.saludBucal)
+    DetailRow("Cartilla vacunación", if (m.cartillaVacunacion) "Sí" else "No")
+    Spacer(modifier = Modifier.height(10.dp))
 
-    // Bloque F: Contexto Sociofamiliar
-    SectionHeader("F — Contexto Sociofamiliar")
+    SectionHeader("Bloque F — Contexto Sociofamiliar")
     val s = preApp.contextoSociofamiliar
     DetailRow("Vive con", s.viveConQuien)
-    DetailRow("Tipo familia", s.tipoFamilia)
+    DetailRow("Tipo de familia", s.tipoFamilia)
+    DetailRow("Hijo único", if (s.hijoUnico) "Sí" else "No")
+    DetailRow("Lugar entre hermanos", s.lugarEntreHermanos.toString())
+    DetailRow("Hermanos en escuela", if (s.hermanosEnEscuela) "Sí" else "No")
+    DetailRow("Integrantes hogar", s.integrantesHogar.toString())
     DetailRow("Sostén económico", s.sostenEconomico)
+    DetailRow("Ingreso", s.ingresoRangos)
     DetailRow("Vivienda", s.tipoVivienda)
-    Spacer(modifier = Modifier.height(8.dp))
+    DetailRow("Servicios básicos", if (s.serviciosBásicos) "Sí" else "No")
+    DetailRow("Internet", if (s.internet) "Sí" else "No")
+    DetailRow("Dispositivo tareas", s.dispositivoTareas)
+    DetailRow("Beca/apoyo", s.becaApoyo.ifBlank { "Ninguno" })
+    DetailRow("Transporte", s.transporte)
+    DetailRow("Dificultad materiales", if (s.dificultadMateriales) "Sí" else "No")
+    Spacer(modifier = Modifier.height(10.dp))
 
-    // Bloque G: UDEII
-    SectionHeader("G — Antecedentes UDEII")
+    SectionHeader("Bloque G — Antecedentes UDEII")
     val u = preApp.antecedentesUdeii
-    Text(u.antecedenteApoyo.ifBlank { "Sin antecedentes de apoyo" }, color = SaseText, fontSize = 10.sp)
-    Spacer(modifier = Modifier.height(8.dp))
-
-    // Bloque H + I: Documentos y Consentimientos (resumen)
-    SectionHeader("H — Documentos Declarados")
-    val totalDocs = preApp.documentosDeclarados.size
-    val declarados = preApp.documentosDeclarados.count { it.declarado }
-    Text("$declarados de $totalDocs documentos declarados", color = if (declarados == totalDocs) SaseGreen else SaseOrange, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-    Spacer(modifier = Modifier.height(4.dp))
-    SectionHeader("I — Consentimientos")
-    val c = preApp.consentimientos
-    val totalCons = 9
-    val aceptados = listOf(c.avisoPrivacidad, c.usoDatosExpediente, c.fotoAlumno, c.fotoCredencial, c.fotoAutorizados, c.comunicacionWhatsapp, c.reglamentoInterno, c.marcoConvivencia, c.corresponsabilidadFamiliar).count { it }
-    Text("$aceptados de $totalCons consentimientos aceptados", color = if (aceptados == totalCons) SaseGreen else SaseOrange, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+    DetailRow("Antecedente", u.antecedenteApoyo.ifBlank { "Ninguno" })
+    DetailRow("Terapia lenguaje", if (u.terapiaLenguaje) "Sí" else "No")
+    DetailRow("Apoyo psicológico", if (u.apoyoPsicologico) "Sí" else "No")
+    DetailRow("Apoyo pedagógico", if (u.apoyoPedagogico) "Sí" else "No")
+    DetailRow("Documentos disponibles", u.documentosDisponibles.ifBlank { "Ninguno" })
+    DetailRow("Observaciones", u.observacionesFamiliares.ifBlank { "Sin observaciones" })
 }
 
-// ── Tab 2: Observaciones ──────────────────────────────────────────────────
+// ── Tab 4: Documentos ──────────────────────────────────────────────────────
 
 @Composable
-private fun ObservacionesTab(preApp: PreApplication) {
+private fun DocumentosTab(preApp: PreApplication) {
+    SectionHeader("Bloque H — Documentos Declarados")
+    Spacer(modifier = Modifier.height(4.dp))
+    preApp.documentosDeclarados.forEach { doc ->
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (doc.declarado) SaseGreen.copy(alpha = 0.05f) else SaseRed.copy(alpha = 0.05f))
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+        ) {
+            if (doc.declarado) {
+                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SaseGreen, modifier = Modifier.size(16.dp))
+            } else {
+                Icon(Icons.Default.Warning, contentDescription = null, tint = SaseRed.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(doc.nombre, color = if (doc.declarado) SaseText else SaseRed, fontSize = 11.sp, fontWeight = if (doc.declarado) FontWeight.Normal else FontWeight.SemiBold)
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                if (doc.declarado) "Declarado" else "Falta",
+                color = if (doc.declarado) SaseGreen else SaseRed,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+    SectionHeader("Bloque I — Consentimientos")
+    Spacer(modifier = Modifier.height(4.dp))
+    val c = preApp.consentimientos
+    ConsentDetailRow("Aviso de privacidad", c.avisoPrivacidad)
+    ConsentDetailRow("Uso de datos para expediente", c.usoDatosExpediente)
+    ConsentDetailRow("Fotografía del alumno", c.fotoAlumno)
+    ConsentDetailRow("Fotografía para credencial", c.fotoCredencial)
+    ConsentDetailRow("Fotografía de autorizados", c.fotoAutorizados)
+    ConsentDetailRow("Comunicación WhatsApp/teléfono/correo", c.comunicacionWhatsapp)
+    ConsentDetailRow("Reglamento Escolar Interno", c.reglamentoInterno)
+    ConsentDetailRow("Marco para la Convivencia", c.marcoConvivencia)
+    ConsentDetailRow("Corresponsabilidad familiar", c.corresponsabilidadFamiliar)
+}
+
+// ── Tab 5: Revisión ────────────────────────────────────────────────────────
+
+@Composable
+private fun RevisionTab(preApp: PreApplication) {
     var observaciones by remember(preApp.folio) { mutableStateOf(preApp.observacionesSecretaria) }
     var motivoCorreccion by remember(preApp.folio) { mutableStateOf(preApp.motivoCorreccion) }
     var notificationResult by remember { mutableStateOf<String?>(null) }
@@ -573,7 +651,7 @@ private fun ObservacionesTab(preApp: PreApplication) {
             observaciones = it
             PreApplicationViewModel.setObservaciones(preApp.folio, it)
         },
-        placeholder = { Text("Escribe observaciones internas...", color = SaseMuted) },
+        placeholder = { Text("Notas internas sobre la solicitud...", color = SaseMuted) },
         modifier = Modifier.fillMaxWidth().height(100.dp),
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
@@ -583,7 +661,6 @@ private fun ObservacionesTab(preApp: PreApplication) {
     )
 
     Spacer(modifier = Modifier.height(12.dp))
-
     SectionHeader("Motivo de corrección")
     Spacer(modifier = Modifier.height(4.dp))
     OutlinedTextField(
@@ -592,7 +669,7 @@ private fun ObservacionesTab(preApp: PreApplication) {
             motivoCorreccion = it
             PreApplicationViewModel.setMotivoCorreccion(preApp.folio, it)
         },
-        placeholder = { Text("Especifica qué debe corregir la familia...", color = SaseMuted) },
+        placeholder = { Text("¿Qué debe corregir la familia?", color = SaseMuted) },
         modifier = Modifier.fillMaxWidth().height(80.dp),
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
@@ -628,54 +705,6 @@ private fun ObservacionesTab(preApp: PreApplication) {
             Text(notificationResult ?: "", color = SaseCyan, fontSize = 10.sp, fontWeight = FontWeight.Medium)
         }
     }
-}
-
-// ── Tab 3: Documentos ──────────────────────────────────────────────────────
-
-@Composable
-private fun DocumentosTab(preApp: PreApplication) {
-    SectionHeader("Documentos Declarados por la Familia")
-    Spacer(modifier = Modifier.height(4.dp))
-    preApp.documentosDeclarados.forEach { doc ->
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .background(if (doc.declarado) SaseGreen.copy(alpha = 0.05f) else SaseRed.copy(alpha = 0.05f))
-                .padding(horizontal = 8.dp, vertical = 6.dp)
-        ) {
-            if (doc.declarado) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SaseGreen, modifier = Modifier.size(16.dp))
-            } else {
-                Icon(Icons.Default.Warning, contentDescription = null, tint = SaseRed.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(doc.nombre, color = if (doc.declarado) SaseText else SaseRed, fontSize = 11.sp, fontWeight = if (doc.declarado) FontWeight.Normal else FontWeight.SemiBold)
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                if (doc.declarado) "Declarado" else "Falta",
-                color = if (doc.declarado) SaseGreen else SaseRed,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        Spacer(modifier = Modifier.height(2.dp))
-    }
-
-    Spacer(modifier = Modifier.height(12.dp))
-    SectionHeader("Consentimientos")
-    Spacer(modifier = Modifier.height(4.dp))
-    val c = preApp.consentimientos
-    ConsentDetailRow("Aviso de privacidad", c.avisoPrivacidad)
-    ConsentDetailRow("Uso de datos para expediente", c.usoDatosExpediente)
-    ConsentDetailRow("Fotografía del alumno", c.fotoAlumno)
-    ConsentDetailRow("Fotografía para credencial", c.fotoCredencial)
-    ConsentDetailRow("Fotografía de autorizados", c.fotoAutorizados)
-    ConsentDetailRow("Comunicación WhatsApp/teléfono/correo", c.comunicacionWhatsapp)
-    ConsentDetailRow("Reglamento Escolar Interno", c.reglamentoInterno)
-    ConsentDetailRow("Marco para la Convivencia", c.marcoConvivencia)
-    ConsentDetailRow("Corresponsabilidad familiar", c.corresponsabilidadFamiliar)
 }
 
 // ── Mobile ─────────────────────────────────────────────────────────────────
