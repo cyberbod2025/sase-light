@@ -311,7 +311,8 @@ fun SaseSidebar(
         "Archivo" to Icons.Default.History,
         "Matrícula Inteligente" to Icons.Default.TrendingUp,
         "Cierre de Ciclo" to Icons.Default.Lock,
-        "Seguridad" to Icons.Default.Security
+        "Seguridad" to Icons.Default.Security,
+        "Portal Familia" to Icons.Default.Groups
     )
 
     Column(
@@ -1075,6 +1076,7 @@ fun SecretaryDashboardScreen(
                                 when (item) {
                                     "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
                                     "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
+                                    "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                                 }
                                 scope.launch { drawerState.close() }
                             }
@@ -1093,6 +1095,7 @@ fun SecretaryDashboardScreen(
                         when (item) {
                             "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
                             "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
+                            "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                         }
                     }
                 )
@@ -1352,6 +1355,7 @@ fun EnrollmentDashboardScreen(
             when (item) {
                 "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
                 "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
+                "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
             }
         }
 
@@ -1515,18 +1519,6 @@ fun SaseAppContent(viewModel: LabViewModel) {
 }
 
 // ── FASE 1 STUBS ──────────────────────────────────────────────────────────
-
-@Composable
-fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
-    Box(modifier = Modifier.fillMaxSize().background(SaseBgSoft), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Portal de Familia (Pre-solicitud)", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = SaseNavy)
-            Text("Fase 1 - En construccion", color = SaseMuted)
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) }) { Text("Volver") }
-        }
-    }
-}
 
 @Composable
 fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
