@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Formatos institucionales prioritarios — SASE Light</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --azul:#1a3a5c;
+  --azul-claro:#e8eff7;
+  --azul-oscuro:#0f243d;
+  --gris:#f7f8fa;
+  --gris-borde:#d0d5dd;
+  --gris-texto:#4a5568;
+  --verde:#27ae60;
+  --verde-bg:#eafaf1;
+  --ambar:#f39c12;
+  --ambar-bg:#fef9e7;
+  --rojo:#e74c3c;
+  --rojo-bg:#fdedec;
+  --blanco:#ffffff;
+  --negro:#1a1a2e;
+  --sombra:0 2px 12px rgba(0,0,0,.08);
+  --redondeo:8px;
+}
+body{
+  font-family:"Segoe UI",Arial,sans-serif;
+  color:var(--negro);
+  background:var(--gris);
+  line-height:1.5;
+}
+.page{max-width:1200px;margin:0 auto;padding:2rem}
+
+/* --- COVER --- */
+.cover{
+  background:var(--blanco);
+  border-radius:var(--redondeo);
+  box-shadow:var(--sombra);
+  padding:4rem 3rem;
+  text-align:center;
+  margin-bottom:2rem;
+  border-top:6px solid var(--azul);
+}
+.cover-badge{
+  display:inline-block;
+  background:var(--azul-claro);
+  color:var(--azul);
+  padding:.35rem 1.2rem;
+  border-radius:20px;
+  font-size:.85rem;
+  font-weight:600;
+  letter-spacing:.5px;
+  margin-bottom:1.5rem;
+}
+.cover h1{
+  font-size:2.2rem;
+  color:var(--azul-oscuro);
+  margin-bottom:.75rem;
+  line-height:1.2;
+}
+.cover .subtitle{
+  font-size:1.15rem;
+  color:var(--gris-texto);
+  max-width:700px;
+  margin:0 auto 2rem;
+  line-height:1.5;
+}
+.cover-meta{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:.5rem 2rem;
+  font-size:.9rem;
+  color:var(--gris-texto);
+  margin-bottom:2rem;
+}
+.cover-meta span{opacity:.8}
+.cover-footer{
+  border-top:2px solid var(--gris-borde);
+  padding-top:1.5rem;
+  font-size:.85rem;
+  color:var(--gris-texto);
+}
+
+/* --- INTRO --- */
+.intro{
+  background:var(--blanco);
+  border-radius:var(--redondeo);
+  box-shadow:var(--sombra);
+  padding:2rem 2.5rem;
+  margin-bottom:2rem;
+  border-left:4px solid var(--azul);
+}
+.intro h2{color:var(--azul-oscuro);margin-bottom:.75rem;font-size:1.3rem}
+.intro p{color:var(--gris-texto);margin-bottom:.6rem;font-size:.95rem}
+.intro strong{color:var(--azul)}
+
+/* --- INDEX --- */
+.index-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:1rem;
+  margin-bottom:2rem;
+}
+.index-card{
+  background:var(--blanco);
+  border-radius:var(--redondeo);
+  box-shadow:var(--sombra);
+  padding:1.25rem;
+  text-align:center;
+  cursor:default;
+  border-top:4px solid var(--azul);
+  transition:transform .15s;
+}
+.index-card:hover{transform:translateY(-3px)}
+.index-card .num{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:36px;height:36px;
+  border-radius:50%;
+  background:var(--azul);
+  color:var(--blanco);
+  font-weight:700;
+  font-size:.9rem;
+  margin-bottom:.6rem;
+}
+.index-card h3{font-size:.95rem;color:var(--azul-oscuro);margin-bottom:.3rem}
+.index-card p{font-size:.8rem;color:var(--gris-texto)}
+.index-card .area{
+  display:inline-block;
+  margin-top:.5rem;
+  font-size:.7rem;
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  padding:.15rem .6rem;
+  border-radius:10px;
+  background:var(--azul-claro);
+  color:var(--azul);
+  font-weight:600;
+}
+
+/* --- FORM PAGE --- */
+.form-page{
+  background:var(--blanco);
+  border-radius:var(--redondeo);
+  box-shadow:var(--sombra);
+  padding:0;
+  margin-bottom:2rem;
+  page-break-inside:avoid;
+}
+.form-header{
+  background:var(--azul);
+  color:var(--blanco);
+  padding:1.25rem 2rem;
+  border-radius:var(--redondeo) var(--redondeo) 0 0;
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:space-between;
+  align-items:center;
+}
+.form-header h2{font-size:1.15rem;font-weight:600}
+.form-header .folio{
+  font-size:.85rem;
+  opacity:.9;
+  background:rgba(255,255,255,.15);
+  padding:.2rem .8rem;
+  border-radius:12px;
+}
+.form-meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.5rem 1.5rem;
+  padding:.75rem 2rem;
+  background:var(--azul-claro);
+  font-size:.85rem;
+  color:var(--azul-oscuro);
+  border-bottom:1px solid var(--gris-borde);
+}
+.form-meta strong{font-weight:600}
+
+/* --- BADGES --- */
+.badge{
+  display:inline-block;
+  font-size:.75rem;
+  font-weight:600;
+  padding:.2rem .7rem;
+  border-radius:12px;
+  letter-spacing:.3px;
+}
+.badge-verde{background:var(--verde-bg);color:var(--verde)}
+.badge-ambar{background:var(--ambar-bg);color:var(--ambar)}
+.badge-rojo{background:var(--rojo-bg);color:var(--rojo)}
+.badge-azul{background:var(--azul-claro);color:var(--azul)}
+
+/* --- FORM BODY --- */
+.form-body{padding:1.5rem 2rem 2rem}
+.form-section{
+  margin-bottom:1.5rem;
+  page-break-inside:avoid;
+}
+.form-section-title{
+  font-size:.9rem;
+  font-weight:700;
+  color:var(--azul-oscuro);
+  border-bottom:2px solid var(--azul-claro);
+  padding-bottom:.35rem;
+  margin-bottom:.75rem;
+  text-transform:uppercase;
+  letter-spacing:.5px;
+}
+.field-group{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:.6rem 1.2rem;
+  margin-bottom:.6rem;
+}
+.field{
+  display:flex;
+  flex-direction:column;
+  gap:.15rem;
+}
+.field label{
+  font-size:.78rem;
+  font-weight:600;
+  color:var(--gris-texto);
+  text-transform:uppercase;
+  letter-spacing:.3px;
+}
+.field .line{
+  border-bottom:1px solid var(--gris-borde);
+  min-height:1.6rem;
+  padding:.15rem 0;
+  font-size:.9rem;
+}
+.field .line-lg{min-height:2.4rem}
+.field .line-xl{min-height:4rem}
+.field .inline-lines{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.3rem .8rem;
+}
+.field .inline-lines .line{min-width:80px;flex:1}
+
+/* --- TABLES --- */
+.form-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:.85rem;
+  margin:.5rem 0;
+}
+.form-table th{
+  background:var(--azul-claro);
+  color:var(--azul-oscuro);
+  font-weight:600;
+  text-align:left;
+  padding:.45rem .5rem;
+  border:1px solid var(--gris-borde);
+  font-size:.78rem;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+}
+.form-table td{
+  padding:.35rem .5rem;
+  border:1px solid var(--gris-borde);
+  vertical-align:top;
+}
+.form-table td .line{min-height:1.4rem;border-bottom:none;padding:0}
+.form-table .check-cell{text-align:center;min-width:48px}
+.form-table .check-cell .check{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:20px;height:20px;
+  border:2px solid var(--gris-borde);
+  border-radius:3px;
+  margin:2px auto;
+}
+
+/* --- SIGNATURES --- */
+.signatures{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:1.5rem;
+  margin-top:1.5rem;
+  page-break-inside:avoid;
+}
+.signature-block{text-align:center}
+.signature-line{
+  border-bottom:2px solid var(--negro);
+  min-height:2.8rem;
+  margin-bottom:.3rem;
+}
+.signature-block .title{
+  font-size:.78rem;
+  font-weight:600;
+  color:var(--gris-texto);
+  text-transform:uppercase;
+  letter-spacing:.3px;
+}
+.signature-block .sub{
+  font-size:.72rem;
+  color:var(--gris-texto);
+}
+
+/* --- FOOTER --- */
+.form-footer{
+  text-align:center;
+  padding:.75rem 2rem;
+  font-size:.72rem;
+  color:var(--gris-texto);
+  border-top:1px solid var(--gris-borde);
+  background:var(--gris);
+  border-radius:0 0 var(--redondeo) var(--redondeo);
+}
+.form-footer strong{color:var(--azul)}
+
+/* --- CLOSING --- */
+.closing{
+  background:var(--blanco);
+  border-radius:var(--redondeo);
+  box-shadow:var(--sombra);
+  padding:2rem 2.5rem;
+  text-align:center;
+  border-bottom:4px solid var(--azul);
+}
+.closing h2{color:var(--azul-oscuro);margin-bottom:1rem}
+.closing p{color:var(--gris-texto);max-width:700px;margin:0 auto 1rem;font-size:.95rem}
+.closing .actions{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:1rem;
+  margin-top:1.5rem;
+}
+.closing .step{
+  background:var(--azul-claro);
+  border-radius:var(--redondeo);
+  padding:.75rem 1.25rem;
+  min-width:150px;
+  border-left:4px solid var(--azul);
+  text-align:left;
+}
+.closing .step .num{font-size:.7rem;text-transform:uppercase;color:var(--azul);font-weight:700;letter-spacing:.5px}
+.closing .step .desc{font-size:.85rem;color:var(--azul-oscuro)}
+
+/* --- PRINT --- */
+@media print{
+  body{background:var(--blanco);font-size:11px}
+  .page{max-width:100%;padding:.5in}
+  .cover{padding:2rem;box-shadow:none;border:1px solid #ccc}
+  .index-grid{grid-template-columns:repeat(5,1fr);gap:.3rem}
+  .index-card{box-shadow:none;border:1px solid #ddd;padding:.5rem}
+  .form-page{box-shadow:none;border:1px solid #ccc;margin-bottom:0}
+  .form-page:not(:last-of-type){page-break-after:always}
+  .form-header{padding:.75rem 1rem}
+  .form-body{padding:1rem 1.5rem 1.5rem}
+  .form-section{margin-bottom:1rem}
+  .signature-line{min-height:2rem}
+  .badge{border:1px solid currentColor}
+  .field .line{min-height:1.2rem}
+  .field .line-lg{min-height:1.8rem}
+  .field .line-xl{min-height:3rem}
+  .closing{box-shadow:none;border:1px solid #ccc}
+  .index-card:hover{transform:none}
+}
+@media(max-width:768px){
+  .page{padding:1rem}
+  .cover{padding:2rem 1.5rem}
+  .cover h1{font-size:1.6rem}
+  .form-header{flex-direction:column;align-items:flex-start;gap:.5rem}
+  .form-body{padding:1rem 1rem 1.5rem}
+  .form-meta{padding:.5rem 1rem}
+  .field-group{grid-template-columns:1fr}
+  .signatures{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .cover{padding:1.5rem 1rem}
+  .cover h1{font-size:1.3rem}
+  .index-grid{grid-template-columns:1fr}
+  .form-table{font-size:.78rem}
+  .form-table th,.form-table td{padding:.25rem}
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+<!-- ===== COVER ===== -->
+<div class="cover">
+  <div class="cover-badge">SASE Light &mdash; Frente 1</div>
+  <h1>Formatos institucionales prioritarios</h1>
+  <p class="subtitle">Primer paquete de formatos rediseñados para fortalecer inscripción, expediente y seguimiento escolar.</p>
+  <div class="cover-meta">
+    <span>Escuela Secundaria Diurna No. 310 &ldquo;Presidentes de México&rdquo;</span>
+    <span>Turno Vespertino</span>
+    <span>Ciclo Escolar 2025&ndash;2026</span>
+  </div>
+  <div class="cover-footer">
+    <p>Rediseño documental institucional &mdash; Versión 1.0 &mdash; Documento de trabajo</p>
+  </div>
+</div>
+
+<!-- ===== INTRO ===== -->
+<div class="intro">
+  <h2>Nota introductoria</h2>
+  <p>Este paquete reúne los <strong>cinco formatos prioritarios</strong> identificados en el documento madre de rediseño documental institucional. Fueron seleccionados por su impacto directo en los procesos de inscripción, integración de expediente y seguimiento del alumnado.</p>
+  <p>Estos formatos buscan <strong>fortalecer procesos existentes, reducir duplicidades y preparar la información para su futura integración en SASE Light</strong>.</p>
+  <p>Cada formato conserva los campos esenciales del diseño vigente e incorpora mejoras en claridad, orden y capacidad de registro. Son <strong>propuestas de revisión</strong> que deberán ser validadas por Dirección y cada área responsable antes de su adopción oficial.</p>
+  <p style="margin-top:.6rem;font-size:.85rem;font-style:italic;color:var(--gris-texto)">Los campos sin línea punteada o sin bordes están diseñados para ser llenados en computadora una vez integrados a SASE Light.</p>
+</div>
+
+<!-- ===== INDEX ===== -->
+<div class="index-grid">
+  <div class="index-card">
+    <div class="num">1</div>
+    <h3>Pre-solicitud de inscripción</h3>
+    <p>Registro inicial del aspirante con datos del alumno, responsables y documentación básica.</p>
+    <div class="area">Secretaría</div>
+  </div>
+  <div class="index-card">
+    <div class="num">2</div>
+    <h3>Cotejo documental</h3>
+    <p>Lista de verificación de documentos obligatorios para integrar el expediente escolar.</p>
+    <div class="area">Secretaría</div>
+  </div>
+  <div class="index-card">
+    <div class="num">3</div>
+    <h3>Ficha médica escolar</h3>
+    <p>Registro de datos de salud, alergias, padecimientos y autorización de atención en emergencia.</p>
+    <div class="area">Médico Escolar</div>
+  </div>
+  <div class="index-card">
+    <div class="num">4</div>
+    <h3>Ficha sociofamiliar</h3>
+    <p>Valoración de contexto familiar y factores psicosociales con lenguaje no estigmatizante.</p>
+    <div class="area">Trabajo Social</div>
+  </div>
+  <div class="index-card">
+    <div class="num">5</div>
+    <h3>Registro UDEEI / BAP</h3>
+    <p>Identificación de barreras para el aprendizaje, apoyos sugeridos y ajustes razonables.</p>
+    <div class="area">UDEEI</div>
+  </div>
+</div>
+
+<!-- ============ FORM 1: PRE-SOLICITUD ============ -->
+<div class="form-page">
+  <div class="form-header">
+    <h2>Pre-solicitud de inscripción</h2>
+    <span class="folio">Folio: <strong>SI-________</strong></span>
+  </div>
+  <div class="form-meta">
+    <span><strong>Área:</strong> Secretaría</span>
+    <span><strong>Estatus:</strong> <span class="badge badge-azul">Recibida</span> <span class="badge badge-ambar">Observada</span> <span class="badge badge-verde">Lista para revisión</span> <span class="badge badge-rojo">Turnada a Secretaría</span></span>
+  </div>
+  <div class="form-body">
+
+    <!-- Datos generales -->
+    <div class="form-section">
+      <div class="form-section-title">Datos generales</div>
+      <div class="field-group">
+        <div class="field"><label>Ciclo escolar</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Grado solicitado</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Fecha de solicitud</label><div class="line">&nbsp;</div></div>
+      </div>
+    </div>
+
+    <!-- Datos del alumno -->
+    <div class="form-section">
+      <div class="form-section-title">Datos del alumno</div>
+      <div class="field-group">
+        <div class="field"><label>Apellido paterno</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Apellido materno</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Nombre(s)</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>CURP</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Fecha de nacimiento</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Edad</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Calle y número</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Colonia</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Código postal</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Municipio / Alcaldía</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Entidad</label><div class="line">&nbsp;</div></div>
+      </div>
+    </div>
+
+    <!-- Escuela de procedencia -->
+    <div class="form-section">
+      <div class="form-section-title">Escuela de procedencia</div>
+      <div class="field-group">
+        <div class="field"><label>Nombre de la escuela</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>CCT (Clave de centro de trabajo)</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Nivel educativo anterior</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Último grado cursado</label><div class="line">&nbsp;</div></div>
+      </div>
+    </div>
+
+    <!-- Responsables -->
+    <div class="form-section">
+      <div class="form-section-title">Responsable principal</div>
+      <div class="field-group">
+        <div class="field"><label>Nombre completo</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Parentesco</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Teléfono celular</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Teléfono fijo</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field"><label>Correo electrónico</label><div class="line">&nbsp;</div></div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Responsable alterno</div>
+      <div class="field-group">
+        <div class="field"><label>Nombre completo</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Parentesco</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Teléfono celular</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Teléfono fijo</label><div class="line">&nbsp;</div></div>
+      </div>
+    </div>
+
+    <!-- Autorizados para recoger -->
+    <div class="form-section">
+      <div class="form-section-title">Autorizados para recoger al alumno</div>
+      <div class="field"><label>Nombre(s) completo(s)</label><div class="line-lg">&nbsp;</div></div>
+      <div class="field" style="margin-top:.4rem"><label>Parentesco y teléfono</label><div class="line-lg">&nbsp;</div></div>
+    </div>
+
+    <!-- Consentimiento -->
+    <div class="form-section">
+      <div class="form-section-title">Consentimiento de uso interno de información</div>
+      <p style="font-size:.85rem;color:var(--gris-texto);margin-bottom:.5rem">Autorizo que los datos proporcionados en esta solicitud sean utilizados de forma exclusiva para fines de inscripción, seguimiento escolar y comunicación institucional, conforme a la normativa de protección de datos aplicable.</p>
+      <div class="field"><label>Autorizo (nombre y firma del tutor)</label><div class="line">&nbsp;</div></div>
+    </div>
+
+    <!-- Observaciones -->
+    <div class="form-section">
+      <div class="form-section-title">Observaciones iniciales</div>
+      <div class="field"><label>Observaciones</label><div class="line-xl">&nbsp;</div></div>
+    </div>
+
+    <!-- Firmas -->
+    <div class="signatures">
+      <div class="signature-block">
+        <div class="signature-line">&nbsp;</div>
+        <div class="title">Recibió (nombre y firma)</div>
+        <div class="sub">Secretaría</div>
+      </div>
+      <div class="signature-block">
+        <div class="signature-line">&nbsp;</div>
+        <div class="title">Vo. Bo. Dirección</div>
+        <div class="sub">Autorización</div>
+      </div>
+    </div>
+  </div>
+  <div class="form-footer">
+    Formato institucional &mdash; <strong>SASE Light</strong> &mdash; Esc. Sec. Diurna No. 310 "Presidentes de México" TV &mdash; Folio SI-________
+  </div>
+</div>
+
+<!-- ============ FORM 2: COTEJO DOCUMENTAL ============ -->
+<div class="form-page">
+  <div class="form-header">
+    <h2>Cotejo documental</h2>
+    <span class="folio">Folio: <strong>CD-________</strong></span>
+  </div>
+  <div class="form-meta">
+    <span><strong>Área:</strong> Secretaría</span>
+    <span><strong>Alumno:</strong> __________________________________</span>
+    <span><strong>Estatus:</strong> <span class="badge badge-verde">Completo</span> <span class="badge badge-ambar">Incompleto</span> <span class="badge badge-rojo">Requiere corrección</span></span>
+  </div>
+  <div class="form-body">
+
+    <!-- Encabezado -->
+    <div class="form-section">
+      <div class="form-section-title">Datos del alumno</div>
+      <div class="field-group">
+        <div class="field"><label>Nombre del alumno</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>CURP</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Grado / Grupo</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Ciclo escolar</label><div class="line">&nbsp;</div></div>
+      </div>
+    </div>
+
+    <!-- Tabla de documentos -->
+    <div class="form-section">
+      <div class="form-section-title">Relación de documentos</div>
+      <table class="form-table">
+        <thead>
+          <tr>
+            <th style="width:28%">Documento</th>
+            <th>Recibido</th>
+            <th>Pendiente</th>
+            <th>Ilegible</th>
+            <th>Requiere corrección</th>
+            <th>Cotejado</th>
+            <th style="width:18%">Observaciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Acta de nacimiento</td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td><div class="line"></div></td>
+          </tr>
+          <tr>
+            <td>CURP (copia)</td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td><div class="line"></div></td>
+          </tr>
+          <tr>
+            <td>Boleta o certificado</td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td><div class="line"></div></td>
+          </tr>
+          <tr>
+            <td>Comprobante de domicilio</td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td><div class="line"></div></td>
+          </tr>
+          <tr>
+            <td>Identificación del tutor</td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td><div class="line"></div></td>
+          </tr>
+          <tr>
+            <td>Fotografías (tamaño infantil)</td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td><div class="line"></div></td>
+          </tr>
+          <tr>
+            <td>Otros (especificar)</td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td><div class="line"></div></td>
+          </tr>
+          <tr>
+            <td>Otros (especificar)</td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td class="check-cell"><div class="check"></div></td>
+            <td><div class="line"></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Resultado -->
+    <div class="form-section">
+      <div class="form-section-title">Resultado del cotejo</div>
+      <div class="field-group">
+        <div class="field"><label>Responsable de cotejo</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Fecha</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field" style="margin-top:.4rem"><label>Observaciones</label><div class="line-lg">&nbsp;</div></div>
+    </div>
+
+    <!-- Firmas -->
+    <div class="signatures">
+      <div class="signature-block">
+        <div class="signature-line">&nbsp;</div>
+        <div class="title">Responsable de cotejo</div>
+        <div class="sub">Nombre y firma</div>
+      </div>
+      <div class="signature-block">
+        <div class="signature-line">&nbsp;</div>
+        <div class="title">Secretaría</div>
+        <div class="sub">Vo. Bo.</div>
+      </div>
+    </div>
+  </div>
+  <div class="form-footer">
+    Formato institucional &mdash; <strong>SASE Light</strong> &mdash; Esc. Sec. Diurna No. 310 "Presidentes de México" TV &mdash; Folio CD-________
+  </div>
+</div>
+
+<!-- ============ FORM 3: FICHA MÉDICA ESCOLAR ============ -->
+<div class="form-page">
+  <div class="form-header">
+    <h2>Ficha médica escolar</h2>
+    <span class="folio">Folio: <strong>FM-________</strong></span>
+  </div>
+  <div class="form-meta">
+    <span><strong>Área:</strong> Médico Escolar</span>
+    <span><strong>Alumno:</strong> __________________________________</span>
+    <span><strong>Confidencial:</strong> <span class="badge badge-rojo">Uso interno / datos sensibles</span></span>
+  </div>
+  <div class="form-body">
+
+    <!-- Datos del alumno -->
+    <div class="form-section">
+      <div class="form-section-title">Datos del alumno</div>
+      <div class="field-group">
+        <div class="field"><label>Nombre completo</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>CURP</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Grado / Grupo</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Edad</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Fecha de nacimiento</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field"><label>Contacto de emergencia (nombre y teléfono)</label><div class="line">&nbsp;</div></div>
+    </div>
+
+    <!-- Información de salud -->
+    <div class="form-section">
+      <div class="form-section-title">Información de salud</div>
+      <div class="field-group">
+        <div class="field"><label>¿Presenta alergias?</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field"><label>Especificar alergias</label><div class="line-lg">&nbsp;</div></div>
+      <div class="field-group" style="margin-top:.5rem">
+        <div class="field"><label>Padecimientos relevantes (asma, diabetes, epilepsia, etc.)</label><div class="line-lg">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Medicamentos que toma actualmente</label><div class="line-lg">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Restricciones físicas o recomendaciones</label><div class="line-lg">&nbsp;</div></div>
+      </div>
+    </div>
+
+    <!-- Servicio médico -->
+    <div class="form-section">
+      <div class="form-section-title">Servicio médico</div>
+      <div class="field-group">
+        <div class="field"><label>¿Cuenta con servicio médico?</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Institución (IMSS, ISSSTE, etc.)</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field"><label>Número de afiliación</label><div class="line">&nbsp;</div></div>
+    </div>
+
+    <!-- Autorización -->
+    <div class="form-section">
+      <div class="form-section-title">Autorización de atención en emergencia</div>
+      <p style="font-size:.85rem;color:var(--gris-texto);margin-bottom:.5rem">Autorizo al personal de la escuela a gestionar atención médica de emergencia para mi hijo(a) en caso de accidente o enfermedad súbita, así como a trasladarlo a la unidad médica más cercana si la situación lo requiere. He proporcionado la información de salud anterior de buena fe.</p>
+      <div class="field-group">
+        <div class="field"><label>Nombre del tutor autorizante</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Parentesco</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field"><label>Firma del tutor</label><div class="line">&nbsp;</div></div>
+    </div>
+
+    <!-- Aviso de confidencialidad -->
+    <div class="form-section">
+      <div class="form-section-title" style="border-bottom-color:var(--rojo)">Aviso de confidencialidad</div>
+      <p style="font-size:.82rem;color:var(--gris-texto);margin-bottom:.3rem">Los datos contenidos en esta ficha son de carácter sensible y están protegidos por la normativa de protección de datos personales. Su uso es exclusivamente para fines de atención médica escolar y no será compartido sin autorización expresa del tutor, salvo los casos previstos por la ley.</p>
+    </div>
+
+    <!-- Observaciones -->
+    <div class="form-section">
+      <div class="form-section-title">Observaciones de Médico Escolar</div>
+      <div class="field"><label>Observaciones</label><div class="line-xl">&nbsp;</div></div>
+    </div>
+
+    <!-- Firmas -->
+    <div class="signatures">
+      <div class="signature-block">
+        <div class="signature-line">&nbsp;</div>
+        <div class="title">Madre / Padre / Tutor</div>
+        <div class="sub">Firma</div>
+      </div>
+      <div class="signature-block">
+        <div class="signature-line">&nbsp;</div>
+        <div class="title">Médico Escolar</div>
+        <div class="sub">Nombre, firma y sello</div>
+      </div>
+    </div>
+  </div>
+  <div class="form-footer">
+    Formato institucional &mdash; <strong>SASE Light</strong> &mdash; Esc. Sec. Diurna No. 310 "Presidentes de México" TV &mdash; Folio FM-________ &mdash; Confidencial
+  </div>
+</div>
+
+<!-- ============ FORM 4: FICHA SOCIOFAMILIAR / TRABAJO SOCIAL ============ -->
+<div class="form-page">
+  <div class="form-header">
+    <h2>Ficha sociofamiliar</h2>
+    <span class="folio">Folio: <strong>FS-________</strong></span>
+  </div>
+  <div class="form-meta">
+    <span><strong>Área:</strong> Trabajo Social</span>
+    <span><strong>Alumno:</strong> __________________________________</span>
+    <span><strong>Estatus:</strong> <span class="badge badge-azul">Abierto</span> <span class="badge badge-ambar">En seguimiento</span> <span class="badge badge-verde">Cerrado</span></span>
+  </div>
+  <div class="form-body">
+
+    <!-- Datos del alumno -->
+    <div class="form-section">
+      <div class="form-section-title">Datos del alumno</div>
+      <div class="field-group">
+        <div class="field"><label>Nombre completo</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>CURP</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Grado / Grupo</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Edad</label><div class="line">&nbsp;</div></div>
+      </div>
+    </div>
+
+    <!-- Responsables -->
+    <div class="form-section">
+      <div class="form-section-title">Responsables del alumno</div>
+      <div class="field-group">
+        <div class="field"><label>Responsable principal (nombre)</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Parentesco</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field"><label>Ocupación / Actividad</label><div class="line">&nbsp;</div></div>
+      <div class="field-group" style="margin-top:.4rem">
+        <div class="field"><label>Responsable alterno (nombre)</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Parentesco</label><div class="line">&nbsp;</div></div>
+      </div>
+    </div>
+
+    <!-- Composición familiar -->
+    <div class="form-section">
+      <div class="form-section-title">Composición familiar</div>
+      <div class="field"><label>Personas con quienes vive el alumno (parentesco y edad)</label><div class="line-lg">&nbsp;</div></div>
+      <div class="field" style="margin-top:.4rem"><label>Dinámica familiar observada o referida</label><div class="line-lg">&nbsp;</div></div>
+    </div>
+
+    <!-- Situación de contacto -->
+    <div class="form-section">
+      <div class="form-section-title">Situación de contacto</div>
+      <div class="field"><label>Motivo de atención / apertura de ficha</label><div class="line-lg">&nbsp;</div></div>
+      <div class="field-group" style="margin-top:.5rem">
+        <div class="field"><label>Fecha de apertura</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Responsable de apertura</label><div class="line">&nbsp;</div></div>
+      </div>
+    </div>
+
+    <!-- Factores de riesgo -->
+    <div class="form-section">
+      <div class="form-section-title">Factores de riesgo observables</div>
+      <p style="font-size:.8rem;color:var(--gris-texto);margin-bottom:.4rem">Registrar solo factores objetivos y observables. Evitar juicios de valor. Usar lenguaje descriptivo y no estigmatizante.</p>
+      <div class="field-group">
+        <div class="field"><label>Factor</label><div class="line-lg">&nbsp;</div></div>
+        <div class="field"><label>Observación</label><div class="line-lg">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Factor</label><div class="line-lg">&nbsp;</div></div>
+        <div class="field"><label>Observación</label><div class="line-lg">&nbsp;</div></div>
+      </div>
+    </div>
+
+    <!-- Acuerdos -->
+    <div class="form-section">
+      <div class="form-section-title">Acuerdos con la familia</div>
+      <div class="field"><label>Acuerdos establecidos</label><div class="line-xl">&nbsp;</div></div>
+      <div class="field-group" style="margin-top:.4rem">
+        <div class="field"><label>Fecha de seguimiento</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Responsable de seguimiento</label><div class="line">&nbsp;</div></div>
+      </div>
+    </div>
+
+    <!-- Observaciones -->
+    <div class="form-section">
+      <div class="form-section-title">Observaciones generales</div>
+      <div class="field"><label>Observaciones</label><div class="line-xl">&nbsp;</div></div>
+    </div>
+
+    <!-- Firmas -->
+    <div class="signatures">
+      <div class="signature-block">
+        <div class="signature-line">&nbsp;</div>
+        <div class="title">Trabajo Social</div>
+        <div class="sub">Nombre, firma y sello</div>
+      </div>
+      <div class="signature-block">
+        <div class="signature-line">&nbsp;</div>
+        <div class="title">Tutor / Familiar</div>
+        <div class="sub">Nombre y firma</div>
+      </div>
+    </div>
+  </div>
+  <div class="form-footer">
+    Formato institucional &mdash; <strong>SASE Light</strong> &mdash; Esc. Sec. Diurna No. 310 "Presidentes de México" TV &mdash; Folio FS-________
+  </div>
+</div>
+
+<!-- ============ FORM 5: REGISTRO UDEEI / BAP ============ -->
+<div class="form-page">
+  <div class="form-header">
+    <h2>Registro UDEEI / BAP</h2>
+    <span class="folio">Folio: <strong>UB-________</strong></span>
+  </div>
+  <div class="form-meta">
+    <span><strong>Área:</strong> UDEEI</span>
+    <span><strong>Alumno:</strong> __________________________________</span>
+    <span><strong>Estatus:</strong> <span class="badge badge-azul">Detectado</span> <span class="badge badge-ambar">En seguimiento</span> <span class="badge badge-verde">Atendido</span> <span class="badge badge-rojo">Requiere canalización</span></span>
+  </div>
+  <div class="form-body">
+
+    <!-- Datos del alumno -->
+    <div class="form-section">
+      <div class="form-section-title">Datos del alumno</div>
+      <div class="field-group">
+        <div class="field"><label>Nombre completo</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>CURP</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Grado / Grupo</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Edad</label><div class="line">&nbsp;</div></div>
+      </div>
+    </div>
+
+    <!-- Barreras -->
+    <div class="form-section">
+      <div class="form-section-title">Barrera para el aprendizaje y la participación identificada</div>
+      <p style="font-size:.8rem;color:var(--gris-texto);margin-bottom:.4rem">Describir la barrera observada en función del contexto y la interacción del alumno con su entorno. Usar lenguaje incluyente y centrado en la persona.</p>
+      <div class="field"><label>Descripción de la barrera</label><div class="line-xl">&nbsp;</div></div>
+      <div class="field" style="margin-top:.5rem"><label>Contexto donde se observa (aula, recreo, hogar, etc.)</label><div class="line-lg">&nbsp;</div></div>
+    </div>
+
+    <!-- Apoyos -->
+    <div class="form-section">
+      <div class="form-section-title">Apoyos sugeridos</div>
+      <div class="field-group">
+        <div class="field"><label>Apoyo sugerido</label><div class="line-lg">&nbsp;</div></div>
+        <div class="field"><label>Responsable del apoyo</label><div class="line-lg">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Apoyo sugerido</label><div class="line-lg">&nbsp;</div></div>
+        <div class="field"><label>Responsable del apoyo</label><div class="line-lg">&nbsp;</div></div>
+      </div>
+    </div>
+
+    <!-- Ajustes razonables -->
+    <div class="form-section">
+      <div class="form-section-title">Ajustes razonables</div>
+      <div class="field"><label>Ajustes propuestos (curriculares, metodológicos, de acceso, etc.)</label><div class="line-xl">&nbsp;</div></div>
+    </div>
+
+    <!-- Seguimiento -->
+    <div class="form-section">
+      <div class="form-section-title">Seguimiento</div>
+      <div class="field-group">
+        <div class="field"><label>Responsable del caso</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Fecha de registro inicial</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>Fecha de última revisión</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Fecha de próxima revisión</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field"><label>Evidencia de intervención (observaciones, avances)</label><div class="line-xl">&nbsp;</div></div>
+    </div>
+
+    <!-- Canalización -->
+    <div class="form-section">
+      <div class="form-section-title">Canalización</div>
+      <div class="field-group">
+        <div class="field"><label>¿Requiere canalización externa?</label><div class="line">&nbsp;</div></div>
+        <div class="field"><label>Institución o servicio sugerido</label><div class="line">&nbsp;</div></div>
+      </div>
+      <div class="field"><label>Motivo de canalización</label><div class="line-lg">&nbsp;</div></div>
+    </div>
+
+    <!-- Observaciones -->
+    <div class="form-section">
+      <div class="form-section-title">Observaciones</div>
+      <div class="field"><label>Observaciones generales</label><div class="line-xl">&nbsp;</div></div>
+    </div>
+
+    <!-- Firmas -->
+    <div class="signatures">
+      <div class="signature-block">
+        <div class="signature-line">&nbsp;</div>
+        <div class="title">UDEEI</div>
+        <div class="sub">Responsable, firma y sello</div>
+      </div>
+      <div class="signature-block">
+        <div class="signature-line">&nbsp;</div>
+        <div class="title">Tutor / Familiar</div>
+        <div class="sub">Nombre y firma</div>
+      </div>
+    </div>
+  </div>
+  <div class="form-footer">
+    Formato institucional &mdash; <strong>SASE Light</strong> &mdash; Esc. Sec. Diurna No. 310 "Presidentes de México" TV &mdash; Folio UB-________ &mdash; Uso interno UDEEI
+  </div>
+</div>
+
+<!-- ===== CLOSING ===== -->
+<div class="closing">
+  <h2>Revisión y adopción</h2>
+  <p>Este paquete de formatos prioritarios debe ser revisado por <strong>Dirección</strong> y las <strong>áreas responsables</strong> antes de su adopción oficial. Cada área deberá validar que los campos, flujos y diseños propuestos corresponden a sus necesidades operativas.</p>
+  <p>Una vez validados, estos formatos serán integrados al <strong>módulo documental de SASE Light</strong> como formularios digitales imprimibles, conservando la misma estructura y nomenclatura aquí presentada.</p>
+  <div class="actions">
+    <div class="step">
+      <div class="num">Paso 1</div>
+      <div class="desc">Revisión por Dirección</div>
+    </div>
+    <div class="step">
+      <div class="num">Paso 2</div>
+      <div class="desc">Validación por área</div>
+    </div>
+    <div class="step">
+      <div class="num">Paso 3</div>
+      <div class="desc">Ajustes y versión final</div>
+    </div>
+    <div class="step">
+      <div class="num">Paso 4</div>
+      <div class="desc">Integración a SASE Light</div>
+    </div>
+  </div>
+  <p style="margin-top:1.5rem;font-size:.85rem;color:var(--gris-texto)">SASE Light &mdash; Sistema de Administración de Seguimiento Escolar &mdash; Versión 1.0 &mdash; Documento de trabajo</p>
+</div>
+
+</div>
+</body>
+</html>
