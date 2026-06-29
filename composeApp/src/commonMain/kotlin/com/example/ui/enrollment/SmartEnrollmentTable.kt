@@ -82,11 +82,10 @@ fun SmartEnrollmentTable(
         ) {
             Text("Matrícula Inteligente", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = SaseNavy)
             Text(
-                "Ver todos (${filteredList.size})",
-                color = SaseBlue,
+                "${filteredList.size} registros",
+                color = SaseNavy,
                 fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable {}
+                fontWeight = FontWeight.Bold
             )
         }
         Spacer(modifier = Modifier.height(12.dp))

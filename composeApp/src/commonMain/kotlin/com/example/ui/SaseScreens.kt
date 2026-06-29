@@ -303,15 +303,7 @@ fun SaseSidebar(
 ) {
     val items = listOf(
         "Inicio" to Icons.Default.Home,
-        "Agenda" to Icons.Default.CalendarToday,
-        "Reportes" to Icons.Default.Assignment,
-        "Expedientes" to Icons.Default.Person,
-        "Solicitudes" to Icons.Default.Description,
         "Inscripciones" to Icons.Default.School,
-        "Archivo" to Icons.Default.History,
-        "Matrícula Inteligente" to Icons.Default.TrendingUp,
-        "Cierre de Ciclo" to Icons.Default.Lock,
-        "Seguridad" to Icons.Default.Security,
         "Portal Familia" to Icons.Default.Groups
     )
 
@@ -607,14 +599,6 @@ fun KpiCard(
             }
             Column {
                 Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = SaseText)
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    "Ver detalle",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SaseBlue,
-                    modifier = Modifier.clickable { onClick() }
-                )
             }
         }
     }
@@ -879,33 +863,15 @@ fun SecretaryDashboardScreen(
                         }
                     }
 
-                    // Bell icon and avatar
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        Box {
-                            IconButton(onClick = {}) {
-                                Icon(Icons.Default.Notifications, contentDescription = "Alertas", tint = SaseNavy)
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
+                    // Avatar
+                    Box(
+                        modifier = Modifier
+                                    .size(38.dp)
                                     .clip(CircleShape)
-                                    .background(SaseRed)
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = (-8).dp, y = 8.dp)
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .background(SaseNavy.copy(alpha = 0.1f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Person, contentDescription = "Secretaria avatar", tint = SaseNavy, modifier = Modifier.size(22.dp))
-                        }
+                                    .background(SaseNavy.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = "Secretaria avatar", tint = SaseNavy, modifier = Modifier.size(22.dp))
                     }
                 }
 
@@ -1393,14 +1359,6 @@ fun EnrollmentDashboardScreen(
                         }
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(SaseGreen.copy(alpha = 0.12f))
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    ) {
-                        Text("MVP Phase 1", color = SaseGreenDark, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))

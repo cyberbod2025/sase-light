@@ -658,42 +658,6 @@ private fun CredentialSection(enrollment: Enrollment) {
             StatusBadge(label = "Falta foto alumno", color = SaseRed)
         }
     }
-
-    Spacer(modifier = Modifier.height(4.dp))
-
-    // Mock action buttons — present but disabled
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        MockActionButton("Tomar foto alumno", Icons.Default.CameraAlt, Modifier.weight(1f))
-        MockActionButton("Foto tutor", Icons.Default.PhotoCamera, Modifier.weight(1f))
-    }
-    Spacer(modifier = Modifier.height(2.dp))
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        MockActionButton("Generar credencial", Icons.Default.School, Modifier.weight(1f))
-        MockActionButton("Ficha autorizados", Icons.Default.AccountBox, Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun MockActionButton(label: String, icon: ImageVector, modifier: Modifier = Modifier) {
-    OutlinedButton(
-        onClick = { /* mock — no-op */ },
-        enabled = false,
-        shape = RoundedCornerShape(12.dp),
-        modifier = modifier.height(34.dp),
-        colors = ButtonDefaults.outlinedButtonColors(
-            disabledContentColor = SaseMuted.copy(alpha = 0.55f)
-        )
-    ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(13.dp))
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
 }
 
 // ── Shared composables ───────────────────────────────────────────
