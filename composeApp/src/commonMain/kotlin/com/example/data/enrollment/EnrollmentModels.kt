@@ -24,7 +24,16 @@ data class Enrollment(
     val documents: List<EnrollmentDocument>,
     val consents: List<Consent>,
     val riskFlags: List<RiskFlag>,
-    val readyForSignature: Boolean
+    val readyForSignature: Boolean,
+    // v1.1A — Photo readiness
+    val studentPhotoUrl: String? = null,
+    val photoTakenAt: String? = null,
+    val photoTakenBy: String? = null,
+    val photoForCredential: Boolean = false,
+    // v1.1A — Identity & credential
+    val presenter: EnrollmentPresenter? = null,
+    val authorizedPickups: List<AuthorizedPickup> = emptyList(),
+    val identityChecklist: IdentityChecklist = IdentityChecklist()
 ) {
     val missingDocuments: List<EnrollmentDocument>
         get() = documents.filter { it.status != "Entregado" }
@@ -85,3 +94,49 @@ data class RiskFlag(
     val severity: String,
     val detail: String
 )
+
+// v1.1A — Person who physically presents the student at enrollment
+data class EnrollmentPresenter(
+    val id: String,
+    val enrollmentId: String,
+    val studentId: String,
+    val fullName: String,
+    val relationship: String,
+    val phone: String,
+    val ineVerified: Boolean,
+    val presentAtEnrollment: Boolean,
+    val photoUrl: String?,
+    val signatureUrl: String?,
+    val canPickupStudent: Boolean,
+    val registeredBy: String,
+    val createdAt: String
+)
+
+// v1.1A — People authorized to pick up the student
+data class AuthorizedPickup(
+    val id: String,
+    val studentId: String,
+    val fullName: String,
+    val relationship: String,
+    val phone: String,
+    val ineVerified: Boolean,
+    val ineCopyUrl: String?,
+    val photoUrl: String?,
+    val signatureUrl: String?,
+    val active: Boolean,
+    val notes: String
+)
+
+// v1.1A — Identity verification checklist with derived "expediente completo" flag
+data class IdentityChecklist(
+    val studentPhotographed: Boolean = false,
+    val tutorPhotographed: Boolean = false,
+    val tutorIdentified: Boolean = false,
+    val ineVerified: Boolean = false,
+    val authorizedPickupsRegistered: Boolean = false,
+    val documentsComplete: Boolean = false
+) {
+    val expedienteComplete: Boolean
+        get() = studentPhotographed && tutorPhotographed && tutorIdentified
+                && ineVerified && authorizedPickupsRegistered && documentsComplete
+}
