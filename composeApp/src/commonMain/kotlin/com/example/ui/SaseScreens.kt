@@ -36,6 +36,7 @@ import com.example.ui.student.StudentRecordScreen
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
 import com.example.viewmodel.AppRole
+import com.example.ui.presolicitud.SecretariaPreApplicationDashboardScreen
 import kotlinx.coroutines.launch
 
 // Colors matching palette
@@ -180,7 +181,8 @@ fun SaseSidebar(
     val items = listOf(
         "Inicio" to Icons.Default.Home,
         "Inscripciones" to Icons.Default.School,
-        "Portal Familia" to Icons.Default.Groups
+        "Portal Familia" to Icons.Default.Groups,
+        "Pre-Solicitudes" to Icons.Default.Assignment
     )
 
     Column(
@@ -726,11 +728,12 @@ fun SecretaryDashboardScreen(
                         SaseSidebar(
                             activeItem = "Inicio",
                             modifier = Modifier.fillMaxHeight(),
-                            onItemClick = { item ->
+                    onItemClick = { item ->
                                 when (item) {
                                     "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
                                     "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
                                     "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
+                                    "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
                                 }
                                 scope.launch { drawerState.close() }
                             }
@@ -750,6 +753,7 @@ fun SecretaryDashboardScreen(
                             "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
                             "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
                             "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
+                            "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
                         }
                     }
                 )
@@ -959,6 +963,7 @@ fun EnrollmentDashboardScreen(
                 "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
                 "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
                 "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
+                "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
             }
         }
 
@@ -1111,18 +1116,6 @@ fun SaseAppContent(viewModel: LabViewModel) {
 }
 
 // ── FASE 1 STUBS ──────────────────────────────────────────────────────────
-
-@Composable
-fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
-    Box(modifier = Modifier.fillMaxSize().background(SaseBgSoft), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Dashboard Secretaria (Pre-solicitudes)", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = SaseNavy)
-            Text("Fase 1 - En construccion", color = SaseMuted)
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) }) { Text("Volver") }
-        }
-    }
-}
 
 @Composable
 fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {

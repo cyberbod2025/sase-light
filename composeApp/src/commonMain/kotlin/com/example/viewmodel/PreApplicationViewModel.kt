@@ -7,6 +7,22 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlin.random.Random
 
 class PreApplicationViewModel {
+    companion object {
+        private val _sharedPreApplications = MutableStateFlow(MockPreApplicationData.preApplications)
+        val sharedPreApplications: StateFlow<List<PreApplication>> = _sharedPreApplications.asStateFlow()
+
+        fun approvePreApplication(folio: String) {
+            _sharedPreApplications.value = _sharedPreApplications.value.map {
+                if (it.folio == folio) it.copy(status = PreApplicationStatus.ACEPTADA) else it
+            }
+        }
+
+        fun markForCorrection(folio: String) {
+            _sharedPreApplications.value = _sharedPreApplications.value.map {
+                if (it.folio == folio) it.copy(status = PreApplicationStatus.PENDIENTE_CORRECCION) else it
+            }
+        }
+    }
 
     private val _currentStep = MutableStateFlow(0)
     val currentStep: StateFlow<Int> = _currentStep.asStateFlow()
