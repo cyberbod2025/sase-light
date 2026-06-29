@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.runtime.collectAsState
 import com.example.data.*
 import com.example.util.LocalToast
 import com.example.ui.gemini.GeminiTestCard
@@ -37,6 +36,7 @@ import com.example.ui.enrollment.digital.SecretariaEnrollmentDashboard
 import com.example.ui.student.StudentRecordScreen
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
+import com.example.viewmodel.AppRole
 import com.example.viewmodel.GeminiViewModel
 import kotlinx.coroutines.launch
 
@@ -1447,6 +1447,7 @@ fun EnrollmentDashboardScreen(
 @Composable
 fun SaseAppContent(viewModel: LabViewModel) {
     val currentScreen by viewModel.currentScreen.collectAsState()
+    val currentRole by viewModel.userRole.collectAsState()
 
     Scaffold(
         containerColor = SaseNavy
@@ -1474,9 +1475,79 @@ fun SaseAppContent(viewModel: LabViewModel) {
                     is Screen.EnrollmentDashboard -> EnrollmentDashboardScreen(
                         viewModel = viewModel
                     )
+                    is Screen.PreApplicationFamilyPortal -> PreApplicationFamilyPortalScreen(
+                        viewModel = viewModel
+                    )
+                    is Screen.SecretariaPreApplicationDashboard -> SecretariaPreApplicationDashboardScreen(
+                        viewModel = viewModel
+                    )
+                    is Screen.OfficialEnrollmentDashboard -> OfficialEnrollmentDashboardScreen(
+                        viewModel = viewModel
+                    )
                 }
+            }
+
+            // MOCK GLOBAL ROLE SELECTOR (Fase 1)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(SaseNavy2.copy(alpha = 0.9f))
+                    .border(1.dp, SaseBorder, RoundedCornerShape(8.dp))
+                    .clickable {
+                        // Ciclar roles para testing
+                        val roles = AppRole.entries.toTypedArray()
+                        val nextIndex = (roles.indexOf(currentRole) + 1) % roles.size
+                        viewModel.setRole(roles[nextIndex])
+                    }
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = "Rol: ${currentRole.label}",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
             }
         }
     }
 }
 
+// ── FASE 1 STUBS ──────────────────────────────────────────────────────────
+
+@Composable
+fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
+    Box(modifier = Modifier.fillMaxSize().background(SaseBgSoft), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Portal de Familia (Pre-solicitud)", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = SaseNavy)
+            Text("Fase 1 - En construccion", color = SaseMuted)
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) }) { Text("Volver") }
+        }
+    }
+}
+
+@Composable
+fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
+    Box(modifier = Modifier.fillMaxSize().background(SaseBgSoft), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Dashboard Secretaria (Pre-solicitudes)", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = SaseNavy)
+            Text("Fase 1 - En construccion", color = SaseMuted)
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) }) { Text("Volver") }
+        }
+    }
+}
+
+@Composable
+fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
+    Box(modifier = Modifier.fillMaxSize().background(SaseBgSoft), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Dashboard Altas Oficiales (Matriculas)", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = SaseNavy)
+            Text("Fase 1 - En construccion", color = SaseMuted)
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) }) { Text("Volver") }
+        }
+    }
+}

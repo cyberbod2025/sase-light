@@ -15,6 +15,21 @@ sealed class Screen {
     data object SecretaryDashboard : Screen()
     data object EnrollmentDashboard : Screen()
     data class StudentRecord(val studentId: String) : Screen()
+    // Nuevas rutas FASE 1
+    data object PreApplicationFamilyPortal : Screen()
+    data object SecretariaPreApplicationDashboard : Screen()
+    data object OfficialEnrollmentDashboard : Screen()
+}
+
+// Roles MOCK
+enum class AppRole(val label: String) {
+    FAMILIA("Familia"),
+    SECRETARIA("Secretaría"),
+    DIRECCION("Dirección"),
+    MEDICO("Médico Escolar"),
+    TRABAJO_SOCIAL("Trabajo Social"),
+    UDEII("UDEII"),
+    DOCENTE("Docente")
 }
 
 class LabViewModel(
@@ -24,8 +39,16 @@ class LabViewModel(
     private val _currentScreen = MutableStateFlow<Screen>(Screen.SecretaryDashboard)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
 
+    // Mock global role selector para testing UI
+    private val _userRole = MutableStateFlow(AppRole.SECRETARIA)
+    val userRole: StateFlow<AppRole> = _userRole.asStateFlow()
+
     fun navigateTo(screen: Screen) {
         _currentScreen.value = screen
+    }
+
+    fun setRole(role: AppRole) {
+        _userRole.value = role
     }
 
     val saseStudents: StateFlow<List<Student>> = studentRepository.students
