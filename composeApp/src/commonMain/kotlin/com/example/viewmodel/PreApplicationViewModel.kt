@@ -51,8 +51,19 @@ class PreApplicationViewModel {
             val responsablePhotoMockUrl: String? = null
         )
 
+        data class SecretariaReviewObservation(
+            val id: String,
+            val folio: String,
+            val category: String,
+            val note: String,
+            val createdAt: String
+        )
+
         private val _photos = MutableStateFlow<Map<String, PreApplicationPhotoState>>(emptyMap())
         val photos: StateFlow<Map<String, PreApplicationPhotoState>> = _photos.asStateFlow()
+
+        private val _reviewObservations = MutableStateFlow<Map<String, List<SecretariaReviewObservation>>>(emptyMap())
+        val reviewObservations: StateFlow<Map<String, List<SecretariaReviewObservation>>> = _reviewObservations.asStateFlow()
 
         fun toggleDocumentCotejado(folio: String, docNombre: String) {
             _sharedPreApplications.value = _sharedPreApplications.value.map { app ->
@@ -75,6 +86,43 @@ class PreApplicationViewModel {
             current[folio] = (current[folio] ?: PreApplicationPhotoState()).copy(responsablePhotoMockUrl = "mock://photo/responsable/$folio.jpg")
             _photos.value = current
         }
+
+        fun addReviewObservation(folio: String, category: String, note: String) {
+            val cleanNote = note.trim().take(220)
+            if (cleanNote.isBlank()) return
+
+            val observation = SecretariaReviewObservation(
+                id = "OBS-${folio.takeLast(4)}-${Random.nextInt(100, 999)}",
+                folio = folio,
+                category = category,
+                note = cleanNote,
+                createdAt = "Ahora"
+            )
+            val current = _reviewObservations.value.toMutableMap()
+            current[folio] = listOf(observation) + current[folio].orEmpty()
+            _reviewObservations.value = current
+        }
+
+        fun officialEnrollmentPendingItems(preApp: PreApplication): List<String> {
+            val photoState = _photos.value[preApp.folio]
+            return buildList {
+                if (preApp.status != PreApplicationStatus.ACEPTADA) {
+                    add("Pre-solicitud aceptada por Secretaría")
+                }
+                if (preApp.documentosDeclarados.any { !it.declarado || !it.cotejadoSecretaria }) {
+                    add("Documentos requeridos cotejados")
+                }
+                if (photoState?.studentPhotoMockUrl == null) {
+                    add("Foto alumno mock capturada")
+                }
+                if (photoState?.responsablePhotoMockUrl == null) {
+                    add("Foto responsable mock capturada")
+                }
+            }
+        }
+
+        fun isReadyForOfficialEnrollment(preApp: PreApplication): Boolean =
+            officialEnrollmentPendingItems(preApp).isEmpty()
 
         fun buildProvisionalStudent(preApp: PreApplication): com.example.data.Student {
             val newId = "PROV-${preApp.folio.takeLast(4)}"

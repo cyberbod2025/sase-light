@@ -355,6 +355,7 @@ private fun PreApplicationDetailTabs(
     modifier: Modifier = Modifier
 ) {
     val photos by PreApplicationViewModel.photos.collectAsState()
+    val reviewObservations by PreApplicationViewModel.reviewObservations.collectAsState()
 
     if (preApp == null) {
         GlassCard(modifier = modifier) {
@@ -391,6 +392,7 @@ private fun PreApplicationDetailTabs(
 
         // Photo section
         val photoState = photos[preApp.folio]
+        val officialEnrollmentPendingItems = PreApplicationViewModel.officialEnrollmentPendingItems(preApp)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -408,6 +410,12 @@ private fun PreApplicationDetailTabs(
                 modifier = Modifier.weight(1f)
             )
         }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        OfficialEnrollmentReadinessCard(
+            pendingItems = officialEnrollmentPendingItems
+        )
 
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -435,7 +443,10 @@ private fun PreApplicationDetailTabs(
                 1 -> ResponsablesTab(preApp)
                 2 -> ContextoTab(preApp)
                 3 -> DocumentosTab(preApp)
-                4 -> RevisionTab(preApp)
+                4 -> RevisionTab(
+                    preApp = preApp,
+                    reviewObservations = reviewObservations[preApp.folio].orEmpty()
+                )
             }
 
             // Acciones comunes
@@ -615,6 +626,80 @@ private fun ContextoTab(preApp: PreApplication) {
 // ── Photo Placeholder ──────────────────────────────────────────────────────
 
 @Composable
+private fun OfficialEnrollmentReadinessCard(
+    pendingItems: List<String>
+) {
+    val isReady = pendingItems.isEmpty()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isReady) SaseGreen.copy(alpha = 0.08f) else SaseOrange.copy(alpha = 0.08f))
+            .border(1.dp, if (isReady) SaseGreen.copy(alpha = 0.25f) else SaseOrange.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                if (isReady) Icons.Default.CheckCircle else Icons.Default.Warning,
+                contentDescription = null,
+                tint = if (isReady) SaseGreen else SaseOrange,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    if (isReady) "Listo para alta oficial" else "Pendiente para alta oficial",
+                    color = if (isReady) SaseGreen else SaseOrange,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 12.sp
+                )
+                Text(
+                    "No genera matrícula, grupo ni alta oficial todavía.",
+                    color = SaseMuted,
+                    fontSize = 9.sp
+                )
+            }
+        }
+
+        if (pendingItems.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                pendingItems.forEach { item ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(SaseOrange)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(item, color = SaseText, fontSize = 10.sp)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+        Button(
+            onClick = {},
+            enabled = false,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Continuar a alta oficial", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+        }
+        Text(
+            "Disponible cuando documentación y fotografías estén completas.",
+            color = SaseMuted,
+            fontSize = 9.sp,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+    }
+}
+
+@Composable
 private fun PhotoPlaceholderBox(
     label: String,
     photoUrl: String?,
@@ -761,45 +846,157 @@ private fun DocumentosTab(preApp: PreApplication) {
 // ── Tab 5: Revisión ────────────────────────────────────────────────────────
 
 @Composable
-private fun RevisionTab(preApp: PreApplication) {
-    var observaciones by remember(preApp.folio) { mutableStateOf(preApp.observacionesSecretaria) }
+private fun RevisionTab(
+    preApp: PreApplication,
+    reviewObservations: List<PreApplicationViewModel.Companion.SecretariaReviewObservation>
+) {
+    val categories = listOf("Documentos", "Fotos", "Corrección solicitada")
+    var selectedCategory by remember(preApp.folio) { mutableStateOf(categories.first()) }
+    var observationDraft by remember(preApp.folio) { mutableStateOf(preApp.observacionesSecretaria) }
+    var requiresCorrection by remember(preApp.folio, preApp.status) {
+        mutableStateOf(preApp.status == PreApplicationStatus.PENDIENTE_CORRECCION)
+    }
     var motivoCorreccion by remember(preApp.folio) { mutableStateOf(preApp.motivoCorreccion) }
     var notificationResult by remember { mutableStateOf<String?>(null) }
 
     SectionHeader("Observaciones de Secretaría")
-    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        "Registro interno para revisión de documentos, fotos o corrección solicitada.",
+        color = SaseMuted,
+        fontSize = 9.sp
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        categories.forEach { category ->
+            FilterChip(
+                selected = selectedCategory == category,
+                onClick = { selectedCategory = category },
+                label = { Text(category, fontSize = 9.sp, fontWeight = FontWeight.Bold) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = SaseBlue.copy(alpha = 0.14f),
+                    selectedLabelColor = SaseBlue,
+                    labelColor = SaseMuted
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = selectedCategory == category,
+                    borderColor = SaseBorder,
+                    selectedBorderColor = SaseBlue.copy(alpha = 0.35f)
+                )
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(8.dp))
     OutlinedTextField(
-        value = observaciones,
-        onValueChange = {
-            observaciones = it
-            PreApplicationViewModel.setObservaciones(preApp.folio, it)
-        },
-        placeholder = { Text("Notas internas sobre la solicitud...", color = SaseMuted) },
-        modifier = Modifier.fillMaxWidth().height(100.dp),
+        value = observationDraft,
+        onValueChange = { observationDraft = it.take(220) },
+        placeholder = { Text("Captura una observación breve...", color = SaseMuted) },
+        modifier = Modifier.fillMaxWidth().height(90.dp),
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = Color.White.copy(alpha = 0.5f),
             unfocusedContainerColor = Color.White.copy(alpha = 0.3f)
         )
     )
+    Spacer(modifier = Modifier.height(8.dp))
+    Button(
+        onClick = {
+            PreApplicationViewModel.setObservaciones(preApp.folio, observationDraft)
+            PreApplicationViewModel.addReviewObservation(preApp.folio, selectedCategory, observationDraft)
+            observationDraft = ""
+        },
+        enabled = observationDraft.isNotBlank(),
+        colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+        Text("Registrar observación", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+    }
 
     Spacer(modifier = Modifier.height(12.dp))
-    SectionHeader("Motivo de corrección")
-    Spacer(modifier = Modifier.height(4.dp))
-    OutlinedTextField(
-        value = motivoCorreccion,
-        onValueChange = {
-            motivoCorreccion = it
-            PreApplicationViewModel.setMotivoCorreccion(preApp.folio, it)
-        },
-        placeholder = { Text("¿Qué debe corregir la familia?", color = SaseMuted) },
-        modifier = Modifier.fillMaxWidth().height(80.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = Color.White.copy(alpha = 0.5f),
-            unfocusedContainerColor = Color.White.copy(alpha = 0.3f)
+    SectionHeader("Historial simple")
+    if (reviewObservations.isEmpty()) {
+        Text("Sin observaciones registradas para este folio.", color = SaseMuted, fontSize = 10.sp)
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            reviewObservations.take(4).forEach { item ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color.White.copy(alpha = 0.45f))
+                        .padding(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(item.category, color = SaseNavy, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                        Text(item.createdAt, color = SaseMuted, fontSize = 8.sp)
+                    }
+                    Text(item.note, color = SaseText, fontSize = 10.sp)
+                }
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (requiresCorrection) SaseOrange.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.35f))
+            .clickable { requiresCorrection = !requiresCorrection }
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = requiresCorrection,
+            onCheckedChange = { requiresCorrection = it },
+            colors = CheckboxDefaults.colors(checkedColor = SaseOrange)
         )
-    )
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Requiere corrección", color = SaseText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("Permite registrar el motivo que verá Secretaría antes de notificar.", color = SaseMuted, fontSize = 9.sp)
+        }
+    }
+
+    if (requiresCorrection) {
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = motivoCorreccion,
+            onValueChange = { motivoCorreccion = it.take(220) },
+            placeholder = { Text("¿Qué debe corregir la familia?", color = SaseMuted) },
+            modifier = Modifier.fillMaxWidth().height(80.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White.copy(alpha = 0.5f),
+                unfocusedContainerColor = Color.White.copy(alpha = 0.3f)
+            )
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = {
+                PreApplicationViewModel.setMotivoCorreccion(preApp.folio, motivoCorreccion)
+                PreApplicationViewModel.markForCorrection(preApp.folio)
+                PreApplicationViewModel.addReviewObservation(preApp.folio, "Corrección solicitada", motivoCorreccion)
+            },
+            enabled = motivoCorreccion.isNotBlank(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = SaseOrange),
+            border = BorderStroke(1.dp, SaseOrange.copy(alpha = 0.5f)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Guardar motivo de corrección", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+        }
+    }
 
     Spacer(modifier = Modifier.height(12.dp))
 
