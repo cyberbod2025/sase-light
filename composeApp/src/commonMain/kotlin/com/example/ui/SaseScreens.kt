@@ -32,12 +32,17 @@ import com.example.ui.dashboard.LiquidGlassDashboard
 import com.example.ui.enrollment.SmartEnrollmentTable
 import com.example.ui.enrollment.digital.EnrollmentSummaryCard
 import com.example.ui.enrollment.digital.SecretariaEnrollmentDashboard
+import com.example.data.presolicitud.OfficialStudent
 import com.example.ui.student.StudentRecordScreen
+import com.example.data.StudentAddResult
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
 import com.example.viewmodel.AppRole
 import com.example.ui.presolicitud.SecretariaPreApplicationDashboardScreen
 import kotlinx.coroutines.launch
+
+private fun fastTrackGradeFromGroup(group: String): Int =
+    group.trim().firstOrNull()?.digitToIntOrNull() ?: 1
 
 // Colors matching palette
 val SaseBg = Color(0xFFF6FAFC)
@@ -779,8 +784,8 @@ fun SecretaryDashboardScreen(
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Nuevo Expediente Escolar", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 18.sp)
-                    Text("Cree un registro de matrícula rápido e inicial.", color = SaseMuted, fontSize = 11.sp)
+                    Text("Alta Rápida de Expediente", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 18.sp)
+                    Text("Flujo no institucional. Úselo solo para captura excepcional y sin duplicar identidad.", color = SaseOrange, fontSize = 11.sp)
 
                     OutlinedTextField(
                         value = newStudentName,
@@ -835,33 +840,49 @@ fun SecretaryDashboardScreen(
                         ) {
                             Text("Cancelar", color = SaseMuted)
                         }
-                        Button(
-                            onClick = {
-                                if (newStudentName.isNotBlank() && newStudentCurp.isNotBlank()) {
-                                    val newId = (students.size + 1).toString()
-                                    val std = Student(
+                            Button(
+                                onClick = {
+                                    if (newStudentName.isNotBlank() && newStudentCurp.isNotBlank()) {
+                                        val newId = (students.size + 1).toString()
+                                        val generatedEnrollmentId = OfficialStudent.generateMatricula(
+                                            newStudentCurp.uppercase(),
+                                            fastTrackGradeFromGroup(newStudentGroup)
+                                        )
+                                        val std = Student(
                                         id = newId,
                                         fullName = newStudentName,
                                         group = newStudentGroup,
-                                        enrollmentId = "2024-00${100 + students.size}",
+                                        enrollmentId = generatedEnrollmentId ?: "",
                                         curp = newStudentCurp.uppercase(),
                                         tutorName = newStudentTutor,
                                         tutorRelation = "Tutor",
-                                        status = "Nuevo ingreso",
-                                        riskLevel = "Bajo",
-                                        documentationStatus = "Completa"
-                                    )
-                                    viewModel.addStudent(std)
-                                    viewModel.logSaseAudit("Expediente creado", "Secretaría", std.fullName)
-                                    showNewStudentDialog = false
-                                    newStudentName = ""
-                                    newStudentCurp = ""
-                                    newStudentTutor = ""
-                                    toast("Expediente escolar registrado")
-                                } else {
-                                    toast("Favor de llenar nombre y CURP")
-                                }
-                            },
+                                            status = "Nuevo ingreso",
+                                            riskLevel = "Bajo",
+                                            documentationStatus = "Completa"
+                                        )
+                                        when (val addResult = viewModel.addStudent(std)) {
+                                            is StudentAddResult.Added -> {
+                                                viewModel.logSaseAudit("Expediente creado", "Secretaría", addResult.student.fullName)
+                                                showNewStudentDialog = false
+                                                newStudentName = ""
+                                                newStudentCurp = ""
+                                                newStudentTutor = ""
+                                                toast("Expediente rápido registrado con guardrails de unicidad.")
+                                            }
+                                            is StudentAddResult.DuplicateCurp -> {
+                                                toast("Ya existe un alumno con esta CURP.")
+                                            }
+                                            is StudentAddResult.DuplicateEnrollmentId -> {
+                                                toast("Ya existe un alumno con esta matrícula.")
+                                            }
+                                            is StudentAddResult.InvalidData -> {
+                                                toast(addResult.message)
+                                            }
+                                        }
+                                    } else {
+                                        toast("Favor de llenar nombre y CURP")
+                                    }
+                                },
                             colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1.5f)

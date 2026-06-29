@@ -67,3 +67,10 @@ data class Student(
     val audits: List<SaseAudit> = emptyList(),
     val photoUrl: String? = null
 )
+
+sealed class StudentAddResult {
+    data class Added(val student: Student) : StudentAddResult()
+    data class DuplicateCurp(val curp: String, val existing: Student) : StudentAddResult()
+    data class DuplicateEnrollmentId(val enrollmentId: String, val existing: Student) : StudentAddResult()
+    data class InvalidData(val message: String) : StudentAddResult()
+}

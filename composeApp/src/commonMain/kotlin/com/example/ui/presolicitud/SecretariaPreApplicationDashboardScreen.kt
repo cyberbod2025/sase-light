@@ -25,6 +25,7 @@ import com.example.data.presolicitud.*
 import com.example.ui.*
 import com.example.util.LocalToast
 import com.example.viewmodel.LabViewModel
+import com.example.viewmodel.OfficialEnrollmentResult
 import com.example.viewmodel.PreApplicationViewModel
 import com.example.viewmodel.Screen
 import kotlinx.coroutines.launch
@@ -718,7 +719,8 @@ private fun OfficialEnrollmentContextualPanel(
     val suggestedGroup = remember(preApp.folio, grade) { PreApplicationViewModel.suggestInitialGroup(grade) }
     var selectedGroup by remember(preApp.folio) { mutableStateOf(suggestedGroup ?: groupOptions.firstOrNull().orEmpty()) }
     var groupConfirmed by remember(preApp.folio) { mutableStateOf(false) }
-    var result by remember(preApp.folio) { mutableStateOf<String?>(null) }
+    var resultMessage by remember(preApp.folio) { mutableStateOf<String?>(null) }
+    var resultColor by remember(preApp.folio) { mutableStateOf(SaseGreen) }
 
     Column(
         modifier = Modifier
@@ -829,7 +831,8 @@ private fun OfficialEnrollmentContextualPanel(
             Button(
                 onClick = {
                     val enrollmentResult = PreApplicationViewModel.startOfficialEnrollment(preApp, selectedGroup)
-                    result = enrollmentResult.message
+                    resultMessage = enrollmentResult.message
+                    resultColor = enrollmentResult.toUiColor()
                 },
                 enabled = matricula != null && (grade == 1 || selectedGroup.isNotBlank()),
                 colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
@@ -848,7 +851,8 @@ private fun OfficialEnrollmentContextualPanel(
                 Button(
                     onClick = {
                         val confirmResult = PreApplicationViewModel.confirmInitialGroup(preApp.folio, selectedGroup)
-                        result = confirmResult.message
+                        resultMessage = confirmResult.message
+                        resultColor = confirmResult.toUiColor()
                     },
                     enabled = groupConfirmed && selectedGroup.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
@@ -868,11 +872,19 @@ private fun OfficialEnrollmentContextualPanel(
             }
         }
 
-        if (result != null) {
+        if (resultMessage != null) {
             Spacer(modifier = Modifier.height(8.dp))
-            Text(result ?: "", color = SaseGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(resultMessage ?: "", color = resultColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
     }
+}
+
+private fun OfficialEnrollmentResult.toUiColor(): Color = when (this) {
+    is OfficialEnrollmentResult.Success -> SaseGreen
+    is OfficialEnrollmentResult.DuplicateFolio,
+    is OfficialEnrollmentResult.DuplicateCurp,
+    is OfficialEnrollmentResult.DuplicateMatricula -> SaseRed
+    is OfficialEnrollmentResult.Error -> SaseOrange
 }
 
 @Composable

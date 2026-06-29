@@ -26,10 +26,9 @@ import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.PreApplicationViewModel
 import com.example.viewmodel.Screen
 
-private val familyViewModel = PreApplicationViewModel()
-
 @Composable
 fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
+    val familyViewModel = remember { PreApplicationViewModel() }
     val currentStep by familyViewModel.currentStep.collectAsState()
     val submittedFolio by familyViewModel.submittedFolio.collectAsState()
     val errors by familyViewModel.errors.collectAsState()

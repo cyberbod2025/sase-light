@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import com.example.data.MockSaseData
 import com.example.data.Student
+import com.example.data.StudentAddResult
 import kotlinx.coroutines.flow.StateFlow
 
 class MockStudentRepositoryImpl : StudentRepository {
@@ -11,7 +12,7 @@ class MockStudentRepositoryImpl : StudentRepository {
         MockSaseData.updateStudent(student)
     }
 
-    override fun addStudent(student: Student) {
-        MockSaseData.addStudent(student)
+    override fun addStudent(student: Student): StudentAddResult {
+        return MockSaseData.addStudent(student)
     }
 }

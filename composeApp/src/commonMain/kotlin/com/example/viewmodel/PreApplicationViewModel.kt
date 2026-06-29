@@ -1,5 +1,6 @@
 package com.example.viewmodel
 
+import com.example.data.MockSaseData
 import com.example.data.Student
 import com.example.data.presolicitud.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -7,10 +8,63 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.random.Random
 
+sealed class FamilySubmissionResult {
+    abstract val message: String
+
+    data class Success(
+        val preApplication: PreApplication,
+        override val message: String = "Pre-solicitud enviada."
+    ) : FamilySubmissionResult()
+
+    data class DuplicateCurp(
+        val curp: String,
+        override val message: String = "Ya existe una pre-solicitud o alta oficial con esta CURP."
+    ) : FamilySubmissionResult()
+
+    data class DuplicateFolio(
+        val folio: String,
+        override val message: String = "Ya existe una pre-solicitud con este folio."
+    ) : FamilySubmissionResult()
+
+    data class InsufficientData(
+        override val message: String
+    ) : FamilySubmissionResult()
+}
+
+sealed class OfficialEnrollmentResult {
+    abstract val message: String
+
+    data class Success(
+        val officialStudent: OfficialStudent,
+        override val message: String = "Alta oficial iniciada."
+    ) : OfficialEnrollmentResult()
+
+    data class DuplicateFolio(
+        val folio: String,
+        override val message: String = "Esta pre-solicitud ya fue convertida en alta oficial."
+    ) : OfficialEnrollmentResult()
+
+    data class DuplicateCurp(
+        val curp: String,
+        override val message: String = "Ya existe un alumno con esta CURP."
+    ) : OfficialEnrollmentResult()
+
+    data class DuplicateMatricula(
+        val matricula: String,
+        override val message: String = "Ya existe un alumno con esta matrícula."
+    ) : OfficialEnrollmentResult()
+
+    data class Error(
+        override val message: String
+    ) : OfficialEnrollmentResult()
+}
+
 class PreApplicationViewModel {
     companion object {
         private val _sharedPreApplications = MutableStateFlow(MockPreApplicationData.preApplications)
         val sharedPreApplications: StateFlow<List<PreApplication>> = _sharedPreApplications.asStateFlow()
+        private val preApplicationFolioChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        private const val preApplicationTimestampPrefix = "Hoy "
 
         fun approvePreApplication(folio: String) {
             _sharedPreApplications.value = _sharedPreApplications.value.map {
@@ -68,12 +122,6 @@ class PreApplicationViewModel {
         private val _officialStudents = MutableStateFlow(MockOfficialStudentData.officialStudents)
         val officialStudents: StateFlow<List<OfficialStudent>> = _officialStudents.asStateFlow()
 
-        data class OfficialEnrollmentResult(
-            val success: Boolean,
-            val message: String,
-            val student: OfficialStudent? = null
-        )
-
         fun toggleDocumentCotejado(folio: String, docNombre: String) {
             _sharedPreApplications.value = _sharedPreApplications.value.map { app ->
                 if (app.folio != folio) return@map app
@@ -110,6 +158,71 @@ class PreApplicationViewModel {
             val current = _reviewObservations.value.toMutableMap()
             current[folio] = listOf(observation) + current[folio].orEmpty()
             _reviewObservations.value = current
+        }
+
+        private fun generateUniquePreApplicationFolio(existingFolios: Set<String>): String {
+            repeat(50) {
+                val candidate = buildString {
+                    append("PRE-310-")
+                    repeat(6) {
+                        append(preApplicationFolioChars[Random.nextInt(preApplicationFolioChars.length)])
+                    }
+                }
+                if (candidate !in existingFolios) return candidate
+            }
+            return "PRE-310-${preApplicationFolioChars.take(6)}"
+        }
+
+        private fun normalizeCurp(curp: String): String = curp.trim().uppercase()
+
+        private fun normalizeMatricula(matricula: String): String = matricula.trim().uppercase()
+
+        private fun buildStoredPreApplication(preApplication: PreApplication): PreApplication {
+            val normalizedCurp = normalizeCurp(preApplication.alumnoCurp)
+            val existingFolios = _sharedPreApplications.value.map { it.folio }.toSet()
+            val startingFolio = preApplication.folio.trim()
+            val finalFolio = if (startingFolio.isNotBlank() && startingFolio !in existingFolios) {
+                startingFolio
+            } else {
+                generateUniquePreApplicationFolio(existingFolios)
+            }
+
+            return preApplication.copy(
+                folio = finalFolio,
+                status = PreApplicationStatus.ENVIADA,
+                submittedAt = preApplication.submittedAt ?: "$preApplicationTimestampPrefix${com.example.formatTimestamp("hh:mm a")}",
+                alumnoCurp = normalizedCurp
+            )
+        }
+
+        fun submitFamilyPreApplication(preApplication: PreApplication): FamilySubmissionResult {
+            val normalizedCurp = normalizeCurp(preApplication.alumnoCurp)
+            if (preApplication.alumnoNombreCompleto.isBlank() ||
+                normalizedCurp.length != 18 ||
+                preApplication.alumnoFechaNacimiento.isBlank() ||
+                preApplication.alumnoDomicilio.isBlank() ||
+                preApplication.responsables.isEmpty()
+            ) {
+                return FamilySubmissionResult.InsufficientData("Faltan datos obligatorios para enviar la pre-solicitud.")
+            }
+
+            val duplicateFolio = preApplication.folio.trim().takeIf { it.isNotBlank() }?.let { folio ->
+                _sharedPreApplications.value.any { it.folio == folio }
+            } == true
+            if (duplicateFolio) {
+                return FamilySubmissionResult.DuplicateFolio(preApplication.folio.trim())
+            }
+
+            val duplicateCurp = _sharedPreApplications.value.any { normalizeCurp(it.alumnoCurp) == normalizedCurp } ||
+                _officialStudents.value.any { normalizeCurp(it.curp) == normalizedCurp } ||
+                MockSaseData.students.value.any { normalizeCurp(it.curp) == normalizedCurp }
+            if (duplicateCurp) {
+                return FamilySubmissionResult.DuplicateCurp(normalizedCurp)
+            }
+
+            val stored = buildStoredPreApplication(preApplication)
+            _sharedPreApplications.value = _sharedPreApplications.value + stored
+            return FamilySubmissionResult.Success(stored)
         }
 
         fun officialEnrollmentPendingItems(preApp: PreApplication): List<String> {
@@ -154,19 +267,50 @@ class PreApplicationViewModel {
             return options.minByOrNull { currentCounts[it] ?: 0 }
         }
 
+        private fun officialStudentByCurp(curp: String): OfficialStudent? =
+            _officialStudents.value.firstOrNull { normalizeCurp(it.curp) == normalizeCurp(curp) }
+
+        private fun officialStudentByMatricula(matricula: String): OfficialStudent? =
+            _officialStudents.value.firstOrNull {
+                it.matriculaOficial?.let(::normalizeMatricula) == normalizeMatricula(matricula)
+            }
+
+        private fun masterStudentByCurp(curp: String): Student? =
+            MockSaseData.students.value.firstOrNull { normalizeCurp(it.curp) == normalizeCurp(curp) }
+
+        private fun masterStudentByMatricula(matricula: String): Student? =
+            MockSaseData.students.value.firstOrNull {
+                normalizeMatricula(it.enrollmentId) == normalizeMatricula(matricula)
+            }
+
+        private fun preApplicationByCurp(curp: String): PreApplication? =
+            _sharedPreApplications.value.firstOrNull { normalizeCurp(it.alumnoCurp) == normalizeCurp(curp) }
+
         fun startOfficialEnrollment(preApp: PreApplication, selectedGroup: String?): OfficialEnrollmentResult {
             val existing = officialEnrollmentForFolio(preApp.folio)
             if (existing != null) {
-                return OfficialEnrollmentResult(true, "Alta oficial ya iniciada para este folio.", existing)
+                return OfficialEnrollmentResult.DuplicateFolio(preApp.folio)
             }
 
             val pendingItems = officialEnrollmentPendingItems(preApp)
             if (pendingItems.isNotEmpty()) {
-                return OfficialEnrollmentResult(false, "La pre-solicitud aún no está lista para alta oficial.")
+                return OfficialEnrollmentResult.Error("La pre-solicitud aún no está lista para alta oficial.")
             }
 
             val matricula = OfficialStudent.generateMatricula(preApp.alumnoCurp, preApp.gradoSolicitado)
-                ?: return OfficialEnrollmentResult(false, "No se puede generar matrícula: CURP inválida o menor a 10 caracteres.")
+                ?: return OfficialEnrollmentResult.Error("No se puede generar matrícula: CURP inválida o menor a 10 caracteres.")
+
+            val normalizedCurp = normalizeCurp(preApp.alumnoCurp)
+            if (officialStudentByCurp(normalizedCurp) != null || masterStudentByCurp(normalizedCurp) != null) {
+                return OfficialEnrollmentResult.DuplicateCurp(normalizedCurp)
+            }
+            if (officialStudentByMatricula(matricula) != null || masterStudentByMatricula(matricula) != null) {
+                return OfficialEnrollmentResult.DuplicateMatricula(matricula)
+            }
+            val sourcePreApplication = preApplicationByCurp(normalizedCurp)
+            if (sourcePreApplication == null || sourcePreApplication.folio != preApp.folio) {
+                return OfficialEnrollmentResult.Error("La pre-solicitud ya no coincide con la bandeja institucional compartida.")
+            }
 
             val suggestedGroup = if (preApp.gradoSolicitado in 2..3) {
                 selectedGroup?.takeIf { it.isNotBlank() } ?: suggestInitialGroup(preApp.gradoSolicitado)
@@ -187,27 +331,27 @@ class PreApplicationViewModel {
                 gradoIngreso = preApp.gradoSolicitado,
                 grupoSugerido = suggestedGroup,
                 grupoAsignado = null,
-                curp = preApp.alumnoCurp,
+                curp = normalizedCurp,
                 alumnoNombreCompleto = preApp.alumnoNombreCompleto,
-                matriculaOficial = matricula,
-                fechaCreacion = "Hoy",
+                matriculaOficial = normalizeMatricula(matricula),
+                fechaCreacion = "$preApplicationTimestampPrefix${com.example.formatTimestamp("hh:mm a")}",
                 validacionSecretaria = ValidacionArea(
                     area = "Secretaría",
                     validado = true,
                     validadoPor = "Secretaría",
-                    fechaValidacion = "Hoy",
+                    fechaValidacion = "$preApplicationTimestampPrefix${com.example.formatTimestamp("hh:mm a")}",
                     observaciones = "Alta oficial iniciada desde pre-solicitud ${preApp.folio}"
                 )
             )
 
             _officialStudents.value = _officialStudents.value + officialStudent
-            return OfficialEnrollmentResult(true, "Alta oficial iniciada.", officialStudent)
+            return OfficialEnrollmentResult.Success(officialStudent)
         }
 
         fun confirmInitialGroup(folio: String, selectedGroup: String): OfficialEnrollmentResult {
             val cleanGroup = selectedGroup.trim().uppercase()
             if (cleanGroup.isBlank()) {
-                return OfficialEnrollmentResult(false, "Selecciona un grupo para confirmar.")
+                return OfficialEnrollmentResult.Error("Selecciona un grupo para confirmar.")
             }
 
             var updatedStudent: OfficialStudent? = null
@@ -228,9 +372,9 @@ class PreApplicationViewModel {
             }
 
             return if (updatedStudent == null) {
-                OfficialEnrollmentResult(false, "No se encontró alta oficial para este folio.")
+                OfficialEnrollmentResult.Error("No se encontró alta oficial para este folio.")
             } else {
-                OfficialEnrollmentResult(true, "Grupo inicial confirmado.", updatedStudent)
+                OfficialEnrollmentResult.Success(updatedStudent)
             }
         }
 
@@ -671,11 +815,123 @@ class PreApplicationViewModel {
         }
 
         _isSubmitting.value = true
+        val submission = submitFamilyPreApplication(
+            PreApplication(
+                folio = "",
+                status = PreApplicationStatus.BORRADOR,
+                submittedAt = null,
+                tramite = _tipoTramite.value,
+                cicloEscolar = _cicloEscolar.value,
+                gradoSolicitado = _gradoSolicitado.value,
+                alumnoNombreCompleto = _nombreCompleto.value.trim(),
+                alumnoCurp = _curp.value.trim().uppercase(),
+                alumnoFechaNacimiento = _fechaNacimiento.value.trim(),
+                alumnoSexo = _sexo.value,
+                alumnoNacionalidad = _nacionalidad.value,
+                alumnoEntidadNacimiento = _entidadNacimiento.value,
+                alumnoDomicilio = _domicilio.value.trim(),
+                alumnoTelefonoCasa = _telefonoCasa.value,
+                escuelaProcedencia = _escuelaProcedencia.value,
+                responsables = listOf(
+                    Responsable(
+                        nombreCompleto = _responsableNombre.value.trim(),
+                        parentesco = _responsableParentesco.value.trim(),
+                        telefono = _responsableTelefono.value,
+                        correo = _responsableCorreo.value.ifBlank { null },
+                        domicilioDistinto = false,
+                        domicilio = null,
+                        viveConAlumno = _responsableViveConAlumno.value,
+                        contactoPrincipal = true,
+                        puedeRecoger = _responsablePuedeRecoger.value,
+                        ocupacion = "",
+                        horarioContacto = "",
+                        identificacionApresentar = ""
+                    )
+                ),
+                autorizados = _autorizados.value.map {
+                    AutorizadoPreSolicitud(
+                        nombreCompleto = it.nombre,
+                        parentesco = it.parentesco,
+                        telefono = it.telefono,
+                        observaciones = ""
+                    )
+                },
+                fichaMedicaFamiliar = FichaMedicaFamiliar(
+                    servicioMedico = _servicioMedico.value,
+                    numeroAfiliacion = _numeroAfiliacionPoliza.value.ifBlank { null },
+                    tipoSangre = _tipoSangre.value.ifBlank { null },
+                    alergias = if (_tieneAlergias.value) _alergiasDetalle.value else "",
+                    padecimientos = if (_tienePadecimientos.value) _padecimientosDetalle.value else "",
+                    medicamentos = if (_tomaMedicamentos.value) _medicamentosDetalle.value else "",
+                    restriccionFisica = if (_restriccionActividadFisica.value) _restriccionActividadFisicaDetalle.value else "",
+                    usaLentes = _usaLentes.value,
+                    dificultadVisualAuditiva = buildString {
+                        if (_dificultadVisualReferida.value) append(_dificultadVisualDetalle.value)
+                        if (_dificultadAuditivaReferida.value) {
+                            if (isNotBlank()) append(" / ")
+                            append(_dificultadAuditivaDetalle.value)
+                        }
+                    },
+                    saludBucal = _saludBucalReferida.value,
+                    cartillaVacunacion = _cartillaVacunacionActualizada.value
+                ),
+                contextoSociofamiliar = ContextoSociofamiliar(
+                    viveConQuien = _viveConQuien.value,
+                    tipoFamilia = _tipoFamilia.value,
+                    hijoUnico = _hijoUnico.value,
+                    lugarEntreHermanos = _lugarEntreHermanos.value.filter { it.isDigit() }.toIntOrNull() ?: 0,
+                    hermanosEnEscuela = _hermanosEnEscuela.value,
+                    integrantesHogar = _integrantesHogar.value.toIntOrNull() ?: 0,
+                    sostenEconomico = _principalSostenEconomico.value,
+                    ingresoRangos = _ingresoFamiliarRango.value,
+                    tipoVivienda = _tipoVivienda.value,
+                    serviciosBásicos = _serviciosBasicos.value,
+                    internet = _internetCasa.value,
+                    dispositivoTareas = _dispositivoTareas.value,
+                    becaApoyo = _becaApoyoSocial.value,
+                    transporte = _medioTransporte.value,
+                    dificultadMateriales = _dificultadComprarMateriales.value,
+                    atiendeAvisos = _personaAtiendeAvisos.value,
+                    horarioComunicacion = _horarioPreferenteComunicacion.value,
+                    puedeAcudirCitatorios = _puedeAcudirCitatorios.value
+                ),
+                antecedentesUdeii = AntecedentesUdeii(
+                    antecedenteApoyo = _udeiiAntecedenteApoyo.value,
+                    terapiaLenguaje = _udeiiTerapiaLenguaje.value,
+                    apoyoPsicologico = _udeiiApoyoPsicologico.value,
+                    apoyoPedagogico = _udeiiApoyoPedagogico.value,
+                    documentosDisponibles = _udeiiDocumentosDisponibles.value,
+                    informeEscuelaAnterior = _udeiiInformeEscuelaAnterior.value,
+                    evaluacionPsicopedagogica = _udeiiEvaluacionPsicopedagogica.value,
+                    planIntervencion = _udeiiPlanIntervencion.value,
+                    portafolio = _udeiiPortafolio.value,
+                    observacionesFamiliares = _udeiiObservaciones.value
+                ),
+                documentosDeclarados = _documentos.value.map { DocumentoDeclarado(it.label, it.declarado, false) },
+                consentimientos = ConsentimientosFamiliares(
+                    avisoPrivacidad = _consentimientos.value.find { it.key == "usoDatos" }?.aceptado == true,
+                    usoDatosExpediente = _consentimientos.value.find { it.key == "usoDatos" }?.aceptado == true,
+                    fotoAlumno = _consentimientos.value.find { it.key == "fotoAlumno" }?.aceptado == true,
+                    fotoCredencial = _consentimientos.value.find { it.key == "fotoCredencial" }?.aceptado == true,
+                    fotoAutorizados = _consentimientos.value.find { it.key == "fotoAutorizados" }?.aceptado == true,
+                    comunicacionWhatsapp = _consentimientos.value.find { it.key == "comunicacion" }?.aceptado == true,
+                    reglamentoInterno = _consentimientos.value.find { it.key == "reglamento" }?.aceptado == true,
+                    marcoConvivencia = _consentimientos.value.find { it.key == "marcoConvivencia" }?.aceptado == true,
+                    corresponsabilidadFamiliar = _consentimientos.value.find { it.key == "corresponsabilidad" }?.aceptado == true
+                )
+            )
+        )
 
-        // Build folio: PRE-310-XXXXXX
-        val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-        val randomPart = (1..6).map { chars[Random.nextInt(chars.length)] }.joinToString("")
-        _submittedFolio.value = "PRE-310-$randomPart"
+        when (submission) {
+            is FamilySubmissionResult.Success -> {
+                _submittedFolio.value = submission.preApplication.folio
+                _errors.value = emptyMap()
+            }
+            else -> {
+                _submittedFolio.value = null
+                _errors.value = mapOf("submit" to submission.message)
+            }
+        }
 
         _isSubmitting.value = false
     }

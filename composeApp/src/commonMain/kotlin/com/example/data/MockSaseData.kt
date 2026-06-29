@@ -299,11 +299,28 @@ object MockSaseData {
         }
     }
 
-    fun addStudent(student: Student) {
+    fun addStudent(student: Student): StudentAddResult {
+        val cleanCurp = student.curp.trim().uppercase()
+        val cleanEnrollmentId = student.enrollmentId.trim().uppercase()
+        if (cleanCurp.isBlank() || cleanEnrollmentId.isBlank()) {
+            return StudentAddResult.InvalidData("CURP y matrícula son obligatorias.")
+        }
+
+        val duplicateCurp = _students.value.firstOrNull { it.curp.trim().uppercase() == cleanCurp }
+        if (duplicateCurp != null) {
+            return StudentAddResult.DuplicateCurp(cleanCurp, duplicateCurp)
+        }
+
+        val duplicateEnrollmentId = _students.value.firstOrNull { it.enrollmentId.trim().uppercase() == cleanEnrollmentId }
+        if (duplicateEnrollmentId != null) {
+            return StudentAddResult.DuplicateEnrollmentId(cleanEnrollmentId, duplicateEnrollmentId)
+        }
+
         val currentList = _students.value.toMutableList()
-        currentList.add(student)
+        currentList.add(student.copy(curp = cleanCurp, enrollmentId = cleanEnrollmentId))
         _students.value = currentList
         logAudit("Alumno registrado", "Secretar\u00eda", "Hoy " + getFormattedTime(), student.fullName)
+        return StudentAddResult.Added(student.copy(curp = cleanCurp, enrollmentId = cleanEnrollmentId))
     }
 
     fun logAudit(action: String, role: String, timestamp: String, detail: String) {

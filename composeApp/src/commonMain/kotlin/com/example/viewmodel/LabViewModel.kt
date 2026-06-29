@@ -2,6 +2,7 @@ package com.example.viewmodel
 
 import com.example.data.SaseAudit
 import com.example.data.Student
+import com.example.data.StudentAddResult
 import com.example.data.repository.AuditRepository
 import com.example.data.repository.MockAuditRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
@@ -58,8 +59,8 @@ class LabViewModel(
         studentRepository.updateStudent(student)
     }
 
-    fun addStudent(student: Student) {
-        studentRepository.addStudent(student)
+    fun addStudent(student: Student): StudentAddResult {
+        return studentRepository.addStudent(student)
     }
 
     fun logSaseAudit(action: String, role: String, detail: String) {
