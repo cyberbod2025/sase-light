@@ -2,26 +2,26 @@ package com.example.data.enrollment
 
 object MockEnrollmentData {
     val enrollments = listOf(
-        // ENR-001: Mariana — Complete identity, ready for credential
+        // ENR-001: ALUMNO DEMO 01 — Complete identity, ready for credential
         Enrollment(
             id = "ENR-2024-001",
-            studentFullName = "Mariana Lopez Hernandez",
-            curp = "LOHM100512MDFPRRA2",
+            studentFullName = "ALUMNO DEMO 01",
+            curp = "CURP-DEMO-01",
             birthDate = "12/May/2010",
             gradeGroup = "2B",
             schoolYear = "2024-2025",
             status = EnrollmentStatus.ReadyToSign,
             submittedAt = "Hoy 09:35",
             address = Address(
-                street = "Av. Siempre Viva 123",
+                street = "DOMICILIO DEMO",
                 neighborhood = "Centro",
                 municipality = "Cuauhtemoc",
                 state = "CDMX",
                 zipCode = "06000"
             ),
             contacts = listOf(
-                Contact("Jose Lopez Ramirez", "Padre", "55 3456 7890", "jlopez@example.com", true),
-                Contact("Ana Hernandez Soto", "Madre", "55 8765 4321", "ana.hdz@example.com", false)
+                Contact("TUTOR DEMO 01", "Padre", "TEL-DEMO-01", "demo01@example.invalid", true),
+                Contact("TUTOR DEMO 01B", "Madre", "TEL-DEMO-01B", "demo01b@example.invalid", false)
             ),
             medicalRecord = MedicalRecord(
                 bloodType = "O+",
@@ -61,13 +61,13 @@ object MockEnrollmentData {
                 id = "PRES-001",
                 enrollmentId = "ENR-2024-001",
                 studentId = "STU-001",
-                fullName = "Jose Lopez Ramirez",
+                fullName = "TUTOR DEMO 01",
                 relationship = "Padre",
-                phone = "55 3456 7890",
+                phone = "TEL-DEMO-01",
                 ineVerified = true,
                 presentAtEnrollment = true,
-                photoUrl = "mock://photo/tutor/jose_lopez.jpg",
-                signatureUrl = "mock://firma/jose_lopez.png",
+                photoUrl = "mock://photo/tutor/demo01.jpg",
+                signatureUrl = "mock://firma/demo01.png",
                 canPickupStudent = true,
                 registeredBy = "Secretaria",
                 createdAt = "Hoy 09:36"
@@ -76,26 +76,26 @@ object MockEnrollmentData {
                 AuthorizedPickup(
                     id = "AUTH-001",
                     studentId = "STU-001",
-                    fullName = "Jose Lopez Ramirez",
+                    fullName = "TUTOR DEMO 01",
                     relationship = "Padre",
-                    phone = "55 3456 7890",
+                    phone = "TEL-DEMO-01",
                     ineVerified = true,
-                    ineCopyUrl = "mock://ine/jose_lopez.pdf",
-                    photoUrl = "mock://photo/tutor/jose_lopez.jpg",
-                    signatureUrl = "mock://firma/jose_lopez.png",
+                    ineCopyUrl = "mock://ine/demo01.pdf",
+                    photoUrl = "mock://photo/tutor/demo01.jpg",
+                    signatureUrl = "mock://firma/demo01.png",
                     active = true,
                     notes = ""
                 ),
                 AuthorizedPickup(
                     id = "AUTH-002",
                     studentId = "STU-001",
-                    fullName = "Ana Hernandez Soto",
+                    fullName = "TUTOR DEMO 01B",
                     relationship = "Madre",
-                    phone = "55 8765 4321",
+                    phone = "TEL-DEMO-01B",
                     ineVerified = true,
-                    ineCopyUrl = "mock://ine/ana_hernandez.pdf",
-                    photoUrl = "mock://photo/tutor/ana_hernandez.jpg",
-                    signatureUrl = "mock://firma/ana_hernandez.png",
+                    ineCopyUrl = "mock://ine/demo01b.pdf",
+                    photoUrl = "mock://photo/tutor/demo01b.jpg",
+                    signatureUrl = "mock://firma/demo01b.png",
                     active = true,
                     notes = ""
                 )
@@ -110,25 +110,25 @@ object MockEnrollmentData {
             )
         ),
 
-        // ENR-002: Diego — Completed enrollment, credential already issued
+        // ENR-002: ALUMNO DEMO 02 — Completed enrollment, credential already issued
         Enrollment(
             id = "ENR-2024-002",
-            studentFullName = "Diego Morales Sanchez",
-            curp = "MOSD110204MDFXNN05",
+            studentFullName = "ALUMNO DEMO 02",
+            curp = "CURP-DEMO-02",
             birthDate = "04/Feb/2011",
             gradeGroup = "1A",
             schoolYear = "2024-2025",
             status = EnrollmentStatus.Completed,
             submittedAt = "Ayer 13:12",
             address = Address(
-                street = "Paseo de la Reforma 456",
+                street = "DOMICILIO DEMO",
                 neighborhood = "Juarez",
                 municipality = "Cuauhtemoc",
                 state = "CDMX",
                 zipCode = "06500"
             ),
             contacts = listOf(
-                Contact("Laura Sanchez Diaz", "Madre", "55 2345 6789", "lauras@example.com", true)
+                Contact("TUTOR DEMO 02", "Madre", "TEL-DEMO-02", "demo02@example.invalid", true)
             ),
             medicalRecord = MedicalRecord(
                 bloodType = "A+",
@@ -166,13 +166,13 @@ object MockEnrollmentData {
                 id = "PRES-002",
                 enrollmentId = "ENR-2024-002",
                 studentId = "STU-002",
-                fullName = "Laura Sanchez Diaz",
+                fullName = "TUTOR DEMO 02",
                 relationship = "Madre",
-                phone = "55 2345 6789",
+                phone = "TEL-DEMO-02",
                 ineVerified = true,
                 presentAtEnrollment = true,
-                photoUrl = "mock://photo/tutor/laura_sanchez.jpg",
-                signatureUrl = "mock://firma/laura_sanchez.png",
+                photoUrl = "mock://photo/tutor/demo02.jpg",
+                signatureUrl = "mock://firma/demo02.png",
                 canPickupStudent = true,
                 registeredBy = "Secretaria",
                 createdAt = "Ayer 13:14"
@@ -181,13 +181,13 @@ object MockEnrollmentData {
                 AuthorizedPickup(
                     id = "AUTH-003",
                     studentId = "STU-002",
-                    fullName = "Laura Sanchez Diaz",
+                    fullName = "TUTOR DEMO 02",
                     relationship = "Madre",
-                    phone = "55 2345 6789",
+                    phone = "TEL-DEMO-02",
                     ineVerified = true,
-                    ineCopyUrl = "mock://ine/laura_sanchez.pdf",
-                    photoUrl = "mock://photo/tutor/laura_sanchez.jpg",
-                    signatureUrl = "mock://firma/laura_sanchez.png",
+                    ineCopyUrl = "mock://ine/demo02.pdf",
+                    photoUrl = "mock://photo/tutor/demo02.jpg",
+                    signatureUrl = "mock://firma/demo02.png",
                     active = true,
                     notes = ""
                 )
@@ -202,26 +202,26 @@ object MockEnrollmentData {
             )
         ),
 
-        // ENR-003: Valeria — Missing student photo, missing documents
+        // ENR-003: ALUMNO DEMO 03 — Missing student photo, missing documents
         Enrollment(
             id = "ENR-2024-003",
-            studentFullName = "Valeria Jimenez Torres",
-            curp = "JITV090812MDFZRR01",
+            studentFullName = "ALUMNO DEMO 03",
+            curp = "CURP-DEMO-03",
             birthDate = "12/Ago/2009",
             gradeGroup = "3C",
             schoolYear = "2024-2025",
             status = EnrollmentStatus.MissingDocuments,
             submittedAt = "Hoy 11:05",
             address = Address(
-                street = "Calle de las Flores 789",
+                street = "DOMICILIO DEMO",
                 neighborhood = "Portales",
                 municipality = "Benito Juarez",
                 state = "CDMX",
                 zipCode = "04000"
             ),
             contacts = listOf(
-                Contact("Carlos Jimenez Ruiz", "Padre", "55 5678 9012", "cjimenez@example.com", true),
-                Contact("Rosa Torres Mata", "Tia", "55 1111 2200", "rosa.torres@example.com", false)
+                Contact("TUTOR DEMO 03", "Padre", "TEL-DEMO-03", "demo03@example.invalid", true),
+                Contact("AUTORIZADO DEMO 01", "Tia", "TEL-DEMO-03B", "demo03b@example.invalid", false)
             ),
             medicalRecord = MedicalRecord(
                 bloodType = "B+",
@@ -262,13 +262,13 @@ object MockEnrollmentData {
                 id = "PRES-003",
                 enrollmentId = "ENR-2024-003",
                 studentId = "STU-003",
-                fullName = "Carlos Jimenez Ruiz",
+                fullName = "TUTOR DEMO 03",
                 relationship = "Padre",
-                phone = "55 5678 9012",
+                phone = "TEL-DEMO-03",
                 ineVerified = true,
                 presentAtEnrollment = true,
-                photoUrl = "mock://photo/tutor/carlos_jimenez.jpg",
-                signatureUrl = "mock://firma/carlos_jimenez.png",
+                photoUrl = "mock://photo/tutor/demo03.jpg",
+                signatureUrl = "mock://firma/demo03.png",
                 canPickupStudent = true,
                 registeredBy = "Secretaria",
                 createdAt = "Hoy 11:08"
@@ -277,22 +277,22 @@ object MockEnrollmentData {
                 AuthorizedPickup(
                     id = "AUTH-004",
                     studentId = "STU-003",
-                    fullName = "Carlos Jimenez Ruiz",
+                    fullName = "TUTOR DEMO 03",
                     relationship = "Padre",
-                    phone = "55 5678 9012",
+                    phone = "TEL-DEMO-03",
                     ineVerified = true,
-                    ineCopyUrl = "mock://ine/carlos_jimenez.pdf",
-                    photoUrl = "mock://photo/tutor/carlos_jimenez.jpg",
-                    signatureUrl = "mock://firma/carlos_jimenez.png",
+                    ineCopyUrl = "mock://ine/demo03.pdf",
+                    photoUrl = "mock://photo/tutor/demo03.jpg",
+                    signatureUrl = "mock://firma/demo03.png",
                     active = true,
                     notes = ""
                 ),
                 AuthorizedPickup(
                     id = "AUTH-005",
                     studentId = "STU-003",
-                    fullName = "Rosa Torres Mata",
+                    fullName = "AUTORIZADO DEMO 01",
                     relationship = "Tia",
-                    phone = "55 1111 2200",
+                    phone = "TEL-DEMO-03B",
                     ineVerified = false,
                     ineCopyUrl = null,
                     photoUrl = null,
@@ -311,25 +311,25 @@ object MockEnrollmentData {
             )
         ),
 
-        // ENR-004: Sofia — Missing INE, no presenter registered
+        // ENR-004: ALUMNO DEMO 04 — Missing INE, no presenter registered
         Enrollment(
             id = "ENR-2024-004",
-            studentFullName = "Sofia Ramirez Garcia",
-            curp = "RAGS090815MDFXRN07",
+            studentFullName = "ALUMNO DEMO 04",
+            curp = "CURP-DEMO-04",
             birthDate = "15/Ago/2009",
             gradeGroup = "3A",
             schoolYear = "2024-2025",
             status = EnrollmentStatus.Submitted,
             submittedAt = "Hoy 14:20",
             address = Address(
-                street = "Av. Insurgentes Sur 1500",
+                street = "DOMICILIO DEMO",
                 neighborhood = "Del Valle",
                 municipality = "Benito Juarez",
                 state = "CDMX",
                 zipCode = "03100"
             ),
             contacts = listOf(
-                Contact("Pedro Ramirez Lopez", "Padre", "55 9999 8888", "pramirez@example.com", true)
+                Contact("TUTOR DEMO 04", "Padre", "TEL-DEMO-04", "demo04@example.invalid", true)
             ),
             medicalRecord = MedicalRecord(
                 bloodType = "AB+",
@@ -375,26 +375,26 @@ object MockEnrollmentData {
             )
         ),
 
-        // ENR-005: Emiliano — Missing authorized pickups, otherwise ready
+        // ENR-005: ALUMNO DEMO 05 — Missing authorized pickups, otherwise ready
         Enrollment(
             id = "ENR-2024-005",
-            studentFullName = "Emiliano Torres Cruz",
-            curp = "TOCE100725MDFXRL04",
+            studentFullName = "ALUMNO DEMO 05",
+            curp = "CURP-DEMO-05",
             birthDate = "25/Jul/2010",
             gradeGroup = "2A",
             schoolYear = "2024-2025",
             status = EnrollmentStatus.InReview,
             submittedAt = "Ayer 10:30",
             address = Address(
-                street = "Cerro del Agua 45",
+                street = "DOMICILIO DEMO",
                 neighborhood = "Coyoacan",
                 municipality = "Coyoacan",
                 state = "CDMX",
                 zipCode = "04020"
             ),
             contacts = listOf(
-                Contact("Gabriela Cruz Mendez", "Madre", "55 7777 6666", "gcruz@example.com", true),
-                Contact("Luis Torres Hernandez", "Padre", "55 5555 4444", "ltorres@example.com", false)
+                Contact("TUTOR DEMO 05", "Madre", "TEL-DEMO-05", "demo05@example.invalid", true),
+                Contact("TUTOR DEMO 05B", "Padre", "TEL-DEMO-05B", "demo05b@example.invalid", false)
             ),
             medicalRecord = MedicalRecord(
                 bloodType = "O-",
@@ -434,13 +434,13 @@ object MockEnrollmentData {
                 id = "PRES-005",
                 enrollmentId = "ENR-2024-005",
                 studentId = "STU-005",
-                fullName = "Gabriela Cruz Mendez",
+                fullName = "TUTOR DEMO 05",
                 relationship = "Madre",
-                phone = "55 7777 6666",
+                phone = "TEL-DEMO-05",
                 ineVerified = true,
                 presentAtEnrollment = true,
-                photoUrl = "mock://photo/tutor/gabriela_cruz.jpg",
-                signatureUrl = "mock://firma/gabriela_cruz.png",
+                photoUrl = "mock://photo/tutor/demo05.jpg",
+                signatureUrl = "mock://firma/demo05.png",
                 canPickupStudent = true,
                 registeredBy = "Secretaria",
                 createdAt = "Ayer 10:31"
