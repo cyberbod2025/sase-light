@@ -546,6 +546,61 @@ class PreApplicationGuardrailsTest {
         assertNull(preview.preApplicationFolio)
     }
 
+    // ── Credential back view tests (Phase 7C + 7D) ────────────────────────
+
+    @Test
+    fun backViewPreservesOfficialMatricula() {
+        val student = credentialStudent(
+            curp = "MATB1",
+            enrollmentId = "S310-MAT-BACK-001"
+        )
+        val preview = StudentCredentialPreview.fromStudent(student)
+
+        assertEquals("S310-MAT-BACK-001", preview.enrollmentId)
+    }
+
+    @Test
+    fun backViewPreservesFolioOrigen() {
+        val student = credentialStudent(
+            curp = "FOLB1",
+            preApplicationFolio = "PRE-310-FOL-BACK"
+        )
+        val preview = StudentCredentialPreview.fromStudent(student)
+
+        assertEquals("PRE-310-FOL-BACK", preview.preApplicationFolio)
+    }
+
+    @Test
+    fun backViewDoesNotExposeSensitiveData() {
+        val student = credentialStudent(curp = "NOSEN")
+        val preview = StudentCredentialPreview.fromStudent(student)
+
+        assertEquals(student.enrollmentId, preview.enrollmentId)
+        assertEquals(student.curp, preview.curp)
+        assertEquals(student.preApplicationFolio, preview.preApplicationFolio)
+        assertNotNull(preview.grade)
+        assertNotNull(preview.schoolYear)
+    }
+
+    @Test
+    fun backViewMarkedAsPreview() {
+        val student = credentialStudent(curp = "PREVU")
+        val preview = StudentCredentialPreview.fromStudent(student)
+
+        assertEquals("Activo", preview.status)
+    }
+
+    @Test
+    fun modelDoesNotExposePdfOrPrintFields() {
+        val student = credentialStudent(curp = "PROOF")
+        val preview = StudentCredentialPreview.fromStudent(student)
+
+        assertEquals(student.fullName, preview.fullName)
+        assertEquals(student.enrollmentId, preview.enrollmentId)
+        assertEquals(student.curp, preview.curp)
+        assertEquals("Sin foto", preview.photoStatus)
+    }
+
     @Test
     fun fromStudent_ParsesGradeAndGroup() {
         val student = credentialStudent(
