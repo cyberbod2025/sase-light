@@ -1,0 +1,23 @@
+╔══════════════════════════════════════════════════════════════╗
+║        SASE_ABACUS_SANDBOX — LEER ANTES DE USAR             ║
+║        Sistema de Acompañamiento y Seguimiento Escolar      ║
+╚══════════════════════════════════════════════════════════════╝
+
+Esta carpeta es contexto curado para agentes externos de IA.
+
+REGLAS OBLIGATORIAS:
+- NO subir datos reales.
+- NO subir CURP reales.
+- NO subir teléfonos.
+- NO subir domicilios.
+- NO subir expedientes reales.
+- NO subir .env, tokens, API keys ni secretos.
+
+El repositorio Git sigue siendo la fuente técnica de verdad.
+Si el agente modifica modelos, pantallas, flujos o decisiones,
+debe actualizar esta carpeta.
+Si cambia el commit base, esta carpeta debe revisarse.
+
+Versión: v0.1.1
+Commit base: 4f4bc84
+Fecha: 2026-06-30

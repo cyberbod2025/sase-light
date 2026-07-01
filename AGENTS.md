@@ -2,7 +2,7 @@
 
 ## Project
 
-Compose Multiplatform (KMP) app for school administration (SASE = Sistema de Administración de Seguimiento Escolar). Targets Android, Desktop (JVM), iOS.
+Compose Multiplatform (KMP) app for school administration (SASE = Sistema de Acompañamiento y Seguimiento Escolar). Targets Android, Desktop (JVM), iOS.
 
 ## Build
 
