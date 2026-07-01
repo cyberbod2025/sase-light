@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapeo documental hacia modelos SASE Light</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --azul:#1a3a5c;
+  --azul-claro:#e8eff7;
+  --azul-oscuro:#0f243d;
+  --gris:#f7f8fa;
+  --gris-borde:#d0d5dd;
+  --gris-texto:#4a5568;
+  --verde:#27ae60;
+  --verde-bg:#eafaf1;
+  --ambar:#f39c12;
+  --ambar-bg:#fef9e7;
+  --rojo:#e74c3c;
+  --rojo-bg:#fdedec;
+  --morado:#7b2d8e;
+  --morado-bg:#f3e8f7;
+  --blanco:#ffffff;
+  --negro:#1a1a2e;
+  --sombra:0 2px 12px rgba(0,0,0,.08);
+  --redondeo:8px;
+}
+body{
+  font-family:"Segoe UI",Arial,sans-serif;
+  color:var(--negro);
+  background:var(--gris);
+  line-height:1.5;
+}
+.page{max-width:1200px;margin:0 auto;padding:2rem}
+
+/* COVER */
+.cover{
+  background:var(--blanco);
+  border-radius:var(--redondeo);
+  box-shadow:var(--sombra);
+  padding:4rem 3rem;
+  text-align:center;
+  margin-bottom:2rem;
+  border-top:6px solid var(--azul);
+}
+.cover-badge{
+  display:inline-block;
+  background:var(--azul-claro);
+  color:var(--azul);
+  padding:.35rem 1.2rem;
+  border-radius:20px;
+  font-size:.85rem;
+  font-weight:600;
+  letter-spacing:.5px;
+  margin-bottom:1.5rem;
+}
+.cover h1{
+  font-size:2rem;
+  color:var(--azul-oscuro);
+  margin-bottom:.75rem;
+  line-height:1.2;
+}
+.cover .subtitle{
+  font-size:1.1rem;
+  color:var(--gris-texto);
+  max-width:750px;
+  margin:0 auto 2rem;
+  line-height:1.5;
+}
+.cover-meta{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:.5rem 2rem;
+  font-size:.9rem;
+  color:var(--gris-texto);
+  margin-bottom:2rem;
+}
+.cover-footer{
+  border-top:2px solid var(--gris-borde);
+  padding-top:1.5rem;
+  font-size:.85rem;
+  color:var(--gris-texto);
+}
+
+/* EXECUTIVE SUMMARY */
+.exec-summary{
+  background:var(--blanco);
+  border-radius:var(--redondeo);
+  box-shadow:var(--sombra);
+  padding:2rem 2.5rem;
+  margin-bottom:2rem;
+  border-left:4px solid var(--azul);
+}
+.exec-summary h2{color:var(--azul-oscuro);margin-bottom:.75rem;font-size:1.3rem}
+.exec-summary p{color:var(--gris-texto);margin-bottom:.6rem;font-size:.95rem}
+.exec-summary strong{color:var(--azul)}
+
+/* SECTION */
+.section{
+  background:var(--blanco);
+  border-radius:var(--redondeo);
+  box-shadow:var(--sombra);
+  padding:2rem 2.5rem;
+  margin-bottom:2rem;
+}
+.section h2{color:var(--azul-oscuro);font-size:1.25rem;margin-bottom:1rem;border-bottom:2px solid var(--azul-claro);padding-bottom:.4rem}
+.section h3{color:var(--azul-oscuro);font-size:1.05rem;margin:1rem 0 .5rem}
+.section p{color:var(--gris-texto);margin-bottom:.6rem;font-size:.92rem}
+
+/* BADGES */
+.badge{
+  display:inline-block;
+  font-size:.72rem;
+  font-weight:600;
+  padding:.2rem .6rem;
+  border-radius:10px;
+  letter-spacing:.3px;
+  white-space:nowrap;
+}
+.badge-verde{background:var(--verde-bg);color:var(--verde)}
+.badge-ambar{background:var(--ambar-bg);color:var(--ambar)}
+.badge-rojo{background:var(--rojo-bg);color:var(--rojo)}
+.badge-morado{background:var(--morado-bg);color:var(--morado)}
+.badge-azul{background:var(--azul-claro);color:var(--azul)}
+
+/* TABLES */
+.table-wrap{overflow-x:auto;margin:.75rem 0 1.5rem}
+table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:.84rem;
+  min-width:650px;
+}
+th{
+  background:var(--azul-claro);
+  color:var(--azul-oscuro);
+  font-weight:600;
+  text-align:left;
+  padding:.5rem .6rem;
+  border:1px solid var(--gris-borde);
+  font-size:.78rem;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+}
+td{
+  padding:.45rem .6rem;
+  border:1px solid var(--gris-borde);
+  vertical-align:top;
+}
+tr:hover{background:var(--gris)}
+
+/* BREACH CARDS */
+.breach-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1rem;
+  margin:1rem 0;
+}
+.breach-card{
+  padding:1.15rem 1.25rem;
+  border-radius:var(--redondeo);
+  border-left:4px solid var(--gris-borde);
+}
+.breach-card h4{font-size:.9rem;margin-bottom:.4rem;color:var(--azul-oscuro)}
+.breach-card p{font-size:.82rem;color:var(--gris-texto);margin-bottom:.3rem}
+.breach-card .count{font-size:2rem;font-weight:700;margin-bottom:.2rem}
+.breach-cubierto{border-left-color:var(--verde);background:var(--verde-bg)}
+.breach-cubierto .count{color:var(--verde)}
+.breach-parcial{border-left-color:var(--ambar);background:var(--ambar-bg)}
+.breach-parcial .count{color:var(--ambar)}
+.breach-nocubierto{border-left-color:var(--rojo);background:var(--rojo-bg)}
+.breach-nocubierto .count{color:var(--rojo)}
+.breach-sensible{border-left-color:var(--morado);background:var(--morado-bg)}
+.breach-sensible .count{color:var(--morado)}
+
+/* RISKS */
+.risks{list-style:none;padding:0}
+.risks li{
+  padding:.6rem .8rem .6rem 1.8rem;
+  margin-bottom:.4rem;
+  border-radius:var(--redondeo);
+  background:var(--gris);
+  font-size:.88rem;
+  color:var(--negro);
+  position:relative;
+}
+.risks li::before{content:"!";position:absolute;left:.55rem;top:.55rem;font-weight:700;color:var(--rojo);font-size:1rem}
+
+/* RECOMMENDATION */
+.rec-box{
+  background:var(--azul-claro);
+  border-radius:var(--redondeo);
+  padding:1.25rem 1.5rem;
+  margin:1rem 0;
+}
+.rec-box h4{color:var(--azul-oscuro);font-size:.95rem;margin-bottom:.5rem}
+.rec-box p,.rec-box li{font-size:.85rem;color:var(--gris-texto);margin-bottom:.25rem}
+.rec-box ul{padding-left:1.2rem}
+
+/* MODEL CARD */
+.model-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:1rem;
+  margin:1rem 0;
+}
+.model-card{
+  background:var(--blanco);
+  border:2px solid var(--gris-borde);
+  border-radius:var(--redondeo);
+  padding:1.15rem;
+  text-align:center;
+}
+.model-card h4{font-size:.9rem;color:var(--azul-oscuro);margin-bottom:.3rem}
+.model-card .desc{font-size:.8rem;color:var(--gris-texto);margin-bottom:.4rem}
+.model-card .fields{font-size:.75rem;color:var(--gris-texto)}
+
+/* PRINT */
+@media print{
+  body{background:var(--blanco);font-size:10.5px}
+  .page{max-width:100%;padding:.4in}
+  .cover{padding:2rem;box-shadow:none;border:1px solid #ccc}
+  .exec-summary,.section{box-shadow:none;border:1px solid #ddd;margin-bottom:1rem}
+  table{font-size:.78rem}
+  th,td{padding:.3rem .4rem}
+  .section{page-break-inside:avoid}
+  .section.table-section{page-break-inside:auto}
+}
+@media(max-width:768px){
+  .page{padding:1rem}
+  .cover{padding:2rem 1.5rem}
+  .cover h1{font-size:1.5rem}
+  .section,.exec-summary{padding:1.25rem 1rem}
+  .breach-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ===== COVER ===== -->
+<div class="cover">
+  <div class="cover-badge">SASE Light &mdash; Frente 1 &mdash; 8C + 8D</div>
+  <h1>Mapeo documental hacia modelos SASE Light</h1>
+  <p class="subtitle">Validación de los 5 formatos prioritarios contra la estructura actual del sistema. Identificación de cobertura, brechas y propuesta de modelos futuros.</p>
+  <div class="cover-meta">
+    <span>Escuela Secundaria Diurna No. 310 &ldquo;Presidentes de México&rdquo;</span>
+    <span>Turno Vespertino</span>
+    <span>Ciclo Escolar 2025&ndash;2026</span>
+  </div>
+  <div class="cover-footer">
+    <p>Análisis técnico-institucional &mdash; Versión 1.0 &mdash; Documento de trabajo</p>
+  </div>
+</div>
+
+<!-- ===== EXECUTIVE SUMMARY ===== -->
+<div class="exec-summary">
+  <h2>Resumen ejecutivo</h2>
+  <p>Este documento analiza los <strong>5 formatos prioritarios</strong> del paquete de rediseño documental frente a los modelos de datos actuales de SASE Light. El objetivo es determinar qué campos están ya cubiertos, cuáles requieren ajustes y cuáles deben vivir en modelos nuevos separados.</p>
+  <p><strong>No todos los campos deben vivir en el mismo modelo.</strong> Es necesario distinguir entre:</p>
+  <ul style="padding-left:1.2rem;font-size:.92rem;color:var(--gris-texto);margin-bottom:.5rem">
+    <li><strong>Datos generales del alumno</strong> &mdash; nombre, CURP, fecha de nacimiento, domicilio. Viven en <code>Student</code> y <code>PreApplication</code>.</li>
+    <li><strong>Datos administrativos</strong> &mdash; folio, estatus, ciclo escolar, grado. Viven en <code>PreApplication</code> y <code>OfficialStudent</code>.</li>
+    <li><strong>Datos médicos</strong> &mdash; alergias, padecimientos, medicamentos. Hoy son declarativos familiares en <code>PreApplication.FichaMedicaFamiliar</code>. El formato HTML pide validación de Médico Escolar (nuevo modelo).</li>
+    <li><strong>Datos sociofamiliares</strong> &mdash; composición familiar, factores de riesgo, acuerdos. Hoy son declarativos en <code>PreApplication.ContextoSociofamiliar</code>. El formato HTML requiere seguimiento profesional (nuevo modelo).</li>
+    <li><strong>Datos UDEEI</strong> &mdash; BAP, apoyos, ajustes razonables. Hoy son declarativos en <code>PreApplication.AntecedentesUdeii</code> y un boolean <code>Student.bap</code>. El formato requiere plano institucional (nuevo modelo).</li>
+    <li><strong>Evidencias / documentos</strong> &mdash; cotejo documental con trazabilidad. Hoy es declarativo en <code>PreApplication.documentosDeclarados</code>. Falta un modelo de cotejo con responsable, fecha y resultado.</li>
+  </ul>
+  <p>El mapeo revela que los <strong>formatos declarativos familiares</strong> (llenados por el tutor en la pre-solicitud) tienen buena cobertura, pero los <strong>formatos institucionales</strong> (cotejo, ficha médica de Médico Escolar, seguimiento de Trabajo Social, plan de UDEEI) requieren modelos nuevos.</p>
+</div>
+
+<!-- ===== COVERAGE OVERVIEW ===== -->
+<div class="section">
+  <h2>Vista general de cobertura</h2>
+  <div class="breach-grid">
+    <div class="breach-card breach-cubierto">
+      <div class="count">42</div>
+      <h4>Cubiertos</h4>
+      <p>Campos que ya existen en modelos actuales con correspondencia directa.</p>
+    </div>
+    <div class="breach-card breach-parcial">
+      <div class="count">9</div>
+      <h4>Parciales</h4>
+      <p>Campos que existen pero requieren normalización o desglose.</p>
+    </div>
+    <div class="breach-card breach-nocubierto">
+      <div class="count">24</div>
+      <h4>No cubiertos</h4>
+      <p>Campos que no existen en ningún modelo actual.</p>
+    </div>
+    <div class="breach-card breach-sensible">
+      <div class="count">6</div>
+      <h4>Sensible / futuro módulo</h4>
+      <p>Campos que requieren resguardo especial o pertenecen a un módulo futuro.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- FORM 1: PRE-SOLICITUD -->
+<!-- ============================================================ -->
+<div class="section table-section">
+  <h2>Formato 1 &mdash; Pre-solicitud de inscripción</h2>
+  <p style="font-size:.85rem;color:var(--gris-texto);margin-bottom:.5rem"><strong>Área:</strong> Secretaría &nbsp;|&nbsp; <strong>Folio:</strong> SI-____ &nbsp;|&nbsp; <strong>Total campos:</strong> 28</p>
+
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%">Campo del formato</th>
+        <th style="width:22%">Modelo actual</th>
+        <th style="width:22%">Propiedad actual</th>
+        <th style="width:12%">Cobertura</th>
+        <th style="width:16%">Observación</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Folio</td><td>PreApplication</td><td>folio</td><td><span class="badge badge-verde">Cubierto</span></td><td>Generado automáticamente con prefijo PRE-310-</td></tr>
+      <tr><td>Fecha de solicitud</td><td>PreApplication</td><td>submittedAt</td><td><span class="badge badge-verde">Cubierto</span></td><td>Timestamp con prefijo "Hoy "</td></tr>
+      <tr><td>Ciclo escolar</td><td>PreApplication</td><td>cicloEscolar</td><td><span class="badge badge-verde">Cubierto</span></td><td>Texto libre, ej. "2025-2026"</td></tr>
+      <tr><td>Grado solicitado</td><td>PreApplication</td><td>gradoSolicitado</td><td><span class="badge badge-verde">Cubierto</span></td><td>Int: 1, 2 o 3</td></tr>
+      <tr><td>Apellido paterno</td><td>PreApplication</td><td>alumnoNombreCompleto</td><td><span class="badge badge-ambar">Parcial</span></td><td>Nombre completo es un solo campo, no desglosado</td></tr>
+      <tr><td>Apellido materno</td><td>PreApplication</td><td>alumnoNombreCompleto</td><td><span class="badge badge-ambar">Parcial</span></td><td>Nombre completo es un solo campo</td></tr>
+      <tr><td>Nombre(s)</td><td>PreApplication</td><td>alumnoNombreCompleto</td><td><span class="badge badge-ambar">Parcial</span></td><td>Nombre completo es un solo campo</td></tr>
+      <tr><td>CURP</td><td>PreApplication / Student</td><td>alumnoCurp / curp</td><td><span class="badge badge-verde">Cubierto</span></td><td>Normalizado a 18 caracteres mayúsculas</td></tr>
+      <tr><td>Fecha de nacimiento</td><td>PreApplication / Student</td><td>alumnoFechaNacimiento / birthDate</td><td><span class="badge badge-verde">Cubierto</span></td><td>Texto en ambos modelos</td></tr>
+      <tr><td>Edad</td><td>Student</td><td>age</td><td><span class="badge badge-verde">Cubierto</span></td><td>Se asigna manualmente, no se calcula</td></tr>
+      <tr><td>Calle y número</td><td>PreApplication / Student</td><td>alumnoDomicilio / address</td><td><span class="badge badge-ambar">Parcial</span></td><td>Domicilio es texto único, no desglosado en calle/colonia/CP/municipio</td></tr>
+      <tr><td>Colonia</td><td>PreApplication / Student</td><td>alumnoDomicilio / address</td><td><span class="badge badge-ambar">Parcial</span></td><td>Mismo campo unificado</td></tr>
+      <tr><td>Código postal</td><td>Student</td><td>zipCode</td><td><span class="badge badge-verde">Cubierto</span></td><td>Existe en Student, no en PreApplication</td></tr>
+      <tr><td>Municipio / Alcaldía</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe campo separado</td></tr>
+      <tr><td>Entidad</td><td>Student</td><td>birthPlace</td><td><span class="badge badge-ambar">Parcial</span></td><td>birthPlace es lugar de nacimiento, no entidad de residencia</td></tr>
+      <tr><td>Nombre de escuela de procedencia</td><td>PreApplication</td><td>escuelaProcedencia</td><td><span class="badge badge-verde">Cubierto</span></td><td>Texto libre</td></tr>
+      <tr><td>CCT (Clave de centro de trabajo)</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe como campo separado</td></tr>
+      <tr><td>Nivel educativo anterior</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe en ningún modelo</td></tr>
+      <tr><td>Último grado cursado</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe en ningún modelo</td></tr>
+      <tr><td>Responsable principal (nombre)</td><td>PreApplication / Student</td><td>responsables[0].nombreCompleto / tutorName</td><td><span class="badge badge-verde">Cubierto</span></td><td>Lista de Responsable, primer elemento es principal</td></tr>
+      <tr><td>Responsable principal (parentesco)</td><td>Student</td><td>tutorRelation</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Responsable principal (teléfono celular)</td><td>PreApplication / Student</td><td>responsables[0].telefono / tutorPhone</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Responsable principal (teléfono fijo)</td><td>—</td><td>—</td><td><span class="badge badge-ambar">Parcial</span></td><td>Responsable.telefono es único; no hay separación celular/fijo</td></tr>
+      <tr><td>Responsable principal (correo)</td><td>PreApplication / Student</td><td>responsables[0].correo / tutorEmail</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Responsable alterno</td><td>PreApplication</td><td>responsables[1+]</td><td><span class="badge badge-verde">Cubierto</span></td><td>contactoPrincipal = false indica alterno</td></tr>
+      <tr><td>Autorizados para recoger</td><td>PreApplication</td><td>autorizados</td><td><span class="badge badge-verde">Cubierto</span></td><td>Lista de AutorizadoPreSolicitud</td></tr>
+      <tr><td>Consentimiento de uso interno</td><td>PreApplication</td><td>consentimientos.usoDatosExpediente</td><td><span class="badge badge-verde">Cubierto</span></td><td>Booleano en ConsentimientosFamiliares</td></tr>
+      <tr><td>Observaciones iniciales</td><td>PreApplication</td><td>observacionesSecretaria</td><td><span class="badge badge-verde">Cubierto</span></td><td>Texto de revisión de Secretaría</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:.85rem;color:var(--gris-texto)">Resumen: <span class="badge badge-verde">Cubierto: 17</span> <span class="badge badge-ambar">Parcial: 6</span> <span class="badge badge-rojo">No cubierto: 3</span> &mdash; La mayoría de campos están cubiertos. Las brechas principales son el desglose del nombre completo y del domicilio, la ausencia de CCT y nivel educativo anterior.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- FORM 2: COTEJO DOCUMENTAL -->
+<!-- ============================================================ -->
+<div class="section table-section">
+  <h2>Formato 2 &mdash; Cotejo documental</h2>
+  <p style="font-size:.85rem;color:var(--gris-texto);margin-bottom:.5rem"><strong>Área:</strong> Secretaría &nbsp;|&nbsp; <strong>Folio:</strong> CD-____ &nbsp;|&nbsp; <strong>Total campos:</strong> 14</p>
+
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%">Campo del formato</th>
+        <th style="width:22%">Modelo actual</th>
+        <th style="width:22%">Propiedad actual</th>
+        <th style="width:12%">Cobertura</th>
+        <th style="width:16%">Observación</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Nombre del alumno</td><td>PreApplication / Student</td><td>alumnoNombreCompleto / fullName</td><td><span class="badge badge-verde">Cubierto</span></td><td>En ambos modelos</td></tr>
+      <tr><td>CURP</td><td>PreApplication / Student</td><td>alumnoCurp / curp</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Grado / Grupo</td><td>Student</td><td>group</td><td><span class="badge badge-verde">Cubierto</span></td><td>Solo en Student, no en PreApplication</td></tr>
+      <tr><td>Ciclo escolar</td><td>PreApplication</td><td>cicloEscolar</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Acta de nacimiento &mdash; recibido</td><td>PreApplication</td><td>documentosDeclarados[]</td><td><span class="badge badge-ambar">Parcial</span></td><td>Solo existe cotejadoSecretaria (booleano); faltan recibido, pendiente, ilegible, requiere corrección</td></tr>
+      <tr><td>Acta de nacimiento &mdash; cotejado</td><td>PreApplication</td><td>documentosDeclarados.cotejadoSecretaria</td><td><span class="badge badge-verde">Cubierto</span></td><td>Toggle en ViewModel</td></tr>
+      <tr><td>CURP (copia)</td><td>PreApplication</td><td>documentosDeclarados[]</td><td><span class="badge badge-verde">Cubierto</span></td><td>Documento en la lista declarada</td></tr>
+      <tr><td>Boleta o certificado</td><td>PreApplication</td><td>documentosDeclarados[]</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Comprobante de domicilio</td><td>PreApplication</td><td>documentosDeclarados[]</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Identificación del tutor</td><td>PreApplication</td><td>documentosDeclarados[]</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Fotografías</td><td>PreApplication</td><td>documentosDeclarados[]</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Columnas de verificación (pendiente, ilegible, requiere corrección)</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>Solo existe booleano cotejado. Faltan estados por documento</td></tr>
+      <tr><td>Observaciones por documento</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe observación por documento individual</td></tr>
+      <tr><td>Responsable de cotejo</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No hay trazabilidad de quién coteja</td></tr>
+      <tr><td>Fecha de cotejo</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No hay timestamp de cotejo</td></tr>
+      <tr><td>Resultado (Completo / Incompleto / Requiere corrección)</td><td>Student</td><td>documentationStatus</td><td><span class="badge badge-ambar">Parcial</span></td><td>Existe como texto libre en Student; no hay enum ni en PreApplication</td></tr>
+      <tr><td>Firma de Secretaría</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>Campo institucional no modelado</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:.85rem;color:var(--gris-texto)">Resumen: <span class="badge badge-verde">Cubierto: 8</span> <span class="badge badge-ambar">Parcial: 2</span> <span class="badge badge-rojo">No cubierto: 7</span> &mdash; El cotejo documental es el formato con más brechas porque el modelo actual solo tiene un booleano cotejadoSecretaria. Se requiere un modelo DocumentChecklist con trazabilidad completa.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- FORM 3: FICHA MÉDICA -->
+<!-- ============================================================ -->
+<div class="section table-section">
+  <h2>Formato 3 &mdash; Ficha médica escolar</h2>
+  <p style="font-size:.85rem;color:var(--gris-texto);margin-bottom:.5rem"><strong>Área:</strong> Médico Escolar &nbsp;|&nbsp; <strong>Folio:</strong> FM-____ &nbsp;|&nbsp; <strong>Confidencial:</strong> sensible &nbsp;|&nbsp; <strong>Total campos:</strong> 15</p>
+
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%">Campo del formato</th>
+        <th style="width:22%">Modelo actual</th>
+        <th style="width:22%">Propiedad actual</th>
+        <th style="width:12%">Cobertura</th>
+        <th style="width:16%">Observación</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Nombre completo</td><td>PreApplication / Student</td><td>alumnoNombreCompleto / fullName</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>CURP</td><td>PreApplication / Student</td><td>alumnoCurp / curp</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Grado / Grupo</td><td>Student</td><td>group</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Edad</td><td>Student</td><td>age</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Fecha de nacimiento</td><td>PreApplication / Student</td><td>alumnoFechaNacimiento / birthDate</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Contacto de emergencia</td><td>Student</td><td>tutorPhone</td><td><span class="badge badge-ambar">Parcial</span></td><td>Existe teléfono del tutor, pero no está etiquetado como "emergencia"</td></tr>
+      <tr><td>Alergias</td><td>FichaMedicaFamiliar / Student</td><td>alergias / healthAlergies</td><td><span class="badge badge-verde">Cubierto</span></td><td>En ambos modelos (declarativo y maestro)</td></tr>
+      <tr><td>Padecimientos relevantes</td><td>FichaMedicaFamiliar / Student</td><td>padecimientos / healthNotes</td><td><span class="badge badge-verde">Cubierto</span></td><td>En ambos modelos</td></tr>
+      <tr><td>Medicamentos</td><td>FichaMedicaFamiliar / Student</td><td>medicamentos / healthMeds</td><td><span class="badge badge-verde">Cubierto</span></td><td>En ambos modelos</td></tr>
+      <tr><td>Restricciones físicas</td><td>FichaMedicaFamiliar</td><td>restriccionFisica</td><td><span class="badge badge-verde">Cubierto</span></td><td>En declarativo familiar</td></tr>
+      <tr><td>Servicio médico</td><td>FichaMedicaFamiliar</td><td>servicioMedico</td><td><span class="badge badge-verde">Cubierto</span></td><td>Texto libre en declarativo</td></tr>
+      <tr><td>Institución (IMSS, ISSSTE, etc.)</td><td>FichaMedicaFamiliar</td><td>servicioMedico</td><td><span class="badge badge-ambar">Parcial</span></td><td>servicioMedico es texto libre; no hay campo separado para institución</td></tr>
+      <tr><td>Número de afiliación</td><td>FichaMedicaFamiliar</td><td>numeroAfiliacion</td><td><span class="badge badge-verde">Cubierto</span></td><td>En declarativo familiar</td></tr>
+      <tr><td>Autorización de atención en emergencia</td><td>—</td><td>—</td><td><span class="badge badge-morado">Sensible</span></td><td>No modelado. Requiere consentimiento firmado con resguardo especial</td></tr>
+      <tr><td>Firma del tutor</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>Campo institucional no modelado</td></tr>
+      <tr><td>Observaciones de Médico Escolar</td><td>OfficialStudent</td><td>validacionMedico.observaciones</td><td><span class="badge badge-ambar">Parcial</span></td><td>Existe ValidacionArea.observaciones pero es genérico, no específico médico</td></tr>
+      <tr><td>Aviso de confidencialidad</td><td>—</td><td>—</td><td><span class="badge badge-morado">Sensible</span></td><td>No modelado. Debe existir como registro de lectura con firma</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:.85rem;color:var(--gris-texto)">Resumen: <span class="badge badge-verde">Cubierto: 9</span> <span class="badge badge-ambar">Parcial: 3</span> <span class="badge badge-rojo">No cubierto: 2</span> <span class="badge badge-morado">Sensible: 2</span> &mdash; Los datos de salud declarativos están cubiertos. Las brechas son la autorización de emergencia y las observaciones clínicas de Médico Escolar, que requieren un modelo MedicalRecord separado.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- FORM 4: FICHA SOCIOFAMILIAR -->
+<!-- ============================================================ -->
+<div class="section table-section">
+  <h2>Formato 4 &mdash; Ficha sociofamiliar / Trabajo Social</h2>
+  <p style="font-size:.85rem;color:var(--gris-texto);margin-bottom:.5rem"><strong>Área:</strong> Trabajo Social &nbsp;|&nbsp; <strong>Folio:</strong> FS-____ &nbsp;|&nbsp; <strong>Total campos:</strong> 17</p>
+
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%">Campo del formato</th>
+        <th style="width:22%">Modelo actual</th>
+        <th style="width:22%">Propiedad actual</th>
+        <th style="width:12%">Cobertura</th>
+        <th style="width:16%">Observación</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Nombre completo</td><td>PreApplication / Student</td><td>alumnoNombreCompleto / fullName</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>CURP</td><td>PreApplication / Student</td><td>alumnoCurp / curp</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Grado / Grupo</td><td>Student</td><td>group</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Edad</td><td>Student</td><td>age</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Responsable principal (nombre)</td><td>PreApplication / Student</td><td>responsables / tutorName</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Parentesco</td><td>Student</td><td>tutorRelation</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Ocupación / Actividad</td><td>PreApplication</td><td>responsables[0].ocupacion</td><td><span class="badge badge-verde">Cubierto</span></td><td>En Responsable data class</td></tr>
+      <tr><td>Responsable alterno</td><td>PreApplication</td><td>responsables[1+]</td><td><span class="badge badge-verde">Cubierto</span></td><td>contactoPrincipal = false</td></tr>
+      <tr><td>Composición familiar (personas con quien vive)</td><td>PreApplication</td><td>contextoSociofamiliar.viveConQuien</td><td><span class="badge badge-verde">Cubierto</span></td><td>Texto en declarativo familiar</td></tr>
+      <tr><td>Dinámica familiar observada o referida</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe campo en ningún modelo; es observación profesional de TS</td></tr>
+      <tr><td>Motivo de atención / apertura</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe; es parte del seguimiento profesional de TS</td></tr>
+      <tr><td>Fecha de apertura</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe</td></tr>
+      <tr><td>Responsable de apertura</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe</td></tr>
+      <tr><td>Factores de riesgo observables</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe estructura; requiere modelo específico con lenguaje no estigmatizante</td></tr>
+      <tr><td>Acuerdos con la familia</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe</td></tr>
+      <tr><td>Fecha de seguimiento</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe</td></tr>
+      <tr><td>Responsable de seguimiento</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe</td></tr>
+      <tr><td>Estatus (Abierto / En seguimiento / Cerrado)</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe enum de estatus de TS</td></tr>
+      <tr><td>Firmas (TS y tutor)</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No modelado</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:.85rem;color:var(--gris-texto)">Resumen: <span class="badge badge-verde">Cubierto: 8</span> <span class="badge badge-rojo">No cubierto: 11</span> &mdash; El formato sociofamiliar institucional es el que más brechas presenta. Los datos declarativos familiares están cubiertos, pero todo el plano profesional de Trabajo Social (seguimiento, acuerdos, factores de riesgo, estatus) requiere un modelo SocialWorkRecord completo.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- FORM 5: UDEEI / BAP -->
+<!-- ============================================================ -->
+<div class="section table-section">
+  <h2>Formato 5 &mdash; Registro UDEEI / BAP</h2>
+  <p style="font-size:.85rem;color:var(--gris-texto);margin-bottom:.5rem"><strong>Área:</strong> UDEEI &nbsp;|&nbsp; <strong>Folio:</strong> UB-____ &nbsp;|&nbsp; <strong>Total campos:</strong> 16</p>
+
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%">Campo del formato</th>
+        <th style="width:22%">Modelo actual</th>
+        <th style="width:22%">Propiedad actual</th>
+        <th style="width:12%">Cobertura</th>
+        <th style="width:16%">Observación</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Nombre completo</td><td>PreApplication / Student</td><td>alumnoNombreCompleto / fullName</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>CURP</td><td>PreApplication / Student</td><td>alumnoCurp / curp</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Grado / Grupo</td><td>Student</td><td>group</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Edad</td><td>Student</td><td>age</td><td><span class="badge badge-verde">Cubierto</span></td><td></td></tr>
+      <tr><td>Barrera para el aprendizaje identificada</td><td>Student</td><td>bap (boolean)</td><td><span class="badge badge-ambar">Parcial</span></td><td>Solo es booleano; no hay descripción de la barrera</td></tr>
+      <tr><td>Contexto donde se observa</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe</td></tr>
+      <tr><td>Apoyos sugeridos</td><td>PreApplication</td><td>antecedentesUdeii.antecedenteApoyo</td><td><span class="badge badge-ambar">Parcial</span></td><td>Solo texto libre en declarativo; no hay lista estructurada de apoyos</td></tr>
+      <tr><td>Responsable del apoyo</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe</td></tr>
+      <tr><td>Ajustes razonables propuestos</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe en ningún modelo</td></tr>
+      <tr><td>Responsable del caso</td><td>Student</td><td>orientationResponsible</td><td><span class="badge badge-ambar">Parcial</span></td><td>Existe en Student como "orientación", no como UDEEI; semántica distinta</td></tr>
+      <tr><td>Fecha de registro inicial</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe</td></tr>
+      <tr><td>Fecha de última revisión</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe</td></tr>
+      <tr><td>Fecha de próxima revisión</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe</td></tr>
+      <tr><td>Evidencia de intervención</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe</td></tr>
+      <tr><td>¿Requiere canalización externa?</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe</td></tr>
+      <tr><td>Institución o servicio sugerido</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe</td></tr>
+      <tr><td>Estatus (Detectado / En seguimiento / Atendido / Requiere canalización)</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No existe enum de estatus UDEEI</td></tr>
+      <tr><td>Firmas (UDEEI y tutor)</td><td>—</td><td>—</td><td><span class="badge badge-rojo">No cubierto</span></td><td>No modelado</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:.85rem;color:var(--gris-texto)">Resumen: <span class="badge badge-verde">Cubierto: 4</span> <span class="badge badge-ambar">Parcial: 3</span> <span class="badge badge-rojo">No cubierto: 11</span> &mdash; El formato UDEEI requiere un modelo propio. Student.bap es insuficiente. Se necesita un modelo UdeeiSupportRecord con estructura de barreras, apoyos, ajustes, seguimiento y canalización.</p>
+</div>
+
+<!-- ===== BREACHES BY AREA ===== -->
+<div class="section">
+  <h2>Brechas encontradas por área</h2>
+
+  <h3>Secretaría</h3>
+  <div class="risks">
+    <li>Nombre completo no desglosado (apellido paterno / materno / nombre). El formato los pide separados; el modelo los almacena juntos.</li>
+    <li>Domicilio no desglosado (calle, colonia, CP, municipio, entidad). Se almacena como texto único; se pierde precisión para búsqueda y reportes.</li>
+    <li>CCT, nivel educativo anterior y último grado cursado no existen en ningún modelo.</li>
+    <li>Cotejo documental: solo existe booleano cotejadoSecretaria. Faltan estados individuales (recibido, pendiente, ilegible, requiere corrección) y trazabilidad (responsable, fecha).</li>
+    <li>Resultado del cotejo (completo/incompleto/requiere corrección) no tiene representación formal fuera de Student.documentationStatus (texto libre).</li>
+  </div>
+
+  <h3>Médico Escolar</h3>
+  <div class="risks">
+    <li>ValidacionArea.observaciones es genérico; no hay distinción entre diagnóstico, indicación o recomendación médica.</li>
+    <li>Autorización de atención en emergencia no está modelada como consentimiento digital.</li>
+    <li>Observaciones de Médico Escolar se mezclan con datos declarativos familiares en FichaMedicaFamiliar. Datos sensibles deben separarse.</li>
+    <li>No existe estructura de seguimiento de salud (citas, vacunas, revisiones periódicas).</li>
+  </div>
+
+  <h3>Trabajo Social</h3>
+  <div class="risks">
+    <li>ContextoSociofamiliar es exclusivamente declarativo familiar. Todo el plano profesional de TS (seguimiento, acuerdos, factores de riesgo) no existe.</li>
+    <li>No hay modelo de caso social con estatus (abierto/seguimiento/cerrado).</li>
+    <li>No existe registro de acuerdos con familia ni compromisos firmados.</li>
+    <li>Factores de riesgo no tienen estructura; el formato HTML los pide con lenguaje no estigmatizante, pero el modelo actual no los contempla.</li>
+  </div>
+
+  <h3>UDEEI</h3>
+  <div class="risks">
+    <li>Student.bap es booleano; no hay descripción de la barrera, contexto, apoyos ni ajustes.</li>
+    <li>AntecedentesUdeii es declarativo familiar; el plano institucional de UDEEI no existe.</li>
+    <li>No hay estructura de canalización externa (institución, motivo, seguimiento).</li>
+    <li>No existe estatus de atención UDEEI (detectado/seguimiento/atendido/canalizado).</li>
+  </div>
+
+  <h3>Dirección</h3>
+  <div class="risks">
+    <li>ValidacionDirección existe en OfficialStudent pero solo como validación booleana.</li>
+    <li>No hay firma institucional digital ni trazabilidad de autorizaciones.</li>
+    <li>No existe modelo de observaciones generales por alumno emitidas por Dirección.</li>
+  </div>
+</div>
+
+<!-- ===== RISKS ===== -->
+<div class="section">
+  <h2>Riesgos identificados</h2>
+  <ul class="risks">
+    <li><strong>No meter datos sensibles en modelos generales.</strong> Los datos médicos, sociofamiliares y UDEEI no deben mezclarse en un solo modelo Student o PreApplication. Cada área debe tener su propio modelo con reglas de acceso.</li>
+    <li><strong>No duplicar campos.</strong> Evitar que los mismos datos (alergias, padecimientos) existan en FichaMedicaFamiliar (declarativo) y MedicalRecord (profesional) sin un criterio de fuente de verdad.</li>
+    <li><strong>Evitar que Médico Escolar / Trabajo Social / UDEEI queden mezclados sin permisos.</strong> Un usuario de Secretaría no debe ver detalles médicos o sociofamiliares sensibles a menos que sea necesario para su función.</li>
+    <li><strong>Preparar futura seguridad por roles.</strong> Los modelos deben diseñarse desde ahora con un campo "visibility" o agrupación por área para facilitar la implementación de RBAC (Role-Based Access Control).</li>
+    <li><strong>Evitar digitalizar campos sin responsable institucional.</strong> No incorporar un campo al sistema si no hay un área que lo valide, actualice y responda por él. Esto incluye firmas, autorizaciones y observaciones profesionales.</li>
+    <li><strong>No mezclar datos declarativos (familiares) con datos institucionales (validados por el área).</strong> Un dato declarado por la familia no debe sobrescribir uno validado por el especialista sin trazabilidad.</li>
+    <li><strong>Los consentimientos requieren resguardo especial.</strong> La autorización de emergencia y el aviso de confidencialidad deben almacenarse con integridad y auditoría, no como campos booleanos simples.</li>
+  </ul>
+</div>
+
+<!-- ===== TECHNICAL RECOMMENDATION ===== -->
+<div class="section">
+  <h2>Recomendación técnica</h2>
+
+  <p style="margin-bottom:1rem">Se recomienda <strong>no inflar Student</strong> con datos sensibles. En lugar de ello, crear modelos separados por área, vinculados por claves compartidas:</p>
+
+  <div class="model-grid">
+    <div class="model-card">
+      <h4>DocumentChecklist</h4>
+      <div class="desc">Cotejo documental por alumno</div>
+      <div class="fields">Campos: docName, received, pending, illegible, needsCorrection, verified, observations, verifiedBy, verifiedAt</div>
+    </div>
+    <div class="model-card">
+      <h4>MedicalRecord</h4>
+      <div class="desc">Ficha médica institucional</div>
+      <div class="fields">Campos: allergies, conditions, medications, restrictions, emergencyContact, emergencyAuth, observations, doctorName, reviewDate</div>
+    </div>
+    <div class="model-card">
+      <h4>SocialWorkRecord</h4>
+      <div class="desc">Seguimiento de Trabajo Social</div>
+      <div class="fields">Campos: reason, openingDate, responsible, familyComposition, riskFactors, agreements, status, followUpDate</td>
+    </div>
+    <div class="model-card">
+      <h4>UdeeiSupportRecord</h4>
+      <div class="desc">Registro UDEEI / BAP</div>
+      <div class="fields">Campos: barrierDescription, context, suggestedSupports, reasonableAdjustments, responsible, status, referral, reviewDates</div>
+    </div>
+    <div class="model-card">
+      <h4>InstitutionalObservation</h4>
+      <div class="desc">Observaciones por área y alumno</div>
+      <div class="fields">Campos: area, text, author, date, category, visibility (role-based)</div>
+    </div>
+  </div>
+
+  <div class="rec-box">
+    <h4>Esquema de vinculación propuesto</h4>
+    <p>Cada modelo debe vincularse al alumno usando una o más de estas claves, en orden de precedencia:</p>
+    <ul>
+      <li><strong>studentId</strong> &mdash; Identificador único del alumno en el sistema (String UUID). Clave principal para todos los modelos de área.</li>
+      <li><strong>curp</strong> &mdash; Clave CURP (18 caracteres, normalizada). Útil para búsqueda y conciliación con sistemas externos.</li>
+      <li><strong>enrollmentId</strong> &mdash; Matrícula oficial (ej. S310-LOHM100512-G2). Clave administrativa del expediente maestro.</li>
+      <li><strong>preApplicationFolio</strong> &mdash; Folio de pre-solicitud (PRE-310-XXXXXX). Vinculación temporal antes de generar matrícula.</li>
+    </ul>
+    <p style="margin-top:.5rem"><strong>Regla:</strong> Los modelos de área deben referenciar a Student sin acoplar sus datos. Cada modelo vive en su propio archivo dentro de <code>composeApp/src/commonMain/kotlin/com/example/data/</code> con subdirectorio por área: <code>medical/</code>, <code>socialwork/</code>, <code>udeei/</code>, <code>documents/</code>.</p>
+  </div>
+</div>
+
+<!-- ===== CONCLUSION ===== -->
+<div class="section" style="border-bottom:4px solid var(--azul)">
+  <h2>Conclusión</h2>
+  <p>Este mapeo evita digitalizar formatos sin arquitectura clara. Los hallazgos principales:</p>
+  <ul style="padding-left:1.2rem;color:var(--gris-texto);font-size:.92rem;margin-bottom:.8rem">
+    <li><strong>42 campos cubiertos</strong> pueden mapearse directamente a modelos existentes. Corresponden principalmente a datos generales del alumno, responsables, documentos declarados y consentimientos familiares.</li>
+    <li><strong>9 campos parciales</strong> requieren normalización: desglose de nombre y domicilio, separación de teléfonos, y ampliación de DocumentoDeclarado para incluir estados de verificación.</li>
+    <li><strong>24 campos no cubiertos</strong> corresponden al plano institucional-profesional de cada área. No deben forzarse dentro de modelos existentes.</li>
+    <li><strong>6 campos sensibles</strong> (autorización de emergencia, aviso de confidencialidad, datos médicos) requieren resguardo especial y no deben mezclarse en modelos generales.</li>
+  </ul>
+  <p>La estrategia correcta es: <strong>extender lo necesario en PreApplication y Student para cubrir los datos generales, y crear modelos independientes para cada área especializada</strong>, vinculados por studentId+curp. Esto permite implementar seguridad por roles en el futuro sin tener que migrar datos.</p>
+  <p style="margin-top:.6rem;font-size:.85rem;color:var(--gris-texto);text-align:center">SASE Light &mdash; Sistema de Administración de Seguimiento Escolar &mdash; Frente 1 &mdash; 8C + 8D &mdash; Versión 1.0</p>
+</div>
+
+</div>
+</body>
+</html>
