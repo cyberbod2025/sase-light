@@ -25,7 +25,7 @@ object MockSaseData {
                 fullName = "ALUMNO DEMO 01",
                 group = "2°B",
                 enrollmentId = "2023-00258",
-                curp = "CURP-DEMO-01",
+                curp = "CURP-SASE-01",
                 shift = "Vespertino",
                 schoolYear = "2023-2024",
                 status = "Activo",

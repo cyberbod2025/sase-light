@@ -116,7 +116,7 @@ class PreApplicationGuardrailsTest {
     fun mockSaseDataAddStudentRejectsDuplicateCurp() {
         val result = MockSaseData.addStudent(
             student(
-                curp = "curp-demo-01",
+                curp = "curp-sase-01",
                 enrollmentId = "S310-UNIQUE-CURP-${uniqueSuffix()}"
             )
         )
@@ -142,7 +142,7 @@ class PreApplicationGuardrailsTest {
 
         val result = viewModel.addStudent(
             student(
-                curp = "CURP-DEMO-01",
+                curp = "CURP-SASE-01",
                 enrollmentId = "S310-VM-${uniqueSuffix()}"
             )
         )
