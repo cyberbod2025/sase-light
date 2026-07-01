@@ -84,7 +84,7 @@ class PreApplicationGuardrailsTest {
         val result = PreApplicationViewModel.startOfficialEnrollment(
             preApplication(
                 folio = folio,
-                curp = "SARH840603MDFRRN09",
+                curp = "CURP-DEMO-01",
                 status = PreApplicationStatus.ACEPTADA
             ),
             selectedGroup = null
@@ -95,7 +95,7 @@ class PreApplicationGuardrailsTest {
 
     @Test
     fun startOfficialEnrollmentBlocksDuplicateMatricula() {
-        val curpWithExistingMatriculaPrefix = "SARH840603ZZZZZZ99"
+        val curpWithExistingMatriculaPrefix = "CURP-DEMO-01" + uniqueSuffix().padEnd(6, '0')
         val submission = PreApplicationViewModel.submitFamilyPreApplication(
             preApplication(curp = curpWithExistingMatriculaPrefix, grado = 1)
         )
@@ -116,7 +116,7 @@ class PreApplicationGuardrailsTest {
     fun mockSaseDataAddStudentRejectsDuplicateCurp() {
         val result = MockSaseData.addStudent(
             student(
-                curp = "lohm100512mdfprra2",
+                curp = "curp-sase-01",
                 enrollmentId = "S310-UNIQUE-CURP-${uniqueSuffix()}"
             )
         )
@@ -142,7 +142,7 @@ class PreApplicationGuardrailsTest {
 
         val result = viewModel.addStudent(
             student(
-                curp = "LOHM100512MDFPRRA2",
+                curp = "CURP-SASE-01",
                 enrollmentId = "S310-VM-${uniqueSuffix()}"
             )
         )
