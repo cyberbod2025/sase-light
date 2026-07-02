@@ -123,27 +123,19 @@ class PreApplicationViewModel {
         private const val preApplicationTimestampPrefix = "Hoy "
 
         fun approvePreApplication(folio: String) {
-            _sharedPreApplications.value = _sharedPreApplications.value.map {
-                if (it.folio == folio) it.copy(status = PreApplicationStatus.ACEPTADA) else it
-            }
+            updatePreApp(folio) { it.copy(status = PreApplicationStatus.ACEPTADA) }
         }
 
         fun markForCorrection(folio: String) {
-            _sharedPreApplications.value = _sharedPreApplications.value.map {
-                if (it.folio == folio) it.copy(status = PreApplicationStatus.PENDIENTE_CORRECCION) else it
-            }
+            updatePreApp(folio) { it.copy(status = PreApplicationStatus.PENDIENTE_CORRECCION) }
         }
 
         fun setObservaciones(folio: String, text: String) {
-            _sharedPreApplications.value = _sharedPreApplications.value.map {
-                if (it.folio == folio) it.copy(observacionesSecretaria = text) else it
-            }
+            updatePreApp(folio) { it.copy(observacionesSecretaria = text) }
         }
 
         fun setMotivoCorreccion(folio: String, text: String) {
-            _sharedPreApplications.value = _sharedPreApplications.value.map {
-                if (it.folio == folio) it.copy(motivoCorreccion = text) else it
-            }
+            updatePreApp(folio) { it.copy(motivoCorreccion = text) }
         }
 
         fun notifyFamily(folio: String): String {
@@ -187,8 +179,7 @@ class PreApplicationViewModel {
         }
 
         fun toggleDocumentCotejado(folio: String, docNombre: String) {
-            _sharedPreApplications.value = _sharedPreApplications.value.map { app ->
-                if (app.folio != folio) return@map app
+            updatePreApp(folio) { app ->
                 app.copy(documentosDeclarados = app.documentosDeclarados.map { doc ->
                     if (doc.nombre != docNombre || !doc.declarado) doc
                     else doc.copy(cotejadoSecretaria = !doc.cotejadoSecretaria)
@@ -240,6 +231,15 @@ class PreApplicationViewModel {
         private fun normalizeCurp(curp: String): String = curp.trim().uppercase()
 
         private fun normalizeMatricula(matricula: String): String = matricula.trim().uppercase()
+
+        private fun updatePreApp(
+            folio: String,
+            transform: (PreApplication) -> PreApplication
+        ) {
+            _sharedPreApplications.value = _sharedPreApplications.value.map {
+                if (it.folio == folio) transform(it) else it
+            }
+        }
 
         private fun buildStoredPreApplication(preApplication: PreApplication): PreApplication {
             val normalizedCurp = normalizeCurp(preApplication.alumnoCurp)
@@ -326,9 +326,7 @@ class PreApplicationViewModel {
                     readinessStatus = ReadinessStatus.BLOCKED,
                     readinessNotes = pendingItems.joinToString("; ")
                 )
-                _sharedPreApplications.value = _sharedPreApplications.value.map {
-                    if (it.folio == folio) blocked else it
-                }
+                updatePreApp(folio) { blocked }
                 return ReadinessResult.NotReady(pendingItems)
             }
 
@@ -337,9 +335,7 @@ class PreApplicationViewModel {
                 readyAt = "$preApplicationTimestampPrefix${com.example.formatTimestamp("hh:mm a")}",
                 readinessNotes = "Validación institucional lista: documentos y fotos mock completos."
             )
-            _sharedPreApplications.value = _sharedPreApplications.value.map {
-                if (it.folio == folio) ready else it
-            }
+            updatePreApp(folio) { ready }
             return ReadinessResult.Success(ready)
         }
 
@@ -498,15 +494,11 @@ class PreApplicationViewModel {
         }
 
         private fun markConverted(folio: String) {
-            _sharedPreApplications.value = _sharedPreApplications.value.map { app ->
-                if (app.folio == folio) {
-                    app.copy(
-                        readinessStatus = ReadinessStatus.CONVERTED,
-                        readinessNotes = "Alta oficial generada y expediente maestro sincronizado."
-                    )
-                } else {
-                    app
-                }
+            updatePreApp(folio) {
+                it.copy(
+                    readinessStatus = ReadinessStatus.CONVERTED,
+                    readinessNotes = "Alta oficial generada y expediente maestro sincronizado."
+                )
             }
         }
 
