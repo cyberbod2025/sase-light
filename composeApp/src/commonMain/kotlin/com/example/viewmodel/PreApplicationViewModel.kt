@@ -584,36 +584,33 @@ class PreApplicationViewModel {
                 updatedStudent ?: student
             }
 
-            return if (updatedStudent == null) {
-                OfficialEnrollmentResult.Error("No se encontró alta oficial para este folio.")
+            val currentStudent = updatedStudent
+                ?: return OfficialEnrollmentResult.Error("No se encontró alta oficial para este folio.")
+            val existingMaster = MockSaseData.studentByCurp(currentStudent.curp)
+            val syncedMaster = if (existingMaster != null) {
+                val updatedMaster = existingMaster.copy(
+                    group = cleanGroup,
+                    status = "Alta oficial con grupo"
+                )
+                MockSaseData.updateStudent(updatedMaster)
+                updatedMaster
             } else {
-                val currentStudent = updatedStudent ?: return OfficialEnrollmentResult.Error("No se encontró alta oficial para este folio.")
-                val existingMaster = MockSaseData.studentByCurp(currentStudent.curp)
-                val syncedMaster = if (existingMaster != null) {
-                    val updatedMaster = existingMaster.copy(
-                        group = cleanGroup,
-                        status = "Alta oficial con grupo"
-                    )
-                    MockSaseData.updateStudent(updatedMaster)
-                    updatedMaster
-                } else {
-                    Student(
-                        id = "MASTER-${folio.takeLast(4)}",
-                        fullName = currentStudent.alumnoNombreCompleto,
-                        group = cleanGroup,
-                        enrollmentId = currentStudent.matriculaOficial.orEmpty(),
-                        curp = currentStudent.curp,
-                        status = "Alta oficial con grupo",
-                        preApplicationFolio = folio
-                    )
-                }
-                OfficialEnrollmentResult.Success(
-                    officialStudent = currentStudent,
-                    masterStudent = syncedMaster,
-                    masterStudentCreated = false,
-                    message = "Grupo inicial confirmado y expediente maestro sincronizado."
+                Student(
+                    id = "MASTER-${folio.takeLast(4)}",
+                    fullName = currentStudent.alumnoNombreCompleto,
+                    group = cleanGroup,
+                    enrollmentId = currentStudent.matriculaOficial.orEmpty(),
+                    curp = currentStudent.curp,
+                    status = "Alta oficial con grupo",
+                    preApplicationFolio = folio
                 )
             }
+            return OfficialEnrollmentResult.Success(
+                officialStudent = currentStudent,
+                masterStudent = syncedMaster,
+                masterStudentCreated = false,
+                message = "Grupo inicial confirmado y expediente maestro sincronizado."
+            )
         }
 
         fun buildProvisionalStudent(preApp: PreApplication): com.example.data.Student {
