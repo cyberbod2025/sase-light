@@ -1,8 +1,8 @@
 # 03 — Estado Actual del Proyecto
 
 > Sprint: H1 — Documental de Contexto
-> Fecha: 2026-07-01
-> Último commit: `c7bbf06` — fix(sase): remove unreachable group confirmation code
+> Fecha: 2026-07-04
+> Último commit: `963878f` — chore(gemini): remove Gemini AI integration and its dependencies
 
 ## Resumen
 
@@ -16,9 +16,6 @@ Aplicación Compose Multiplatform (KMP) para administración escolar — SASE (S
 | Compose Multiplatform | 1.7.3 |
 | Gradle | 8.11.1 |
 | AGP | 8.7.3 |
-| Ktor (HTTP client) | 3.x (CIO / OkHttp / Darwin) |
-| kotlinx.serialization | JSON |
-| Napier | Logging |
 
 ## Arquitectura
 
@@ -26,7 +23,6 @@ Aplicación Compose Multiplatform (KMP) para administración escolar — SASE (S
 - **Sin navegación**: Navegación manual mediante `sealed class Screen` + estado en `LabViewModel`.
 - **Single ViewModel**: `LabViewModel` orquesta toda la UI.
 - **ViewModel adicional**: `PreApplicationViewModel` para el flujo de pre-solicitud.
-- **ViewModel adicional**: `GeminiViewModel` para generación de imágenes por IA.
 
 ## Datos
 
@@ -65,12 +61,6 @@ Gatillado en push/PR a `main`.
 - Dark theme por defecto
 - Breakpoints responsive: 850dp y 600dp
 
-## Gemini API
-
-- Modelo: `gemini-3-pro-image-preview`
-- API Key vía Secrets Gradle Plugin (`.env`)
-- iOS: `getApiKey()` retorna `""` — Gemini no funcional en iOS
-
 ## Pruebas
 
 - `commonTest` contiene 2 archivos:
@@ -91,6 +81,18 @@ Gatillado en push/PR a `main`.
 **Commit:** `c7bbf06` — fix(sase): remove unreachable group confirmation code
 **CI:** Build #37 ✅, Build #38 ✅ (main)
 **Cambio:** Línea muerta en `confirmInitialGroup` eliminada. `if/else` anidado reemplazado por early return.
+
+### PR #5 — Ignorar archivos locales de entorno
+
+**Commit:** `d8815c6` — chore(repo): ignore local environment files
+**CI:** Build en PR #5 ✅, mergeado a main
+**Cambio:** `.env.*`, `.vercel/` y `composeApp/build/` agregados a `.gitignore`.
+
+### PR #6 — Eliminar integración Gemini
+
+**Commit:** `963878f` — chore(gemini): remove Gemini AI integration and its dependencies
+**CI:** Build en PR #6 ✅, mergeado a main
+**Cambio:** Removidos `GeminiImageGenerator`, `GeminiViewModel`, `GeminiTestCard`, dependencias Ktor/Serialization/Napier/Secrets, `.env.example`, `getApiKey()` de 4 Platform files, `INTERNET` permission de AndroidManifest, referencias en docs. SASE Light queda sin integración Gemini activa y con superficie de secretos reducida.
 
 ## Archivos fuente
 
