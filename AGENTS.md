@@ -14,21 +14,7 @@ Compose Multiplatform (KMP) app for school administration (SASE = Sistema de Adm
 
 All data is **in-memory mock** (`MockSaseData` singleton, `composeApp/src/commonMain/.../data/`). No backend, no database. Student records, audits, documents etc. are hardcoded lists.
 
-## API Keys
 
-- Stored in `.env` file at project root (`GEMINI_API_KEY`).
-- Loaded via the Secrets Gradle Plugin (see `composeApp/build.gradle.kts`).
-- Platform resolution (`expect fun getApiKey()`):
-  - **Android**: `BuildConfig.GEMINI_API_KEY`
-  - **Desktop**: `System.getenv("GEMINI_API_KEY")`
-  - **iOS**: returns `""` (not implemented)
-- **To run locally**: create `.env` with `GEMINI_API_KEY=your_key`, then **delete** `signingConfig = signingConfigs.getByName("debugConfig")` from `app/build.gradle.kts` (README instruction, but the app module is stale — apply to `composeApp/build.gradle.kts` if the same line exists).
-
-## Gemini API
-
-- Model: `gemini-3-pro-image-preview`
-- Ktor HTTP client (commonMain), platform engines: OkHttp (Android), CIO (Desktop), Darwin (iOS).
-- Uses `kotlinx.serialization` for request/response models (`GeminiImageGenerator.kt`).
 
 ## Entrypoints
 
@@ -54,9 +40,7 @@ Simple single-ViewModel (`LabViewModel` in `commonMain`) with a sealed `Screen` 
 ## Important gotchas
 
 - The `app/` directory at root is **dead code** — it is not included in `settings.gradle.kts` and references plugins not in the version catalog. Do not edit files there unless explicitly asked.
-- No CI/CD workflows found.
 - No test suites are wired into the active build (the test files in `app/src/test/` belong to the stale module).
-- iOS `getApiKey()` returns empty string — Gemini features will not work on iOS without implementing the actual function.
 
 ## Gradle execution
 

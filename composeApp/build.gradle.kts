@@ -3,8 +3,6 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.multiplatform)
   alias(libs.plugins.kotlin.compose)
-  alias(libs.plugins.kotlin.serialization)
-  alias(libs.plugins.secrets)
 }
 
 kotlin {
@@ -42,12 +40,6 @@ kotlin {
       implementation(compose.components.resources)
       implementation(compose.materialIconsExtended)
       implementation(libs.kotlinx.coroutines.core)
-      implementation(libs.kotlinx.serialization.json)
-      implementation(libs.ktor.client.core)
-      implementation(libs.ktor.client.content.negotiation)
-      implementation(libs.ktor.serialization.kotlinx.json)
-      implementation(libs.ktor.client.logging)
-      implementation(libs.napier)
     }
 
     commonTest.dependencies {
@@ -68,17 +60,14 @@ kotlin {
       implementation(libs.androidx.lifecycle.viewmodel.compose)
       implementation(libs.androidx.lifecycle.runtime.compose)
       implementation(libs.kotlinx.coroutines.android)
-      implementation(libs.ktor.client.okhttp)
     }
 
     val desktopMain by getting
     desktopMain.dependencies {
       implementation(compose.desktop.currentOs)
-      implementation(libs.ktor.client.cio)
     }
 
     iosMain.dependencies {
-      implementation(libs.ktor.client.darwin)
     }
   }
 }
@@ -108,11 +97,5 @@ android {
 
   buildFeatures {
     compose = true
-    buildConfig = true
   }
-}
-
-secrets {
-  propertiesFileName = ".env"
-  defaultPropertiesFileName = ".env.example"
 }

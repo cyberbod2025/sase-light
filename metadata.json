@@ -1,6 +1,6 @@
 {
   "name": "SASE-310",
-  "description": "MODO HUGO SYSTEM V2 / SASE OPS - Dashboard de Secretaría y Expedientes con estética Liquid Glass",
+  "description": "Dashboard de Secretaría y Expedientes con estética Liquid Glass",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }
