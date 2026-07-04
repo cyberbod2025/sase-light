@@ -5,8 +5,6 @@ import platform.Foundation.NSDate
 
 actual fun getPlatformName(): String = "iOS"
 
-actual fun getApiKey(): String = ""
-
 actual fun formatTimestamp(pattern: String): String {
     val formatter = NSDateFormatter()
     formatter.dateFormat = pattern
