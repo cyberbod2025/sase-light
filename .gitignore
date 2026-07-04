@@ -15,4 +15,8 @@
 .cxx
 local.properties
 .env
+.env.*
+!.env.example
+.vercel/
+composeApp/build/
 debug.keystore
