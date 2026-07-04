@@ -1,6 +1,6 @@
 # 10 — Bitácora de Decisiones
 
-> Última actualización: 2026-07-01
+> Última actualización: 2026-07-04
 
 ## Registro
 
@@ -29,6 +29,28 @@ val currentStudent = updatedStudent ?: return OfficialEnrollmentResult.Error(...
 **Alternativa descartada**: Cambiar la CURP de OFF-101 — eso alteraría la semántica del OFF como registro de alumno oficial demo.
 
 **Impacto**: Tests actualizados. Build y tests verdes. PR #1 mergeado via squash a `main` (`2fe2b4c`). CI Build #35 ✅, Build #36 ✅.
+
+---
+
+### 2026-07-04 — PR #6: Eliminar integración Gemini
+
+**Contexto**: El proyecto incluía integración con Gemini API (generación de imágenes por IA) que nunca se usó en funcionalidad real. Dependía de Ktor (HTTP client), kotlinx.serialization, Napier logging y Secrets Gradle Plugin. Además, mantenía un `.env.example` con `GEMINI_API_KEY`, funciones `getApiKey()` en 4 plataformas (Android, Desktop, iOS, common), y una UI de prueba (`GeminiTestCard`). En iOS la función retornaba `""` — Gemini nunca fue funcional en esa plataforma.
+
+**Decisión**: Eliminar todo el código relacionado con Gemini: `GeminiImageGenerator`, `GeminiViewModel`, `GeminiTestCard`, dependencias Ktor/Serialization/Napier/Secrets, `.env.example`, `getApiKey()` de los 4 Platform files, `INTERNET` permission de AndroidManifest, y todas las referencias en README/AGENTS/metadata.
+
+**Alternativa descartada**: Mantener el código desactivado — agregaba peso innecesario al build y confundía el alcance del proyecto.
+
+**Impacto**: -353 líneas, -15 archivos. Build más rápido, APK más pequeño, sin manejo de secrets. SASE Light queda sin integración Gemini activa y superficie de secretos reducida a cero. PR #6 mergeado via squash a `main` (`963878f`). CI ✅.
+
+---
+
+### 2026-07-04 — PR #5: Ignorar archivos locales de entorno
+
+**Contexto**: Archivos como `.env.local` (Vercel OIDC token) y `.vercel/` aparecían como untracked en `git status`. `composeApp/build/` también se generaba localmente y no debía trackearse.
+
+**Decisión**: Agregar `.env.*`, `!.env.example`, `.vercel/` y `composeApp/build/` al `.gitignore`.
+
+**Impacto**: `git status` limpio. PR #5 mergeado via squash a `main` (`d8815c6`). CI ✅.
 
 ---
 
@@ -115,11 +137,10 @@ val currentStudent = updatedStudent ?: return OfficialEnrollmentResult.Error(...
 ## Convenciones del proyecto
 
 | Aspecto | Decisión |
-|---|---|
+|---|---|---|
 | DI | Sin framework — instanciación manual |
 | Navegación | `sealed class Screen` + estado en ViewModel |
 | Temas | Dark theme por defecto, Liquid Glass |
 | Datos | Mock in-memory (singleton `object`) |
-| API Keys | Secrets Gradle Plugin + `.env` |
 | Commits | Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`) |
 | Merge | Squash merge a `main` |
