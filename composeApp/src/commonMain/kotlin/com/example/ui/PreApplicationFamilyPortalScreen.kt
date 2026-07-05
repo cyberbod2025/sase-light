@@ -296,7 +296,9 @@ private fun RowScope.StepDivider(active: Boolean) {
 private fun StepDatosBasicos(vm: PreApplicationViewModel) {
     val tipoTramite by vm.tipoTramite.collectAsState()
     val grado by vm.gradoSolicitado.collectAsState()
-    val nombre by vm.nombreCompleto.collectAsState()
+    val apellidoPat by vm.apellidoPaterno.collectAsState()
+    val apellidoMat by vm.apellidoMaterno.collectAsState()
+    val nombreSolo by vm.nombre.collectAsState()
     val curp by vm.curp.collectAsState()
     val fechaNac by vm.fechaNacimiento.collectAsState()
     val sexo by vm.sexo.collectAsState()
@@ -352,7 +354,9 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
         }
     }
 
-    FormField("Nombre completo", nombre, { vm.setNombreCompleto(it) }, errors.containsKey("nombre"), "Obligatorio")
+    FormField("Apellido paterno", apellidoPat, { vm.setApellidoPaterno(it) }, errors.containsKey("nombre"), "Obligatorio")
+    FormField("Apellido materno", apellidoMat, { vm.setApellidoMaterno(it) }, false, null)
+    FormField("Nombre(s)", nombreSolo, { vm.setNombre(it) }, errors.containsKey("nombre"), "Obligatorio")
     FormField("CURP (18 caracteres)", curp, { vm.setCurp(it) }, errors.containsKey("curp"), "18 caracteres requeridos")
     FormField("Fecha de nacimiento (DD/MMM/AAAA)", fechaNac, { vm.setFechaNacimiento(it) }, errors.containsKey("fechaNac"), "Obligatorio")
 
@@ -990,7 +994,7 @@ private fun StepResumenEnvio(vm: PreApplicationViewModel) {
     val tipoTramite by vm.tipoTramite.collectAsState()
     val cicloEscolar by vm.cicloEscolar.collectAsState()
     val grado by vm.gradoSolicitado.collectAsState()
-    val nombre by vm.nombreCompleto.collectAsState()
+    val nombreCompleto by vm.nombreCompleto.collectAsState()
     val curp by vm.curp.collectAsState()
     val fechaNac by vm.fechaNacimiento.collectAsState()
     val sexo by vm.sexo.collectAsState()
@@ -1010,7 +1014,7 @@ private fun StepResumenEnvio(vm: PreApplicationViewModel) {
             SummaryLine("Tramite", tipoTramite)
             SummaryLine("Ciclo", cicloEscolar)
             SummaryLine("Grado", "${grado}°")
-            SummaryLine("Nombre", nombre)
+            SummaryLine("Nombre", nombreCompleto)
             SummaryLine("CURP", curp)
             if (responsableNombre.isNotBlank()) SummaryLine("Responsable", "$responsableNombre ($responsableParentesco)")
             SummaryLine("Telefono", telefono)
