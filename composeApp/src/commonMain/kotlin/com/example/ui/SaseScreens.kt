@@ -1142,7 +1142,8 @@ fun SaseAppContent(viewModel: LabViewModel) {
                     )
                     is Screen.StudentRecord -> StudentRecordScreen(
                         studentId = screen.studentId,
-                        viewModel = viewModel
+                        viewModel = viewModel,
+                        userRole = currentRole
                     )
                     is Screen.EnrollmentDashboard -> EnrollmentDashboardScreen(
                         viewModel = viewModel
