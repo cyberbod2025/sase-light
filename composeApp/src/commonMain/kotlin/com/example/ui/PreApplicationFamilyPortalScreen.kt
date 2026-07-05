@@ -739,47 +739,66 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
         color = PortalMuted
     )
 
-    FormField("Vive con quién", viveConQuien, { vm.setViveConQuien(it) }, false, null)
-    CompactOptionGroup(
-        label = "Tipo de familia",
-        options = listOf("Nuclear", "Extensa", "Monoparental", "Reconstituida", "Otra"),
-        selected = tipoFamilia,
-        onSelect = { vm.setTipoFamilia(it) }
-    )
+    Text("¿Con quién vive el alumno?", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    DeclarativeCheckbox("Madre", viveConQuien.contains("Madre"), { vm.setViveConQuien(if (it) "Madre" else "") })
+    DeclarativeCheckbox("Padre", viveConQuien.contains("Padre"), { vm.setViveConQuien(if (it) "Padre" else "") })
+    DeclarativeCheckbox("Abuelos", viveConQuien.contains("Abuelos"), { vm.setViveConQuien(if (it) "Abuelos" else "") })
+    DeclarativeCheckbox("Tutor", viveConQuien.contains("Tutor"), { vm.setViveConQuien(if (it) "Tutor" else "") })
+    DeclarativeCheckbox("Otro", viveConQuien.contains("Otro"), { vm.setViveConQuien(if (it) "Otro" else "") })
+
+    Text("Tipo de familia", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    DeclarativeCheckbox("Nuclear", tipoFamilia == "Nuclear", { vm.setTipoFamilia(if (it) "Nuclear" else "") })
+    DeclarativeCheckbox("Extensa", tipoFamilia == "Extensa", { vm.setTipoFamilia(if (it) "Extensa" else "") })
+    DeclarativeCheckbox("Monoparental", tipoFamilia == "Monoparental", { vm.setTipoFamilia(if (it) "Monoparental" else "") })
+    DeclarativeCheckbox("Reconstituida", tipoFamilia == "Reconstituida", { vm.setTipoFamilia(if (it) "Reconstituida" else "") })
+    DeclarativeCheckbox("Otra", tipoFamilia == "Otra", { vm.setTipoFamilia(if (it) "Otra" else "") })
+
     DeclarativeCheckbox("Hijo único", hijoUnico, { vm.setHijoUnico(it) })
     if (!hijoUnico) {
         FormField("Lugar entre hermanos", lugarEntreHermanos, { vm.setLugarEntreHermanos(it) }, false, null)
     }
     DeclarativeCheckbox("Hermanos en la escuela", hermanosEnEscuela, { vm.setHermanosEnEscuela(it) })
     FormField("Integrantes del hogar", integrantesHogar, { vm.setIntegrantesHogar(it) }, false, null)
-    FormField("Principal sostén económico", principalSostenEconomico, { vm.setPrincipalSostenEconomico(it) }, false, null)
+
+    Text("Principal sostén económico", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    DeclarativeCheckbox("Madre", principalSostenEconomico.contains("Madre"), { vm.setPrincipalSostenEconomico(if (it) "Madre" else "") })
+    DeclarativeCheckbox("Padre", principalSostenEconomico.contains("Padre"), { vm.setPrincipalSostenEconomico(if (it) "Padre" else "") })
+    DeclarativeCheckbox("Ambos", principalSostenEconomico.contains("Ambos"), { vm.setPrincipalSostenEconomico(if (it) "Ambos" else "") })
+    DeclarativeCheckbox("Otro", principalSostenEconomico.contains("Otro"), { vm.setPrincipalSostenEconomico(if (it) "Otro" else "") })
+
     CompactOptionGroup(
         label = "Ingreso familiar por rangos",
         options = listOf("Hasta 1 SM", "1 a 2 SM", "2 a 4 SM", "Más de 4 SM", "Prefiero no responder"),
         selected = ingresoFamiliarRango,
         onSelect = { vm.setIngresoFamiliarRango(it) }
     )
-    CompactOptionGroup(
-        label = "Tipo de vivienda",
-        options = listOf("Propia", "Rentada", "Prestada", "Compartida", "Otra"),
-        selected = tipoVivienda,
-        onSelect = { vm.setTipoVivienda(it) }
-    )
+
+    Text("Tipo de vivienda", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    DeclarativeCheckbox("Propia", tipoVivienda == "Propia", { vm.setTipoVivienda(if (it) "Propia" else "") })
+    DeclarativeCheckbox("Rentada", tipoVivienda == "Rentada", { vm.setTipoVivienda(if (it) "Rentada" else "") })
+    DeclarativeCheckbox("Prestada", tipoVivienda == "Prestada", { vm.setTipoVivienda(if (it) "Prestada" else "") })
+    DeclarativeCheckbox("Compartida", tipoVivienda == "Compartida", { vm.setTipoVivienda(if (it) "Compartida" else "") })
+    DeclarativeCheckbox("Otra", tipoVivienda == "Otra", { vm.setTipoVivienda(if (it) "Otra" else "") })
+
     DeclarativeCheckbox("Servicios básicos en casa", serviciosBasicos, { vm.setServiciosBasicos(it) })
     DeclarativeCheckbox("Internet en casa", internetCasa, { vm.setInternetCasa(it) })
-    CompactOptionGroup(
-        label = "Dispositivo para tareas",
-        options = listOf("Computadora", "Tableta", "Teléfono", "Compartido", "No disponible"),
-        selected = dispositivoTareas,
-        onSelect = { vm.setDispositivoTareas(it) }
-    )
+
+    Text("Dispositivo para tareas", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    DeclarativeCheckbox("Computadora", dispositivoTareas == "Computadora", { vm.setDispositivoTareas(if (it) "Computadora" else "") })
+    DeclarativeCheckbox("Tableta", dispositivoTareas == "Tableta", { vm.setDispositivoTareas(if (it) "Tableta" else "") })
+    DeclarativeCheckbox("Teléfono", dispositivoTareas == "Teléfono", { vm.setDispositivoTareas(if (it) "Teléfono" else "") })
+    DeclarativeCheckbox("Compartido", dispositivoTareas == "Compartido", { vm.setDispositivoTareas(if (it) "Compartido" else "") })
+    DeclarativeCheckbox("No disponible", dispositivoTareas == "No disponible", { vm.setDispositivoTareas(if (it) "No disponible" else "") })
+
     FormField("Beca o apoyo social", becaApoyoSocial, { vm.setBecaApoyoSocial(it) }, false, null)
-    CompactOptionGroup(
-        label = "Medio de transporte",
-        options = listOf("Camina", "Transporte público", "Auto familiar", "Transporte escolar", "Otro"),
-        selected = medioTransporte,
-        onSelect = { vm.setMedioTransporte(it) }
-    )
+
+    Text("Medio de transporte", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    DeclarativeCheckbox("Camina", medioTransporte == "Camina", { vm.setMedioTransporte(if (it) "Camina" else "") })
+    DeclarativeCheckbox("Transporte público", medioTransporte == "Transporte público", { vm.setMedioTransporte(if (it) "Transporte público" else "") })
+    DeclarativeCheckbox("Auto familiar", medioTransporte == "Auto familiar", { vm.setMedioTransporte(if (it) "Auto familiar" else "") })
+    DeclarativeCheckbox("Transporte escolar", medioTransporte == "Transporte escolar", { vm.setMedioTransporte(if (it) "Transporte escolar" else "") })
+    DeclarativeCheckbox("Otro", medioTransporte == "Otro", { vm.setMedioTransporte(if (it) "Otro" else "") })
+
     DeclarativeCheckbox(
         "Dificultad para comprar materiales",
         dificultadComprarMateriales,
