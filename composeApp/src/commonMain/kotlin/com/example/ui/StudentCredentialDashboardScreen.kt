@@ -49,25 +49,8 @@ fun StudentCredentialDashboardScreen(viewModel: LabViewModel) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize().background(SaseBgSoft)) {
         val isMobile = maxWidth < 850.dp
 
-        Row(modifier = Modifier.fillMaxSize()) {
-            // Sidebar
-            SaseSidebar(
-                activeItem = "Credenciales",
-                modifier = Modifier.width(if (isMobile) 0.dp else 260.dp).fillMaxHeight(),
-                onItemClick = { item ->
-                    when (item) {
-                        "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
-                        "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
-                        "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
-                        "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
-                        "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
-                        "Credenciales" -> {}
-                    }
-                }
-            )
-
-            // Main content
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+        val content = @Composable {
+            Box(modifier = Modifier.fillMaxSize()) {
                 if (graduated.isEmpty()) {
                     EmptyCredentialState(
                         onNavigateToEnrollment = { viewModel.navigateTo(Screen.OfficialEnrollmentDashboard) }
@@ -82,6 +65,36 @@ fun StudentCredentialDashboardScreen(viewModel: LabViewModel) {
                         onViewStudent = { id -> viewModel.navigateTo(Screen.StudentRecord(id)) }
                     )
                 }
+            }
+        }
+
+        if (isMobile) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    ReturnToDashboardButton(onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) })
+                }
+                Box(modifier = Modifier.weight(1f)) { content() }
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxSize()) {
+                SaseSidebar(
+                    activeItem = "Credenciales",
+                    modifier = Modifier.width(260.dp).fillMaxHeight(),
+                    onItemClick = { item ->
+                        when (item) {
+                            "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
+                            "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
+                            "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
+                            "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
+                            "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
+                            "Credenciales" -> {}
+                        }
+                    }
+                )
+                Box(modifier = Modifier.weight(1f).fillMaxHeight()) { content() }
             }
         }
     }
@@ -130,7 +143,7 @@ private fun CredentialLayout(
     students: List<OfficialStudent>,
     masterStudents: List<Student>,
     selectedId: String?,
-    onSelect: (String) -> Unit,
+    onSelect: (String?) -> Unit,
     onViewStudent: (String) -> Unit
 ) {
     if (isMobile) {
@@ -143,7 +156,7 @@ private fun CredentialLayout(
                     CredentialPreviewCard(official, master, onViewStudent)
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedButton(
-                        onClick = { onSelect("") },
+                        onClick = { onSelect(null) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     ) { Text("Volver a la lista", color = SaseNavy) }
