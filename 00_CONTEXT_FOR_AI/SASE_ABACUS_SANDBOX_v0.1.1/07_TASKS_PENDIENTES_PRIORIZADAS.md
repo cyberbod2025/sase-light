@@ -2,7 +2,7 @@
 
 > Sprint: H1 — Documental de Contexto
 > Fecha: 2026-07-04
-> Últimos merges documentados: PR #8 `66eb71f`, PR #10 `3e36e87`
+> Último merge documentado: PR #12 `700d09a`
 
 ## Prioridades
 
@@ -15,6 +15,7 @@
 | P5 | Actualizar README (CI/CD pipeline existe, eliminar "No CI/CD") | 🟢 Baja | Docs | — |
 | P6 | Evaluar cobertura de pruebas en flujo de credenciales | 🟢 Baja | Testing | — |
 | P7 | Revisar deprecation warnings de Compose (Divider → HorizontalDivider, Icons.AutoMirrored) | 🟢 Baja | Code Health | — |
+| P8 | Mantener cambios visuales de tema en PR dedicado y autorizado | 🟢 Baja | Process | — |
 
 ## Leyenda
 
@@ -28,6 +29,7 @@
 
 - **P3**: Actualmente toda la data se pierde al reiniciar la app.
 - **P7**: ~30 warnings de deprecation visibles en compilación desktop.
+- **P8**: No mezclar reemplazos de tema oscuro / Liquid Glass en PRs text-only o docs. `.codex/`, `.opencode/`, patches locales y estado de agentes no deben commitearse.
 
 ## Completado en H1
 
@@ -39,3 +41,4 @@
 | PR #6 | Eliminar integración Gemini y dependencias | `963878f` |
 | PR #8 | Agregar guardrails de test para `MockSaseData` | `2bd562c` |
 | PR #10 | Mejorar salidas de navegación desde dashboards | `477c13a` |
+| PR #12 | Corregir 18 textos visibles de UI: acentos y typo | `1cc2036` |

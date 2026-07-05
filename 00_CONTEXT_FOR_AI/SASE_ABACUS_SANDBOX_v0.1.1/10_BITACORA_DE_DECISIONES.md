@@ -4,6 +4,26 @@
 
 ## Registro
 
+### 2026-07-04 — PR #12: Corrección de textos visibles de UI
+
+**Contexto**: La UI contenía etiquetas visibles sin acentos y un typo menor en pantallas del flujo institucional.
+
+**Decisión**: Corregir 18 textos visibles en `PreApplicationFamilyPortalScreen.kt`, `SaseScreens.kt`, `SecretariaEnrollmentDashboard.kt` y `CredentialPreviewScreen.kt`, manteniendo el cambio como text-only.
+
+**Impacto**: Mejora de calidad lingüística sin cambiar lógica de UI, modelos, mocks, navegación, tests ni tema visual. `desktopTest` PASS y CI PASS. PR #12 mergeado a `main` (`700d09a`) con commit `1cc2036`.
+
+---
+
+### 2026-07-04 — Cierre operativo post PR #12: cambios locales de tema fuera de scope
+
+**Contexto**: Después del merge de PR #12 aparecieron cambios locales no solicitados en `Color.kt`, `Theme.kt` y `Type.kt` que intentaban reemplazar el tema oscuro / Liquid Glass por una paleta clara institucional.
+
+**Decisión**: Restaurar esos cambios locales y no conservarlos en `main`, porque contradecían la convención vigente y no pertenecían al scope de PR #12.
+
+**Impacto**: `desktopTest` quedó PASS. Se refuerza que cambios visuales de tema requieren autorización explícita y PR dedicado. `.codex/`, `.opencode/`, patches locales y archivos de estado de agentes son estado local y no deben commitearse; no se toca `.gitignore` para esto.
+
+---
+
 ### 2026-07-04 — PR #10: Mejorar salidas de navegación desde dashboards
 
 **Contexto**: Varias pantallas dashboard necesitaban rutas de salida más explícitas para regresar al inicio o continuar el flujo institucional sin dejar al usuario en vistas terminales.
@@ -161,6 +181,8 @@ val currentStudent = updatedStudent ?: return OfficialEnrollmentResult.Error(...
 | DI | Sin framework — instanciación manual |
 | Navegación | `sealed class Screen` + estado en ViewModel |
 | Temas | Dark theme por defecto, Liquid Glass |
+| Scope visual | No reemplazar tema oscuro / Liquid Glass sin autorización explícita y PR dedicado |
 | Datos | Mock in-memory (singleton `object`) |
+| Agentes locales | `.codex/`, `.opencode/`, patches locales y estado de agentes no se commitean |
 | Commits | Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`) |
 | Merge | Squash merge a `main` |
