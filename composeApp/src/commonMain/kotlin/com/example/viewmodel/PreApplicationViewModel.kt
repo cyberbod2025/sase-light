@@ -6,6 +6,7 @@ import com.example.data.SaseDocument
 import com.example.data.Student
 import com.example.data.StudentAddResult
 import com.example.data.presolicitud.*
+import com.example.formatTimestamp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -348,16 +349,94 @@ class PreApplicationViewModel {
             else -> emptyList()
         }
 
-        fun suggestInitialGroup(grado: Int): String? {
+        private const val MAX_CAPACITY_PER_GROUP = 30
+
+        fun suggestInitialGroup(
+            grado: Int,
+            sexo: String = "",
+            edad: Int = 0,
+            promedio: Double? = null
+        ): String? {
             val options = groupOptionsForGrade(grado)
             if (options.isEmpty()) return null
 
-            val currentCounts = _officialStudents.value
+            val candidates = _officialStudents.value
                 .filter { it.gradoIngreso == grado && it.status == OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO }
-                .groupingBy { it.grupoAsignado ?: it.grupoSugerido.orEmpty() }
-                .eachCount()
 
-            return options.minByOrNull { currentCounts[it] ?: 0 }
+            val groupData = options.associateWith { group ->
+                val members = candidates.filter { (it.grupoAsignado ?: it.grupoSugerido) == group }
+                val countH = members.count { it.alumnoSexo == "H" }
+                val countM = members.count { it.alumnoSexo == "M" }
+                val avgAge = members.mapNotNull { it.alumnoEdad.takeIf { e -> e > 0 } }
+                    .let { ages -> if (ages.isNotEmpty()) ages.average() else 0.0 }
+                val avgPromedio = members.mapNotNull { it.promedio }
+                    .let { vals -> if (vals.isNotEmpty()) vals.average() else null }
+                GroupStats(count = members.size, countH = countH, countM = countM, avgAge = avgAge, avgPromedio = avgPromedio)
+            }
+
+            val gradeAgeAvg = candidates.mapNotNull { it.alumnoEdad.takeIf { e -> e > 0 } }
+                .let { ages -> if (ages.isNotEmpty()) ages.average() else 0.0 }
+            val gradePromedioAvg = candidates.mapNotNull { it.promedio }
+                .let { vals -> if (vals.isNotEmpty()) vals.average() else null }
+
+            return options
+                .filter { (groupData[it]?.count ?: 0) < MAX_CAPACITY_PER_GROUP }
+                .minByOrNull { group ->
+                    val stats = groupData[group]!!
+                    val sexPenalty = if (sexo.isNotBlank()) {
+                        val newCountH = stats.countH + if (sexo == "H") 1 else 0
+                        val newCountM = stats.countM + if (sexo == "M") 1 else 0
+                        kotlin.math.abs(newCountH - newCountM).toDouble()
+                    } else 0.0
+
+                    val agePenalty = if (edad > 0 && gradeAgeAvg > 0) {
+                        val newAvgAge = if (stats.avgAge > 0) {
+                            (stats.avgAge * stats.count + edad) / (stats.count + 1)
+                        } else edad.toDouble()
+                        kotlin.math.abs(newAvgAge - gradeAgeAvg)
+                    } else 0.0
+
+                    val avgPenalty = if (promedio != null && gradePromedioAvg != null) {
+                        val newAvgProm = if (stats.avgPromedio != null) {
+                            (stats.avgPromedio * stats.count + promedio) / (stats.count + 1)
+                        } else promedio
+                        kotlin.math.abs(newAvgProm - gradePromedioAvg)
+                    } else 0.0
+
+                    (sexPenalty * 3.0) + (agePenalty * 2.0) + (avgPenalty * 1.0)
+                }
+        }
+
+        private data class GroupStats(
+            val count: Int,
+            val countH: Int,
+            val countM: Int,
+            val avgAge: Double,
+            val avgPromedio: Double?
+        )
+
+        fun calculateAgeFromBirthDate(fechaNacimiento: String): Int {
+            return try {
+                val months = mapOf(
+                    "Ene" to 1, "Feb" to 2, "Mar" to 3, "Abr" to 4, "May" to 5, "Jun" to 6,
+                    "Jul" to 7, "Ago" to 8, "Sep" to 9, "Oct" to 10, "Nov" to 11, "Dic" to 12
+                )
+                val parts = fechaNacimiento.split("/")
+                if (parts.size != 3) return 0
+                val day = parts[0].toIntOrNull() ?: return 0
+                val month = months[parts[1]] ?: return 0
+                val year = parts[2].toIntOrNull() ?: return 0
+                val currentParts = formatTimestamp("MMM/dd/yyyy").split("/")
+                if (currentParts.size != 3) return 0
+                val currentMonth = months[currentParts[0]] ?: 6
+                val currentDay = currentParts[1].toIntOrNull() ?: 15
+                val currentYear = currentParts[2].toIntOrNull() ?: 2026
+                var age = currentYear - year
+                if (currentMonth < month || (currentMonth == month && currentDay < day)) {
+                    age--
+                }
+                age.coerceIn(0, 25)
+            } catch (_: Exception) { 0 }
         }
 
         private fun officialStudentByCurp(curp: String): OfficialStudent? =
@@ -422,7 +501,10 @@ class PreApplicationViewModel {
             }
 
             val suggestedGroup = if (preApp.gradoSolicitado in 2..3) {
-                selectedGroup?.takeIf { it.isNotBlank() } ?: suggestInitialGroup(preApp.gradoSolicitado)
+                selectedGroup?.takeIf { it.isNotBlank() } ?: run {
+                    val edad = calculateAgeFromBirthDate(preApp.alumnoFechaNacimiento)
+                    suggestInitialGroup(preApp.gradoSolicitado, preApp.alumnoSexo, edad, null)
+                }
             } else {
                 null
             }
@@ -433,6 +515,8 @@ class PreApplicationViewModel {
                 else -> OfficialStudentStatus.PENDIENTE_ASIGNACION_GRUPO
             }
 
+            val edadAlumno = calculateAgeFromBirthDate(preApp.alumnoFechaNacimiento)
+
             val officialStudent = OfficialStudent(
                 id = "OFF-${preApp.folio.takeLast(4)}-${Random.nextInt(100, 999)}",
                 preApplicationFolio = preApp.folio,
@@ -442,6 +526,9 @@ class PreApplicationViewModel {
                 grupoAsignado = null,
                 curp = normalizedCurp,
                 alumnoNombreCompleto = preApp.alumnoNombreCompleto,
+                alumnoSexo = preApp.alumnoSexo,
+                alumnoEdad = edadAlumno,
+                promedio = null,
                 matriculaOficial = normalizeMatricula(matricula),
                 fechaCreacion = "$preApplicationTimestampPrefix${com.example.formatTimestamp("hh:mm a")}",
                 validacionSecretaria = ValidacionArea(

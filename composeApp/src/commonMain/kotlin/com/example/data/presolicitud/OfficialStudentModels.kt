@@ -23,6 +23,9 @@ data class OfficialStudent(
     val grupoAsignado: String? = null,
     val curp: String,
     val alumnoNombreCompleto: String,
+    val alumnoSexo: String = "", // H / M
+    val alumnoEdad: Int = 0,
+    val promedio: Double? = null,
     // La matrícula se genera con S310-[10 chars CURP]-G[Grado]
     // Sólo se asigna si pasa a Alta Oficial
     val matriculaOficial: String? = null,
