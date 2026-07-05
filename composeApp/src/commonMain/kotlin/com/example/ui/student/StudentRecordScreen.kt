@@ -88,6 +88,7 @@ import com.example.ui.SaseText
 import com.example.ui.SaseViolet
 import com.example.ui.TutorItem
 import com.example.util.LocalToast
+import com.example.viewmodel.AppRole
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
 import kotlinx.coroutines.launch
@@ -95,7 +96,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun StudentRecordScreen(
     studentId: String,
-    viewModel: LabViewModel
+    viewModel: LabViewModel,
+    userRole: AppRole = AppRole.SECRETARIA
 ) {
     val toast = LocalToast.current
     val students by viewModel.saseStudents.collectAsState()
@@ -998,15 +1000,17 @@ fun StudentRecordScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Button(
-                            onClick = { showIncidentDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = SaseRed),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Registrar incidencia", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        if (userRole == AppRole.SECRETARIA) {
+                            Button(
+                                onClick = { showIncidentDialog = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = SaseRed),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Registrar incidencia", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            }
                         }
 
                         Button(
@@ -1031,15 +1035,17 @@ fun StudentRecordScreen(
                             Text("Ver documentos", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
 
-                        Button(
-                            onClick = { showEscalarDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = SaseOrange),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.CallSplit, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Escalar caso", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        if (userRole == AppRole.SECRETARIA) {
+                            Button(
+                                onClick = { showEscalarDialog = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = SaseOrange),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.CallSplit, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Escalar caso", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            }
                         }
                     }
                 }
