@@ -2,7 +2,7 @@
 
 > Sprint: H1 — Documental de Contexto
 > Fecha: 2026-07-04
-> Últimos merges documentados: PR #8 `66eb71f`, PR #10 `3e36e87`
+> Último merge documentado: PR #12 `700d09a`
 
 ## Resumen
 
@@ -60,6 +60,7 @@ Gatillado en push/PR a `main`.
 - "Liquid Glass" — `GlassCard`, `LiquidGlassCard`, `MetricGlassCard`
 - Dark theme por defecto
 - Breakpoints responsive: 850dp y 600dp
+- No reemplazar el tema oscuro / Liquid Glass por una paleta clara institucional sin autorización explícita y scope dedicado.
 
 ## Pruebas
 
@@ -106,6 +107,18 @@ Gatillado en push/PR a `main`.
 **Commit:** `477c13a` — fix(sase): improve dashboard navigation exits
 **CI:** mergeado a main en `3e36e87`
 **Cambio:** Mejoradas las salidas de navegación desde pantallas dashboard para mantener rutas claras de regreso al inicio/flujo institucional sin introducir navegación externa ni librerías nuevas.
+
+### PR #12 — Corrección de textos visibles de UI
+
+**Commit:** `1cc2036` — chore(ui): fix Spanish accent labels
+**CI:** mergeado a main en `700d09a`; `desktopTest` PASS; CI PASS
+**Cambio:** Corregidos 18 textos visibles de UI con acentos y un typo en `PreApplicationFamilyPortalScreen.kt`, `SaseScreens.kt`, `SecretariaEnrollmentDashboard.kt` y `CredentialPreviewScreen.kt`. Cambios text-only, sin lógica de UI, modelos, mocks ni tema visual.
+
+### Cierre operativo post PR #12 — Cambios locales fuera de scope
+
+**Estado:** Cambios locales no solicitados en `Color.kt`, `Theme.kt` y `Type.kt` fueron restaurados.
+**Motivo:** Intentaban reemplazar el tema oscuro / Liquid Glass por un tema claro institucional, contradiciendo la convención vigente y el scope de PR #12.
+**Regla:** No conservar ni reintroducir cambios visuales de tema fuera de scope. `.codex/`, `.opencode/`, patches locales y archivos de estado de agentes son estado local y no deben commitearse.
 
 ## Archivos fuente
 
