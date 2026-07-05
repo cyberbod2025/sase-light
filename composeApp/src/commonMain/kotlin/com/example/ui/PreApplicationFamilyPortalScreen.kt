@@ -831,7 +831,11 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
     DeclarativeCheckbox("Posibilidad de acudir a citatorios", puedeAcudirCitatorios, { vm.setPuedeAcudirCitatorios(it) })
 
     Spacer(modifier = Modifier.height(8.dp))
-    UdeiiSection(vm)
+    val isUdeii by vm.isUdeii.collectAsState()
+    DeclarativeCheckbox("El alumno recibe o ha recibido apoyo UDEII (educación inclusiva)", isUdeii, { vm.setIsUdeii(it) })
+    if (isUdeii) {
+        UdeiiSection(vm)
+    }
 }
 
 @Composable

@@ -917,6 +917,9 @@ class PreApplicationViewModel {
     val puedeAcudirCitatorios: StateFlow<Boolean> = _puedeAcudirCitatorios.asStateFlow()
 
     // ── UDEII (Step 3) ──
+    private val _isUdeii = MutableStateFlow(false)
+    val isUdeii: StateFlow<Boolean> = _isUdeii.asStateFlow()
+
     private val _udeiiAntecedenteApoyo = MutableStateFlow("")
     val udeiiAntecedenteApoyo: StateFlow<String> = _udeiiAntecedenteApoyo.asStateFlow()
 
@@ -1169,6 +1172,7 @@ class PreApplicationViewModel {
     fun setHorarioPreferenteComunicacion(v: String) { _horarioPreferenteComunicacion.value = v }
     fun setPuedeAcudirCitatorios(v: Boolean) { _puedeAcudirCitatorios.value = v }
 
+    fun setIsUdeii(v: Boolean) { _isUdeii.value = v }
     fun setUdeiiAntecedenteApoyo(v: String) { _udeiiAntecedenteApoyo.value = v }
     fun setUdeiiTerapiaLenguaje(v: Boolean) { _udeiiTerapiaLenguaje.value = v }
     fun setUdeiiApoyoPsicologico(v: Boolean) { _udeiiApoyoPsicologico.value = v }
@@ -1422,6 +1426,7 @@ class PreApplicationViewModel {
         _personaAtiendeAvisos.value = ""
         _horarioPreferenteComunicacion.value = ""
         _puedeAcudirCitatorios.value = false
+        _isUdeii.value = false
         _udeiiAntecedenteApoyo.value = ""
         _udeiiTerapiaLenguaje.value = false
         _udeiiApoyoPsicologico.value = false
