@@ -1,8 +1,8 @@
 # 07 — Tareas Pendientes Priorizadas
 
 > Sprint: H1 — Documental de Contexto
-> Fecha: 2026-07-04
-> Último merge documentado: PR #12 `700d09a`
+> Fecha: 2026-07-05
+> Último merge documentado: PR #19 `724b6cc`
 
 ## Prioridades
 
@@ -42,3 +42,10 @@
 | PR #8 | Agregar guardrails de test para `MockSaseData` | `2bd562c` |
 | PR #10 | Mejorar salidas de navegación desde dashboards | `477c13a` |
 | PR #12 | Corregir 18 textos visibles de UI: acentos y typo | `1cc2036` |
+| PR #13 | Actualizar living memory con PRs #8 y #10 | docs(update-living-memory-pr8-pr10) |
+| PR #14 | Agregar instrucciones de agente HUGO SYSTEM | docs(hugo): add agent instructions |
+| PR #15 | Habilitar navegación sidebar en expediente | fix(sase): enable student record sidebar navigation |
+| PR #16 | Clarificar acciones no disponibles en expediente | fix(sase): clarify unavailable student record actions |
+| PR #17 | Clarificar copia del portal preregistro familiar | fix(sase): clarify family preregistration copy |
+| PR #18 | Ocultar acciones de Secretario para otros roles | fix(sase): hide incident/escalation actions for non-secretary roles |
+| PR #19 | Reglas multi-criterio de asignación de grupo | feat(sase): multi-criteria group assignment rules |

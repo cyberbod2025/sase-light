@@ -1,8 +1,8 @@
 # 03 — Estado Actual del Proyecto
 
 > Sprint: H1 — Documental de Contexto
-> Fecha: 2026-07-04
-> Último merge documentado: PR #12 `700d09a`
+> Fecha: 2026-07-05
+> Último merge documentado: PR #19 `724b6cc`
 
 ## Resumen
 
@@ -119,6 +119,48 @@ Gatillado en push/PR a `main`.
 **Estado:** Cambios locales no solicitados en `Color.kt`, `Theme.kt` y `Type.kt` fueron restaurados.
 **Motivo:** Intentaban reemplazar el tema oscuro / Liquid Glass por un tema claro institucional, contradiciendo la convención vigente y el scope de PR #12.
 **Regla:** No conservar ni reintroducir cambios visuales de tema fuera de scope. `.codex/`, `.opencode/`, patches locales y archivos de estado de agentes son estado local y no deben commitearse.
+
+### PR #13 — Actualizar living memory con PRs #8 y #10
+
+**Commit:** docs(update-living-memory-pr8-pr10)
+**CI:** PASS
+**Cambio:** Actualizados los 3 archivos de memoria del proyecto (`03_`, `07_`, `10_`) con los registros de PR #8 y PR #10.
+
+### PR #14 — Agregar instrucciones de agente HUGO SYSTEM
+
+**Commit:** docs(hugo): add agent instructions
+**CI:** PASS
+**Cambio:** Creado `HUGO_SYSTEM_AGENT_INSTRUCTIONS.md` con instrucciones operativas para agentes (rol, reglas doradas, workflow, formato). Incorpora feedback de Codex: fix de `git status --short` antes de checkout/pull.
+
+### PR #15 — Habilitar navegación sidebar en expediente del alumno
+
+**Commit:** fix(sase): enable student record sidebar navigation
+**CI:** PASS
+**Cambio:** Conectado `SaseSidebar` con `onItemClick` en `StudentRecordScreen.kt` para permitir navegación lateral desde el expediente del alumno.
+
+### PR #16 — Clarificar acciones no disponibles en expediente
+
+**Commit:** fix(sase): clarify unavailable student record actions
+**CI:** PASS (Build Android ✅, Test Desktop ✅, Build Desktop ✅)
+**Cambio:** Cambiados botones de edición/documentos en `StudentRecordScreen.kt` para indicar que son funciones no disponibles (toasts informativos), sin prometer funcionalidad real.
+
+### PR #17 — Clarificar copia del portal de preregistro familiar
+
+**Commit:** fix(sase): clarify family preregistration copy
+**CI:** PASS (Build Android ✅, Test Desktop ✅, Build Desktop ✅)
+**Cambio:** Aclarado el texto del portal familiar en `PreApplicationFamilyPortalScreen.kt` para distinguir entre pre-inscripción y reinscripción.
+
+### PR #18 — Ocultar acciones de Secretario para otros roles
+
+**Commit:** fix(sase): hide incident/escalation actions for non-secretary roles
+**CI:** PASS (Build Android ✅, Test Desktop ✅, Build Desktop ✅)
+**Cambio:** Agregado parámetro `userRole` a `StudentRecordScreen`. Botones "Registrar incidencia" y "Escalar caso" solo visibles para rol `SECRETARIA`. Pasado `currentRole` desde `SaseAppContent`.
+
+### PR #19 — Reglas multi-criterio de asignación de grupo
+
+**Commit:** feat(sase): multi-criteria group assignment rules
+**CI:** PASS (Build Android ✅, Test Desktop ✅, Build Desktop ✅)
+**Cambio:** `OfficialStudent` ahora incluye `alumnoSexo`, `alumnoEdad`, `promedio`. `suggestInitialGroup` usa scoring: (sexo×3) + (edad×2) + (promedio×1). Capacidad máxima 30/grupo. Helper `calculateAgeFromBirthDate` calcula edad desde `dd/Mes/yyyy`. Mock data actualizado con sexo/edad/promedio.
 
 ## Archivos fuente
 

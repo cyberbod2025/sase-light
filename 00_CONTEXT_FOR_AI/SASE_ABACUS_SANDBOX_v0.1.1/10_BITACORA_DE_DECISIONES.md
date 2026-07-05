@@ -1,8 +1,78 @@
 # 10 — Bitácora de Decisiones
 
-> Última actualización: 2026-07-04
+> Última actualización: 2026-07-05
 
 ## Registro
+
+### 2026-07-05 — PR #19: Reglas multi-criterio de asignación de grupo
+
+**Contexto**: La sugerencia de grupo solo balanceaba por cantidad de alumnos. No consideraba sexo, edad ni promedio académico.
+
+**Decisión**: Implementar scoring multi-criterio en `suggestInitialGroup`: (penalización sexo × 3) + (penalización edad × 2) + (penalización promedio × 1). Capacidad máxima 30 por grupo. Agregar campos `alumnoSexo`, `alumnoEdad`, `promedio` a `OfficialStudent`. Helper `calculateAgeFromBirthDate` parsea `dd/Mes/yyyy`.
+
+**Impacto**: Grados 2-3 ahora reciben sugerencia equilibrada por sexo, edad y promedio. `desktopTest` PASS y CI PASS. PR #19 mergeado a `main` (`724b6cc`). 3 archivos modificados.
+
+---
+
+### 2026-07-05 — PR #18: Ocultar acciones de Secretario para otros roles
+
+**Contexto**: Los botones "Registrar incidencia" y "Escalar caso" eran visibles para todos los roles al ver un expediente de alumno.
+
+**Decisión**: Agregar parámetro `userRole: AppRole = AppRole.SECRETARIA` a `StudentRecordScreen`. Envolver ambos botones en `if (userRole == AppRole.SECRETARIA)`. Pasar `currentRole` desde `SaseAppContent`.
+
+**Impacto**: Solo el rol Secretaría puede registrar incidencias y escalar casos desde el expediente. Otros roles (Familia, Docente, etc.) ven el expediente sin botones de acción sensible. `desktopTest` PASS y CI PASS. PR #18 mergeado a `main` (`46bcd95`). 2 archivos modificados.
+
+---
+
+### 2026-07-05 — PR #17: Clarificar copia del portal de preregistro familiar
+
+**Contexto**: El texto del portal familiar no distinguía claramente entre pre-inscripción y reinscripción.
+
+**Decisión**: Aclarar la copia en `PreApplicationFamilyPortalScreen.kt` para que el usuario entienda el contexto del trámite.
+
+**Impacto**: Mejora de experiencia de usuario en el portal familiar. `desktopTest` PASS y CI PASS. PR #17 mergeado a `main` (`0df8d04`). 1 archivo modificado.
+
+---
+
+### 2026-07-05 — PR #16: Clarificar acciones no disponibles en expediente
+
+**Contexto**: Los botones de edición y documentos en `StudentRecordScreen` prometían funcionalidad que no existía.
+
+**Decisión**: Cambiar textos y comportamiento de los botones para indicar que son funciones no disponibles, usando toasts informativos.
+
+**Impacto**: El usuario entiende que esas funciones no están implementadas aún. `desktopTest` PASS y CI PASS. PR #16 mergeado a `main` (`ebecf69`). 1 archivo modificado.
+
+---
+
+### 2026-07-05 — PR #15: Habilitar navegación sidebar en expediente
+
+**Contexto**: `StudentRecordScreen` no tenía navegación lateral funcional.
+
+**Decisión**: Conectar `SaseSidebar` con `onItemClick` en `StudentRecordScreen.kt` para permitir navegación entre secciones del expediente.
+
+**Impacto**: El usuario puede navegar lateralmente dentro del expediente del alumno. `desktopTest` PASS y CI PASS. PR #15 mergeado a `main` (`9beed58`). 1 archivo modificado.
+
+---
+
+### 2026-07-05 — PR #14: Instrucciones de agente HUGO SYSTEM
+
+**Contexto**: Se necesitaba documentar las instrucciones operativas para agentes que trabajen en el proyecto.
+
+**Decisión**: Crear `HUGO_SYSTEM_AGENT_INSTRUCTIONS.md` con rol, reglas doradas, workflow y formato de respuesta. Incorporar feedback de Codex sobre verificación de estado antes de checkout/pull.
+
+**Impacto**: Agentes tienen referencia central de operación. CI PASS. PR #14 mergeado a `main` (`cd11106`). 1 archivo nuevo.
+
+---
+
+### 2026-07-05 — PR #13: Actualizar living memory
+
+**Contexto**: Los archivos de memoria del proyecto no reflejaban los PRs #8 y #10.
+
+**Decisión**: Actualizar los 3 archivos de memoria (`03_`, `07_`, `10_`) con los registros correspondientes.
+
+**Impacto**: Memoria del proyecto sincronizada. CI PASS. PR #13 mergeado a `main`.
+
+---
 
 ### 2026-07-04 — PR #12: Corrección de textos visibles de UI
 
