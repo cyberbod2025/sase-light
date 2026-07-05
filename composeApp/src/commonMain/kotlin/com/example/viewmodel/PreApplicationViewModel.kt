@@ -741,6 +741,15 @@ class PreApplicationViewModel {
     private val _curp = MutableStateFlow("")
     val curp: StateFlow<String> = _curp.asStateFlow()
 
+    private val _diaNacimiento = MutableStateFlow("")
+    val diaNacimiento: StateFlow<String> = _diaNacimiento.asStateFlow()
+
+    private val _mesNacimiento = MutableStateFlow("")
+    val mesNacimiento: StateFlow<String> = _mesNacimiento.asStateFlow()
+
+    private val _anioNacimiento = MutableStateFlow("")
+    val anioNacimiento: StateFlow<String> = _anioNacimiento.asStateFlow()
+
     private val _fechaNacimiento = MutableStateFlow("")
     val fechaNacimiento: StateFlow<String> = _fechaNacimiento.asStateFlow()
 
@@ -1052,7 +1061,10 @@ class PreApplicationViewModel {
             val year = if (yy > 50) 1900 + yy else 2000 + yy
             if (mm in 1..12 && dd in 1..31) {
                 val meses = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
-                _fechaNacimiento.value = "$dd/${meses[mm - 1]}/$year"
+                _diaNacimiento.value = dd.toString().padStart(2, '0')
+                _mesNacimiento.value = meses[mm - 1]
+                _anioNacimiento.value = year.toString()
+                rebuildFechaNacimiento()
             }
         } catch (_: Exception) { }
         val sexoCode = curp.substring(10, 11)
@@ -1060,7 +1072,29 @@ class PreApplicationViewModel {
         val entidadCode = curp.substring(11, 13)
         EntidadMap[entidadCode]?.let { _entidadNacimiento.value = it }
     }
+    fun setDiaNacimiento(v: String) {
+        _diaNacimiento.value = v
+        rebuildFechaNacimiento()
+    }
+    fun setMesNacimiento(v: String) {
+        _mesNacimiento.value = v
+        rebuildFechaNacimiento()
+    }
+    fun setAnioNacimiento(v: String) {
+        _anioNacimiento.value = v
+        rebuildFechaNacimiento()
+    }
     fun setFechaNacimiento(v: String) { _fechaNacimiento.value = v }
+    private fun rebuildFechaNacimiento() {
+        val d = _diaNacimiento.value
+        val m = _mesNacimiento.value
+        val a = _anioNacimiento.value
+        if (d.isNotEmpty() && m.isNotEmpty() && a.isNotEmpty()) {
+            _fechaNacimiento.value = "$d/$m/$a"
+        } else {
+            _fechaNacimiento.value = ""
+        }
+    }
     fun setSexo(v: String) { _sexo.value = v }
     fun setNacionalidad(v: String) { _nacionalidad.value = v }
     fun setEntidadNacimiento(v: String) { _entidadNacimiento.value = v }
@@ -1319,6 +1353,9 @@ class PreApplicationViewModel {
         _nombre.value = ""
         _nombreCompleto.value = ""
         _curp.value = ""
+        _diaNacimiento.value = ""
+        _mesNacimiento.value = ""
+        _anioNacimiento.value = ""
         _fechaNacimiento.value = ""
         _gradoSolicitado.value = 0
         _sexo.value = ""

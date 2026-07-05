@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -300,6 +301,9 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
     val apellidoMat by vm.apellidoMaterno.collectAsState()
     val nombreSolo by vm.nombre.collectAsState()
     val curp by vm.curp.collectAsState()
+    val diaNac by vm.diaNacimiento.collectAsState()
+    val mesNac by vm.mesNacimiento.collectAsState()
+    val anioNac by vm.anioNacimiento.collectAsState()
     val fechaNac by vm.fechaNacimiento.collectAsState()
     val sexo by vm.sexo.collectAsState()
     val nacionalidad by vm.nacionalidad.collectAsState()
@@ -358,7 +362,16 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
     FormField("Apellido materno", apellidoMat, { vm.setApellidoMaterno(it) }, false, null)
     FormField("Nombre(s)", nombreSolo, { vm.setNombre(it) }, errors.containsKey("nombre"), "Obligatorio")
     FormField("CURP (18 caracteres)", curp, { vm.setCurp(it) }, errors.containsKey("curp"), "18 caracteres requeridos")
-    FormField("Fecha de nacimiento (DD/MMM/AAAA)", fechaNac, { vm.setFechaNacimiento(it) }, errors.containsKey("fechaNac"), "Obligatorio")
+
+    Text("Fecha de nacimiento", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    val dias = (1..31).map { it.toString().padStart(2, '0') }
+    val meses = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
+    val anios = (2010 downTo 2000).map { it.toString() }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        DropdownField("Día", diaNac, dias, { vm.setDiaNacimiento(it) }, modifier = Modifier.weight(1f))
+        DropdownField("Mes", mesNac, meses, { vm.setMesNacimiento(it) }, modifier = Modifier.weight(1f))
+        DropdownField("Año", anioNac, anios, { vm.setAnioNacimiento(it) }, modifier = Modifier.weight(1f))
+    }
 
     // Sexo selector
     Text("Sexo (segun acta)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
@@ -1050,6 +1063,55 @@ private fun SummaryLine(label: String, value: String, valueColor: Color = Portal
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, color = PortalMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Text(value, color = valueColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DropdownField(
+    label: String,
+    selected: String,
+    options: List<String>,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = selected,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label, fontSize = 11.sp) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            textStyle = TextStyle(fontSize = 12.sp, color = PortalText),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = PortalText,
+                unfocusedTextColor = PortalText,
+                focusedBorderColor = SaseBlue,
+                unfocusedBorderColor = SaseBorder,
+                focusedLabelColor = SaseBlue,
+                unfocusedLabelColor = PortalMuted
+            )
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option, fontSize = 12.sp) },
+                    onClick = {
+                        onSelect(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
     }
 }
 
