@@ -525,14 +525,6 @@ fun ActivityAuditFeed(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Actividad reciente / auditoría", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SaseNavy)
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(SaseBgSoft)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text("Ver todos", color = SaseNavy, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            }
         }
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -1198,8 +1190,6 @@ fun SaseAppContent(viewModel: LabViewModel) {
         }
     }
 }
-
-// ── FASE 1 STUBS ──────────────────────────────────────────────────────────
 
 @Composable
 fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {

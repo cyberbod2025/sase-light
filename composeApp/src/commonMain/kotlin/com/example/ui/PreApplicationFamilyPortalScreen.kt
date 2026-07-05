@@ -1053,46 +1053,4 @@ private fun SummaryLine(label: String, value: String, valueColor: Color = SaseNa
     }
 }
 
-// ── Shared placeholder composable ───────────────────────────────
 
-@Composable
-private fun PlaceholderStep(title: String, description: String, phase: String, nextSection: String) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
-        Text(description, fontSize = 12.sp, color = SaseMuted)
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(SaseBlue.copy(alpha = 0.06f))
-                .border(1.dp, SaseBlue.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
-                .padding(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.Construction, contentDescription = null, tint = SaseBlue, modifier = Modifier.size(40.dp))
-                Text("Fase $phase", color = SaseBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(
-                    "Seccion preparada para siguiente fase.",
-                    color = SaseMuted, fontSize = 12.sp, textAlign = TextAlign.Center
-                )
-                Text(
-                    "Campos incluidos: $nextSection",
-                    color = SaseMuted, fontSize = 11.sp, textAlign = TextAlign.Center
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            "Puedes continuar. Estos datos se completaran en la siguiente fase.",
-            fontSize = 11.sp, color = SaseMuted, textAlign = TextAlign.Center
-        )
-    }
-}
