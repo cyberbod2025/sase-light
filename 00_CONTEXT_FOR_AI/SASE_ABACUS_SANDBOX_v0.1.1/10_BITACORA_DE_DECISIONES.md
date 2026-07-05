@@ -4,6 +4,26 @@
 
 ## Registro
 
+### 2026-07-04 — PR #10: Mejorar salidas de navegación desde dashboards
+
+**Contexto**: Varias pantallas dashboard necesitaban rutas de salida más explícitas para regresar al inicio o continuar el flujo institucional sin dejar al usuario en vistas terminales.
+
+**Decisión**: Ajustar acciones de navegación en `PreApplicationFamilyPortalScreen`, `SaseScreens`, `StudentCredentialDashboardScreen` y `SecretariaPreApplicationDashboardScreen`, manteniendo navegación manual con `Screen` y `LabViewModel`.
+
+**Impacto**: Mejora de continuidad operativa en dashboards. No introduce librerías de navegación, modelos nuevos ni cambios de backend. PR #10 mergeado a `main` (`3e36e87`) con commit `477c13a`.
+
+---
+
+### 2026-07-04 — PR #8: Guardrails de `MockSaseData`
+
+**Contexto**: El proyecto usa datos in-memory mock y necesitaba cobertura específica para proteger altas, búsquedas y actualizaciones de estudiantes contra duplicados o normalización incorrecta.
+
+**Decisión**: Agregar `MockSaseDataTest.kt` con pruebas para `addStudent`, `studentByCurp`, `updateStudent`, unicidad de CURP, normalización de entrada y no duplicación de registros existentes.
+
+**Impacto**: La suite `desktopTest` cubre ahora `MockSaseData` además de analytics y guardrails de pre-solicitud. No cambia datos productivos ni introduce persistencia. PR #8 mergeado a `main` (`66eb71f`) con commit `2bd562c`.
+
+---
+
 ### 2026-07-01 — PR-D: Eliminar código muerto en confirmInitialGroup
 
 **Contexto**: Code review detectó línea inalcanzable en `confirmInitialGroup`:
