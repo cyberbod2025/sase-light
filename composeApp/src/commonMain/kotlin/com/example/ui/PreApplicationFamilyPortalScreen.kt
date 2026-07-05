@@ -3,6 +3,7 @@ package com.example.ui
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,7 +26,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.PreApplicationViewModel
-import com.example.viewmodel.Screen
+
+private val PortalBg = Color(0xFF0B1120)
+private val PortalCardBg = Color(0xFF1A2332)
+private val PortalText = Color(0xFFF1F5F9)
+private val PortalMuted = Color(0xFF94A3B8)
 
 @Composable
 fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
@@ -37,7 +43,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(SaseBgSoft)
+            .background(PortalBg)
             .padding(16.dp),
         contentAlignment = Alignment.TopCenter
     ) {
@@ -51,13 +57,16 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
-                ReturnToDashboardButton(
-                    onClick = {
-                        familyViewModel.resetForm()
-                        viewModel.navigateTo(Screen.SecretaryDashboard)
-                    },
-                    label = "Cancelar y volver"
-                )
+                OutlinedButton(
+                    onClick = { familyViewModel.resetForm() },
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, SaseBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PortalMuted)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Cerrar", fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -66,12 +75,12 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                 text = "Pre-registro y Reinscripción SASE",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = SaseNavy
+                color = PortalText
             )
             Text(
                 text = "Escuela Secundaria Diurna No. 310 'Presidentes de México'",
                 fontSize = 14.sp,
-                color = SaseMuted
+                color = PortalMuted
             )
             Text(
                 text = "Al enviarlo recibirás un folio/código. Secretaría lo usará para abrir, revisar y convertir el trámite en registro oficial si procede.",
@@ -144,17 +153,14 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                         onClick = { familyViewModel.previousStep() },
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Atrás", color = SaseNavy)
+                        Text("Atrás", color = PortalText)
                     }
                 } else {
                     OutlinedButton(
-                        onClick = {
-                            familyViewModel.resetForm()
-                            viewModel.navigateTo(Screen.SecretaryDashboard)
-                        },
+                        onClick = { familyViewModel.resetForm() },
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Cancelar", color = SaseNavy)
+                        Text("Cancelar", color = PortalText)
                     }
                 }
 
@@ -193,15 +199,15 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                 ) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SaseGreen, modifier = Modifier.size(64.dp))
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("Pre-registro enviado", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+                    Text("Pre-registro enviado", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = PortalText)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Guarda este folio/código para que Secretaría pueda localizar tu trámite:", textAlign = TextAlign.Center, color = SaseMuted, fontSize = 13.sp)
+                    Text("Guarda este folio/código para que Secretaría pueda localizar tu trámite:", textAlign = TextAlign.Center, color = PortalMuted, fontSize = 13.sp)
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(SaseBgSoft, RoundedCornerShape(8.dp))
+                            .background(PortalCardBg, RoundedCornerShape(8.dp))
                             .padding(16.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -212,15 +218,15 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = "Este folio no es matrícula ni inscripción oficial.",
-                            fontSize = 12.sp, color = SaseNavy, fontWeight = FontWeight.Bold
+                            fontSize = 12.sp, color = PortalText, fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = "Preséntate en Secretaría con documentos originales y copias, o proporciona este código para que localicen tu pre-registro.",
-                            textAlign = TextAlign.Center, fontSize = 11.sp, color = SaseMuted
+                            textAlign = TextAlign.Center, fontSize = 11.sp, color = PortalMuted
                         )
                         Text(
                             text = "Secretaría revisará, podrá solicitar correcciones y continuará con el registro o alta oficial si procede.",
-                            textAlign = TextAlign.Center, fontSize = 11.sp, color = SaseMuted
+                            textAlign = TextAlign.Center, fontSize = 11.sp, color = PortalMuted
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Box(
@@ -235,22 +241,12 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            onClick = { familyViewModel.resetForm() },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
-                        ) { Text("Nueva solicitud", color = SaseNavy, fontSize = 12.sp) }
-                        Button(
-                            onClick = {
-                                familyViewModel.resetForm()
-                                viewModel.navigateTo(Screen.SecretaryDashboard)
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
-                            shape = RoundedCornerShape(12.dp)
-                        ) { Text("Volver al inicio", color = Color.White, fontSize = 12.sp) }
-                    }
+                    Button(
+                        onClick = { familyViewModel.resetForm() },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
+                        shape = RoundedCornerShape(12.dp)
+                    ) { Text("Nueva solicitud", color = Color.White, fontSize = 12.sp) }
                 }
             }
         }
@@ -279,7 +275,7 @@ private fun StepIndicator(step: Int, currentStep: Int, title: String) {
             }
         }
         Spacer(modifier = Modifier.height(4.dp))
-        Text(title, fontSize = 9.sp, color = if (isActive) SaseNavy else SaseMuted)
+        Text(title, fontSize = 9.sp, color = if (isActive) PortalText else PortalMuted)
     }
 }
 
@@ -314,11 +310,11 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
     val telefonoCasa by vm.telefonoCasa.collectAsState()
     val errors by vm.errors.collectAsState()
 
-    Text("Datos del Alumno", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
-    Text("Ingresa los datos tal y como aparecen en el acta de nacimiento.", fontSize = 12.sp, color = SaseMuted)
+    Text("Datos del Alumno", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    Text("Ingresa los datos tal y como aparecen en el acta de nacimiento.", fontSize = 12.sp, color = PortalMuted)
 
     // Tipo de tramite
-    Text("Tipo de tramite", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Tipo de tramite", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         listOf("Nuevo Ingreso", "Reinscripcion").forEach { opt ->
             val selected = tipoTramite == opt
@@ -326,18 +322,18 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) SaseNavy else SaseBgSoft)
+                    .background(if (selected) SaseNavy else PortalCardBg)
                     .clickable { vm.setTipoTramite(opt) }
                     .padding(12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(opt, color = if (selected) Color.White else SaseNavy, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(opt, color = if (selected) Color.White else PortalText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
     }
 
     // Grado solicitado
-    Text("Grado solicitado", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Grado solicitado", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         (1..3).forEach { g ->
             val selected = grado == g
@@ -345,13 +341,13 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) SaseBlue else SaseBgSoft)
+                    .background(if (selected) SaseBlue else PortalCardBg)
                     .border(if (errors.containsKey("grado")) 2.dp else 0.dp, SaseRed, RoundedCornerShape(10.dp))
                     .clickable { vm.setGradoSolicitado(g) }
                     .padding(12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("${g}° Grado", color = if (selected) Color.White else SaseNavy, fontWeight = FontWeight.Bold)
+                Text("${g}° Grado", color = if (selected) Color.White else PortalText, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -361,7 +357,7 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
     FormField("Fecha de nacimiento (DD/MMM/AAAA)", fechaNac, { vm.setFechaNacimiento(it) }, errors.containsKey("fechaNac"), "Obligatorio")
 
     // Sexo selector
-    Text("Sexo (segun acta)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Sexo (segun acta)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         listOf("Femenino", "Masculino").forEach { opt ->
             val selected = sexo == opt
@@ -369,12 +365,12 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) SaseViolet else SaseBgSoft)
+                    .background(if (selected) SaseViolet else PortalCardBg)
                     .clickable { vm.setSexo(opt) }
                     .padding(12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(opt, color = if (selected) Color.White else SaseNavy, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(opt, color = if (selected) Color.White else PortalText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
     }
@@ -382,10 +378,10 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
     FormField("Nacionalidad", nacionalidad, { vm.setNacionalidad(it) }, false, null)
     FormField("Entidad de nacimiento", entidadNac, { vm.setEntidadNacimiento(it) }, false, null)
 
-    Text("Domicilio", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Domicilio", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PortalText)
     FormField("Domicilio (calle, colonia, municipio, estado)", domicilio, { vm.setDomicilio(it) }, false, null)
 
-    Text("Contacto", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Contacto", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PortalText)
     FormField("Telefono principal (10 digitos)", telefono, { vm.setTelefonoPrincipal(it) }, errors.containsKey("telefono"), "10 digitos requeridos")
     FormField("Correo electronico (opcional)", correo, { vm.setCorreo(it) }, false, null)
     FormField("Telefono de casa (opcional)", telefonoCasa, { vm.setTelefonoCasa(it) }, false, null)
@@ -397,7 +393,7 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(if (errors.containsKey("aviso")) SaseRed.copy(alpha = 0.08f) else SaseBgSoft)
+            .background(if (errors.containsKey("aviso")) SaseRed.copy(alpha = 0.08f) else PortalCardBg)
             .padding(10.dp)
     ) {
         Checkbox(
@@ -405,7 +401,7 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
             onCheckedChange = { vm.setAceptaAvisoPrivacidad(it) }
         )
         Spacer(modifier = Modifier.width(6.dp))
-        Text("Acepto el Aviso de Privacidad y el uso de mis datos para fines escolares.", fontSize = 12.sp, color = SaseNavy)
+        Text("Acepto el Aviso de Privacidad y el uso de mis datos para fines escolares.", fontSize = 12.sp, color = PortalText)
     }
 }
 
@@ -439,8 +435,8 @@ private fun StepContactos(vm: PreApplicationViewModel) {
 
     var showAddDialog by remember { mutableStateOf(false) }
 
-    Text("Responsable Principal", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
-    Text("Registra a la madre, padre o tutor legal.", fontSize = 12.sp, color = SaseMuted)
+    Text("Responsable Principal", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    Text("Registra a la madre, padre o tutor legal.", fontSize = 12.sp, color = PortalMuted)
 
     OutlinedTextField(
         value = responsableNombre,
@@ -451,7 +447,7 @@ private fun StepContactos(vm: PreApplicationViewModel) {
     )
     Spacer(modifier = Modifier.height(6.dp))
 
-    Text("Parentesco", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Parentesco", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
         listOf("Madre", "Padre", "Tutor", "Otro").forEach { opt ->
             val selected = responsableParentesco == opt
@@ -459,12 +455,12 @@ private fun StepContactos(vm: PreApplicationViewModel) {
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) SaseBlue else SaseBgSoft)
+                    .background(if (selected) SaseBlue else PortalCardBg)
                     .clickable { vm.setResponsableParentesco(opt) }
                     .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(opt, color = if (selected) Color.White else SaseNavy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(opt, color = if (selected) Color.White else PortalText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -489,25 +485,25 @@ private fun StepContactos(vm: PreApplicationViewModel) {
     Spacer(modifier = Modifier.height(8.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Checkbox(checked = responsableVive, onCheckedChange = { vm.setResponsableViveConAlumno(it) })
-        Text("Vive con el alumno", fontSize = 13.sp, color = SaseNavy)
+        Text("Vive con el alumno", fontSize = 13.sp, color = PortalText)
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Checkbox(checked = responsablePuede, onCheckedChange = { vm.setResponsablePuedeRecoger(it) })
-        Text("Puede recoger al alumno", fontSize = 13.sp, color = SaseNavy)
+        Text("Puede recoger al alumno", fontSize = 13.sp, color = PortalText)
     }
 
     Spacer(modifier = Modifier.height(16.dp))
-    Text("Autorizados para Recoger", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
-    Text("Personas adicionales autorizadas para recoger al alumno.", fontSize = 11.sp, color = SaseMuted)
+    Text("Autorizados para Recoger", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    Text("Personas adicionales autorizadas para recoger al alumno.", fontSize = 11.sp, color = PortalMuted)
 
     autorizados.forEach { a ->
         Row(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(SaseBgSoft).padding(10.dp),
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(PortalCardBg).padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(a.nombre, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
-                Text("${a.parentesco} — ${a.telefono}", fontSize = 10.sp, color = SaseMuted)
+                Text(a.nombre, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PortalText)
+                Text("${a.parentesco} — ${a.telefono}", fontSize = 10.sp, color = PortalMuted)
             }
             IconButton(onClick = { vm.removeAutorizado(a.id) }, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Default.Close, contentDescription = "Eliminar", tint = SaseRed, modifier = Modifier.size(16.dp))
@@ -549,14 +545,14 @@ private fun AutorizadoDialog(
     Dialog(onDismissRequest = onDismiss) {
         GlassCard {
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Agregar Autorizado", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+                Text("Agregar Autorizado", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PortalText)
 
                 OutlinedTextField(value = nombre, onValueChange = { nombre = it }, label = { Text("Nombre completo") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 OutlinedTextField(value = parentesco, onValueChange = { parentesco = it }, label = { Text("Parentesco") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 OutlinedTextField(value = telefono, onValueChange = { telefono = it.take(10) }, label = { Text("Telefono (10 digitos)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancelar", color = SaseNavy) }
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancelar", color = PortalText) }
                     Button(
                         onClick = { onConfirm(nombre, parentesco, telefono) },
                         enabled = nombre.isNotBlank() && parentesco.isNotBlank() && telefono.length == 10,
@@ -610,18 +606,18 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
     val horarioPreferenteComunicacion by vm.horarioPreferenteComunicacion.collectAsState()
     val puedeAcudirCitatorios by vm.puedeAcudirCitatorios.collectAsState()
 
-    Text("Contexto Familiar", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Contexto Familiar", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Text(
         "Esta información ayuda a la escuela a organizar apoyos y comunicación.",
         fontSize = 12.sp,
-        color = SaseMuted
+        color = PortalMuted
     )
 
-    Text("Médico Escolar", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Médico Escolar", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Text(
         "La familia declara esta informacion. Médico Escolar la validara y complementara despues.",
         fontSize = 12.sp,
-        color = SaseMuted
+        color = PortalMuted
     )
 
     Box(
@@ -635,7 +631,7 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
         Text(
             "Estos campos son opcionales y no bloquean el envio de la pre-solicitud.",
             fontSize = 11.sp,
-            color = SaseNavy,
+            color = PortalText,
             fontWeight = FontWeight.Medium
         )
     }
@@ -719,11 +715,11 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
     )
 
     Spacer(modifier = Modifier.height(8.dp))
-    Text("Trabajo Social", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Trabajo Social", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Text(
         "La familia declara información general. Trabajo Social complementará después información especializada o reservada.",
         fontSize = 12.sp,
-        color = SaseMuted
+        color = PortalMuted
     )
 
     FormField("Vive con quién", viveConQuien, { vm.setViveConQuien(it) }, false, null)
@@ -798,10 +794,10 @@ private fun UdeiiSection(vm: PreApplicationViewModel) {
     val portafolio by vm.udeiiPortafolio.collectAsState()
     val observaciones by vm.udeiiObservaciones.collectAsState()
 
-    Text("Apoyos Educativos Previos (UDEII)", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Apoyos Educativos Previos (UDEII)", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Text(
         "La familia declara antecedentes escolares. UDEII complementara despues la evaluacion funcional.",
-        fontSize = 12.sp, color = SaseMuted
+        fontSize = 12.sp, color = PortalMuted
     )
 
     Box(
@@ -810,28 +806,28 @@ private fun UdeiiSection(vm: PreApplicationViewModel) {
             .border(1.dp, SaseViolet.copy(alpha = 0.14f), RoundedCornerShape(12.dp))
             .padding(12.dp)
     ) {
-        Text("Estos campos son opcionales y no bloquean el envio.", fontSize = 11.sp, color = SaseNavy, fontWeight = FontWeight.Medium)
+        Text("Estos campos son opcionales y no bloquean el envio.", fontSize = 11.sp, color = PortalText, fontWeight = FontWeight.Medium)
     }
 
-    Text("Antecedente de apoyo", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Antecedente de apoyo", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
         listOf("USAER", "CAM", "Otro", "Ninguno").forEach { opt ->
             val selected = antecedenteApoyo == opt
             Box(
                 modifier = Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) SaseViolet else SaseBgSoft)
+                    .background(if (selected) SaseViolet else PortalCardBg)
                     .clickable { vm.setUdeiiAntecedenteApoyo(opt) }
                     .padding(vertical = 9.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(opt, color = if (selected) Color.White else SaseNavy,
+                Text(opt, color = if (selected) Color.White else PortalText,
                     fontSize = 10.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             }
         }
     }
 
     Spacer(modifier = Modifier.height(6.dp))
-    Text("Apoyos recibidos", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Apoyos recibidos", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
     DeclarativeCheckbox("Terapia de lenguaje", terapiaLenguaje, { vm.setUdeiiTerapiaLenguaje(it) })
     DeclarativeCheckbox("Apoyo psicologico externo", apoyoPsicologico, { vm.setUdeiiApoyoPsicologico(it) })
     DeclarativeCheckbox("Apoyo pedagogico externo", apoyoPedagogico, { vm.setUdeiiApoyoPedagogico(it) })
@@ -840,7 +836,7 @@ private fun UdeiiSection(vm: PreApplicationViewModel) {
     FormField("Documentos disponibles (descripcion)", documentosDisponibles, { vm.setUdeiiDocumentosDisponibles(it) }, false, null)
 
     Spacer(modifier = Modifier.height(6.dp))
-    Text("Documentacion educativa disponible", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+    Text("Documentacion educativa disponible", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
     DeclarativeCheckbox("Informe de escuela anterior", informeEscuelaAnterior, { vm.setUdeiiInformeEscuelaAnterior(it) })
     DeclarativeCheckbox("Evaluacion psicopedagogica", evaluacionPsicopedagogica, { vm.setUdeiiEvaluacionPsicopedagogica(it) })
     DeclarativeCheckbox("Plan de intervencion", planIntervencion, { vm.setUdeiiPlanIntervencion(it) })
@@ -868,13 +864,13 @@ private fun DeclarativeCheckbox(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(SaseBgSoft)
+            .background(PortalCardBg)
             .clickable { onCheckedChange(!checked) }
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
         Checkbox(checked = checked, onCheckedChange = onCheckedChange)
         Spacer(modifier = Modifier.width(6.dp))
-        Text(label, fontSize = 12.sp, color = SaseNavy, fontWeight = FontWeight.Medium)
+        Text(label, fontSize = 12.sp, color = PortalText, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -886,7 +882,7 @@ private fun CompactOptionGroup(
     onSelect: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
         options.chunked(3).forEach { rowItems ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                 rowItems.forEach { option ->
@@ -895,14 +891,14 @@ private fun CompactOptionGroup(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (isSelected) SaseNavy else SaseBgSoft)
+                            .background(if (isSelected) SaseNavy else PortalCardBg)
                             .clickable { onSelect(option) }
                             .padding(horizontal = 8.dp, vertical = 9.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             option,
-                            color = if (isSelected) Color.White else SaseNavy,
+                            color = if (isSelected) Color.White else PortalText,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
@@ -925,8 +921,8 @@ private fun StepDocumentos(vm: PreApplicationViewModel) {
     val consentimientos by vm.consentimientos.collectAsState()
     val errors by vm.errors.collectAsState()
 
-    Text("Documentos", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
-    Text("Indica los documentos que presentaras en Secretaria para cotejo.", fontSize = 12.sp, color = SaseMuted)
+    Text("Documentos", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    Text("Indica los documentos que presentaras en Secretaria para cotejo.", fontSize = 12.sp, color = PortalMuted)
 
     documentos.forEach { doc ->
         Row(
@@ -934,13 +930,13 @@ private fun StepDocumentos(vm: PreApplicationViewModel) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
-                .background(SaseBgSoft)
+                .background(PortalCardBg)
                 .clickable { vm.toggleDocumento(doc.key) }
                 .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
             Checkbox(checked = doc.declarado, onCheckedChange = { vm.toggleDocumento(doc.key) })
             Spacer(modifier = Modifier.width(6.dp))
-            Text(doc.label, fontSize = 12.sp, color = SaseNavy, fontWeight = FontWeight.Medium)
+            Text(doc.label, fontSize = 12.sp, color = PortalText, fontWeight = FontWeight.Medium)
         }
     }
 
@@ -959,8 +955,8 @@ private fun StepDocumentos(vm: PreApplicationViewModel) {
     }
 
     Spacer(modifier = Modifier.height(16.dp))
-    Text("Consentimientos", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
-    Text("Tu aceptacion es declarativa. Secretaria imprimira y recabara firma despues.", fontSize = 12.sp, color = SaseMuted)
+    Text("Consentimientos", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    Text("Tu aceptacion es declarativa. Secretaria imprimira y recabara firma despues.", fontSize = 12.sp, color = PortalMuted)
 
     consentimientos.forEach { cons ->
         val hasError = errors.containsKey("consentimiento${cons.key.replaceFirstChar { it.uppercaseChar() }}")
@@ -969,13 +965,13 @@ private fun StepDocumentos(vm: PreApplicationViewModel) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
-                .background(if (hasError) SaseRed.copy(alpha = 0.08f) else SaseBgSoft)
+                .background(if (hasError) SaseRed.copy(alpha = 0.08f) else PortalCardBg)
                 .clickable { vm.toggleConsentimiento(cons.key) }
                 .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
             Checkbox(checked = cons.aceptado, onCheckedChange = { vm.toggleConsentimiento(cons.key) })
             Spacer(modifier = Modifier.width(6.dp))
-            Text(cons.label, fontSize = 12.sp, color = SaseNavy, fontWeight = FontWeight.Medium)
+            Text(cons.label, fontSize = 12.sp, color = PortalText, fontWeight = FontWeight.Medium)
         }
     }
 
@@ -1006,8 +1002,8 @@ private fun StepResumenEnvio(vm: PreApplicationViewModel) {
     val responsableNombre by vm.responsableNombre.collectAsState()
     val responsableParentesco by vm.responsableParentesco.collectAsState()
 
-    Text("Resumen y Envio", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
-    Text("Revisa tus datos antes de enviar.", fontSize = 12.sp, color = SaseMuted)
+    Text("Resumen y Envio", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    Text("Revisa tus datos antes de enviar.", fontSize = 12.sp, color = PortalMuted)
 
     GlassCard {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1046,9 +1042,9 @@ private fun StepResumenEnvio(vm: PreApplicationViewModel) {
 }
 
 @Composable
-private fun SummaryLine(label: String, value: String, valueColor: Color = SaseNavy) {
+private fun SummaryLine(label: String, value: String, valueColor: Color = PortalText) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = SaseMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = PortalMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Text(value, color = valueColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
