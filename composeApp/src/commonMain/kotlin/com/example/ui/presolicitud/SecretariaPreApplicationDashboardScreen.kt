@@ -121,6 +121,10 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                             }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ReturnToDashboardButton(
+                                onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) },
+                                label = if (isMobile) "Inicio" else "Volver al inicio"
+                            )
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))

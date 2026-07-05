@@ -47,6 +47,20 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                 .fillMaxHeight(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                ReturnToDashboardButton(
+                    onClick = {
+                        familyViewModel.resetForm()
+                        viewModel.navigateTo(Screen.SecretaryDashboard)
+                    },
+                    label = "Cancelar y volver"
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
             // Header institucional
             Text(
                 text = "Pre-solicitud de Ingreso SASE",
@@ -133,7 +147,15 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                         Text("Atras", color = SaseNavy)
                     }
                 } else {
-                    Spacer(modifier = Modifier.width(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            familyViewModel.resetForm()
+                            viewModel.navigateTo(Screen.SecretaryDashboard)
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Cancelar", color = SaseNavy)
+                    }
                 }
 
                 if (isSubmitting) {
