@@ -999,7 +999,42 @@ class PreApplicationViewModel {
     fun setCicloEscolar(v: String) { _cicloEscolar.value = v }
     fun setGradoSolicitado(v: Int) { _gradoSolicitado.value = v }
     fun setNombreCompleto(v: String) { _nombreCompleto.value = v }
-    fun setCurp(v: String) { _curp.value = v.uppercase().take(18) }
+    fun setCurp(v: String) {
+        val upper = v.uppercase().take(18)
+        _curp.value = upper
+        if (upper.length == 18) {
+            autoFillFromCurp(upper)
+        }
+    }
+
+    private fun autoFillFromCurp(curp: String) {
+        val SexoMap = mapOf("H" to "Masculino", "M" to "Femenino")
+        val EntidadMap = mapOf(
+            "AS" to "Aguascalientes", "BC" to "Baja California", "BS" to "Baja California Sur",
+            "CC" to "Campeche", "CL" to "Coahuila", "CM" to "Colima", "CS" to "Chiapas",
+            "CH" to "Chihuahua", "DF" to "Ciudad de México", "DG" to "Durango", "GT" to "Guanajuato",
+            "GR" to "Guerrero", "HG" to "Hidalgo", "JC" to "Jalisco", "MC" to "México",
+            "MN" to "Michoacán", "MS" to "Morelos", "NT" to "Nayarit", "NL" to "Nuevo León",
+            "OC" to "Oaxaca", "PL" to "Puebla", "QT" to "Querétaro", "QR" to "Quintana Roo",
+            "SP" to "San Luis Potosí", "SL" to "Sinaloa", "SR" to "Sonora", "TC" to "Tabasco",
+            "TS" to "Tamaulipas", "TL" to "Tlaxcala", "VZ" to "Veracruz", "YN" to "Yucatán",
+            "ZS" to "Zacatecas", "NE" to "Nacido en el Extranjero"
+        )
+        try {
+            val yy = curp.substring(4, 6).toInt()
+            val mm = curp.substring(6, 8).toInt()
+            val dd = curp.substring(8, 10).toInt()
+            val year = if (yy > 50) 1900 + yy else 2000 + yy
+            if (mm in 1..12 && dd in 1..31) {
+                val meses = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
+                _fechaNacimiento.value = "$dd/${meses[mm - 1]}/$year"
+            }
+        } catch (_: Exception) { }
+        val sexoCode = curp.substring(10, 11)
+        SexoMap[sexoCode]?.let { _sexo.value = it }
+        val entidadCode = curp.substring(11, 13)
+        EntidadMap[entidadCode]?.let { _entidadNacimiento.value = it }
+    }
     fun setFechaNacimiento(v: String) { _fechaNacimiento.value = v }
     fun setSexo(v: String) { _sexo.value = v }
     fun setNacionalidad(v: String) { _nacionalidad.value = v }
