@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,9 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.*
 import com.example.util.LocalToast
-import com.example.ui.dashboard.LiquidGlassDashboard
 import com.example.ui.enrollment.SmartEnrollmentTable
-import com.example.ui.enrollment.digital.EnrollmentSummaryCard
 import com.example.ui.enrollment.digital.SecretariaEnrollmentDashboard
 import com.example.data.presolicitud.*
 import com.example.ui.student.StudentRecordScreen
@@ -179,6 +179,23 @@ fun LiquidGlassCard(
     }
 }
 
+@Composable
+fun ReturnToDashboardButton(
+    onClick: () -> Unit,
+    label: String = "Volver al inicio"
+) {
+    OutlinedButton(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, SaseBorder),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = SaseNavy)
+    ) {
+        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(label, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
+    }
+}
+
 
 
 // Side bar component
@@ -192,7 +209,7 @@ fun SaseSidebar(
         "Inicio" to Icons.Default.Home,
         "Inscripciones" to Icons.Default.School,
         "Portal Familia" to Icons.Default.Groups,
-        "Pre-Solicitudes" to Icons.Default.Assignment,
+        "Pre-Solicitudes" to Icons.AutoMirrored.Filled.Assignment,
         "Altas Oficiales" to Icons.Default.AssignmentTurnedIn,
         "Credenciales" to Icons.Default.Badge
     )
@@ -278,7 +295,7 @@ fun SaseSidebar(
         }
 
         // Bottom profile
-        Divider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
+        HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -578,9 +595,6 @@ fun SecretaryDashboardScreen(
 ) {
     val toast = LocalToast.current
     val students by viewModel.saseStudents.collectAsState()
-    val audits by viewModel.saseAudits.collectAsState()
-
-    var dashboardFilter by remember { mutableStateOf("Todos") }
 
     var showNewStudentDialog by remember { mutableStateOf(false) }
     var newStudentName by remember { mutableStateOf("") }
@@ -683,49 +697,17 @@ fun SecretaryDashboardScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Centralized Holographic / Liquid Glass Dashboard Component
-                LiquidGlassDashboard(
-                    students = students,
-                    selectedFilter = dashboardFilter,
-                    onFilterSelect = { filter ->
-                        dashboardFilter = filter
-                        toast("Filtrando expedientes: $filter")
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                SimpleDashboardSummary(students = students)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                EnrollmentSummaryCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    onOpenModule = { viewModel.navigateTo(Screen.EnrollmentDashboard) }
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Filter students list dynamically based on active dashboard filter selection
-                val dashboardFilteredStudents = remember(students, dashboardFilter) {
-                    when (dashboardFilter) {
-                        "Activos" -> students.filter { it.status == "Activo" || it.status == "Nuevo ingreso" }
-                        "Pendientes" -> students.filter { it.documentationStatus != "Completa" || it.documents.any { doc -> doc.status == "Pendiente" } }
-                        "Riesgo" -> students.filter { it.riskLevel == "Alto" || it.riskLevel == "Medio" }
-                        "Asistencia" -> students.filter { it.attendancePercent >= 90 }
-                        else -> students
-                    }
-                }
-
-                // Smart enrollment table with search filters
                 SmartEnrollmentTable(
-                    students = dashboardFilteredStudents,
+                    students = students,
                     onStudentClick = { id -> viewModel.navigateTo(Screen.StudentRecord(id)) },
                     onRegisterObsClick = { student ->
-                        toast("Opción para ${student.fullName}")
+                        viewModel.navigateTo(Screen.StudentRecord(student.id))
                     }
                 )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                ActivityAuditFeed(audits = audits, modifier = Modifier.fillMaxWidth())
             }
         }
 
@@ -906,6 +888,55 @@ fun SecretaryDashboardScreen(
         }
     }
 }
+
+@Composable
+private fun SimpleDashboardSummary(students: List<Student>) {
+    val pendingDocs = students.count { student ->
+        student.documentationStatus != "Completa" || student.documents.any { it.status == "Pendiente" }
+    }
+    val risk = students.count { it.riskLevel == "Alto" || it.riskLevel == "Medio" }
+    val highAttendance = students.count { it.attendancePercent >= 90 }
+    val active = students.count { it.status == "Activo" || it.status == "Nuevo ingreso" }
+
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Text("Resumen rapido", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
+        Spacer(modifier = Modifier.height(12.dp))
+        BoxWithConstraints {
+            val compact = maxWidth < 680.dp
+            val items = listOf(
+                Triple("Alumnos", students.size.toString(), SaseBlue),
+                Triple("Activos", active.toString(), SaseGreen),
+                Triple("Docs pendientes", pendingDocs.toString(), SaseOrange),
+                Triple("Riesgo", risk.toString(), SaseRed),
+                Triple("Asistencia 90%+", highAttendance.toString(), SaseCyan)
+            )
+
+            if (compact) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items.forEach { item -> SimpleDashboardMetric(item, Modifier.fillMaxWidth()) }
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    items.forEach { item -> SimpleDashboardMetric(item, Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SimpleDashboardMetric(item: Triple<String, String, Color>, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(item.third.copy(alpha = 0.09f))
+            .border(1.dp, item.third.copy(alpha = 0.18f), RoundedCornerShape(14.dp))
+            .padding(12.dp)
+    ) {
+        Text(item.second, color = item.third, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+        Text(item.first, color = SaseMuted, fontSize = 11.sp, maxLines = 1)
+    }
+}
 @Composable
 fun PillStat(label: String, color: Color) {
     Box(
@@ -930,7 +961,7 @@ fun DataRow(label: String, value: String) {
         Text(label, color = SaseMuted, fontSize = 11.sp)
         Text(value, color = SaseText, fontWeight = FontWeight.Bold, fontSize = 11.sp)
     }
-    Divider(color = SaseBorder.copy(alpha = 0.05f))
+    HorizontalDivider(color = SaseBorder.copy(alpha = 0.05f))
 }
 
 @Composable
@@ -1034,7 +1065,10 @@ fun EnrollmentDashboardScreen(
                             )
                         }
                     }
-
+                    ReturnToDashboardButton(
+                        onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) },
+                        label = if (isMobile) "Inicio" else "Volver al inicio"
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
@@ -1229,6 +1263,10 @@ fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ReturnToDashboardButton(
+                            onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) },
+                            label = if (isMobile) "Inicio" else "Volver al inicio"
+                        )
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
