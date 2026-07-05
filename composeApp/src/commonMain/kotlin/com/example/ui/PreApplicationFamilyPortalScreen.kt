@@ -112,6 +112,12 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
 
             // Form card
             val scrollState = rememberScrollState()
+            val coroutineScope = rememberCoroutineScope()
+            LaunchedEffect(currentStep) {
+                if (currentStep > 0) {
+                    scrollState.animateScrollTo(0)
+                }
+            }
             GlassCard(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 Column(
                     modifier = Modifier
@@ -170,11 +176,9 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                 if (isSubmitting) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                 } else if (currentStep < 4) {
-                    val coroutineScope = rememberCoroutineScope()
                     Button(
                         onClick = {
                             familyViewModel.nextStep()
-                            coroutineScope.launch { scrollState.animateScrollTo(0) }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
                         shape = RoundedCornerShape(12.dp)
@@ -372,7 +376,7 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
     Text("Fecha de nacimiento", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
     val dias = (1..31).map { it.toString().padStart(2, '0') }
     val meses = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
-    val anios = (2010 downTo 2000).map { it.toString() }
+    val anios = (2015 downTo 2000).map { it.toString() }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         DropdownField("Día", diaNac, dias, { vm.setDiaNacimiento(it) }, modifier = Modifier.weight(1f))
         DropdownField("Mes", mesNac, meses, { vm.setMesNacimiento(it) }, modifier = Modifier.weight(1f))
@@ -746,11 +750,14 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
     )
 
     Text("¿Con quién vive el alumno?", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
-    DeclarativeCheckbox("Madre", viveConQuien.contains("Madre"), { vm.setViveConQuien(if (it) "Madre" else "") })
-    DeclarativeCheckbox("Padre", viveConQuien.contains("Padre"), { vm.setViveConQuien(if (it) "Padre" else "") })
-    DeclarativeCheckbox("Abuelos", viveConQuien.contains("Abuelos"), { vm.setViveConQuien(if (it) "Abuelos" else "") })
-    DeclarativeCheckbox("Tutor", viveConQuien.contains("Tutor"), { vm.setViveConQuien(if (it) "Tutor" else "") })
-    DeclarativeCheckbox("Otro", viveConQuien.contains("Otro"), { vm.setViveConQuien(if (it) "Otro" else "") })
+    listOf("Madre", "Padre", "Abuelos", "Tutor", "Otro").forEach { opt ->
+        val checked = viveConQuien.split(",").map { it.trim() }.filter { it.isNotEmpty() }.contains(opt)
+        DeclarativeCheckbox(opt, checked, {
+            val current = viveConQuien.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+            if (it) current.add(opt) else current.remove(opt)
+            vm.setViveConQuien(current.joinToString(", "))
+        })
+    }
 
     Text("Tipo de familia", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
     DeclarativeCheckbox("Nuclear", tipoFamilia == "Nuclear", { vm.setTipoFamilia(if (it) "Nuclear" else "") })
@@ -767,10 +774,14 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
     FormField("Integrantes del hogar", integrantesHogar, { vm.setIntegrantesHogar(it) }, false, null)
 
     Text("Principal sostén económico", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
-    DeclarativeCheckbox("Madre", principalSostenEconomico.contains("Madre"), { vm.setPrincipalSostenEconomico(if (it) "Madre" else "") })
-    DeclarativeCheckbox("Padre", principalSostenEconomico.contains("Padre"), { vm.setPrincipalSostenEconomico(if (it) "Padre" else "") })
-    DeclarativeCheckbox("Ambos", principalSostenEconomico.contains("Ambos"), { vm.setPrincipalSostenEconomico(if (it) "Ambos" else "") })
-    DeclarativeCheckbox("Otro", principalSostenEconomico.contains("Otro"), { vm.setPrincipalSostenEconomico(if (it) "Otro" else "") })
+    listOf("Madre", "Padre", "Ambos", "Otro").forEach { opt ->
+        val checked = principalSostenEconomico.split(",").map { it.trim() }.filter { it.isNotEmpty() }.contains(opt)
+        DeclarativeCheckbox(opt, checked, {
+            val current = principalSostenEconomico.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+            if (it) current.add(opt) else current.remove(opt)
+            vm.setPrincipalSostenEconomico(current.joinToString(", "))
+        })
+    }
 
     CompactOptionGroup(
         label = "Ingreso familiar por rangos",

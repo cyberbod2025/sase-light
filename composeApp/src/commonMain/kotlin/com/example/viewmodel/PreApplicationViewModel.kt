@@ -1065,8 +1065,18 @@ class PreApplicationViewModel {
                 _mesNacimiento.value = meses[mm - 1]
                 _anioNacimiento.value = year.toString()
                 rebuildFechaNacimiento()
+            } else {
+                _diaNacimiento.value = ""
+                _mesNacimiento.value = ""
+                _anioNacimiento.value = ""
+                _fechaNacimiento.value = ""
             }
-        } catch (_: Exception) { }
+        } catch (_: Exception) {
+            _diaNacimiento.value = ""
+            _mesNacimiento.value = ""
+            _anioNacimiento.value = ""
+            _fechaNacimiento.value = ""
+        }
         val sexoCode = curp.substring(10, 11)
         SexoMap[sexoCode]?.let { _sexo.value = it }
         val entidadCode = curp.substring(11, 13)
@@ -1174,7 +1184,8 @@ class PreApplicationViewModel {
         val errs = mutableMapOf<String, String>()
         when (step) {
             0 -> {
-                if (_nombreCompleto.value.isBlank()) errs["nombre"] = "Obligatorio"
+                if (_apellidoPaterno.value.isBlank()) errs["apellidoPaterno"] = "Apellido paterno obligatorio"
+                if (_nombre.value.isBlank()) errs["nombre"] = "Nombre(s) obligatorio"
                 if (_curp.value.length != 18) errs["curp"] = "CURP debe tener 18 caracteres"
                 if (_fechaNacimiento.value.isBlank()) errs["fechaNac"] = "Obligatorio"
                 if (_gradoSolicitado.value == 0) errs["grado"] = "Selecciona un grado"
@@ -1199,7 +1210,8 @@ class PreApplicationViewModel {
 
     fun submitApplication() {
         val errs = mutableMapOf<String, String>()
-        if (_nombreCompleto.value.isBlank()) errs["nombre"] = "Obligatorio"
+        if (_apellidoPaterno.value.isBlank()) errs["apellidoPaterno"] = "Apellido paterno obligatorio"
+        if (_nombre.value.isBlank()) errs["nombre"] = "Nombre(s) obligatorio"
         if (_curp.value.length != 18) errs["curp"] = "CURP debe tener 18 caracteres"
         if (_fechaNacimiento.value.isBlank()) errs["fechaNac"] = "Obligatorio"
         if (_gradoSolicitado.value == 0) errs["grado"] = "Selecciona un grado"
