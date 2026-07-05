@@ -1120,72 +1120,80 @@ fun EnrollmentDashboardScreen(
 fun SaseAppContent(viewModel: LabViewModel) {
     val currentScreen by viewModel.currentScreen.collectAsState()
     val currentRole by viewModel.userRole.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val toast: (String) -> Unit = { msg ->
+        scope.launch { snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short) }
+    }
 
-    Scaffold(
-        containerColor = SaseNavy
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            AnimatedContent(
-                targetState = currentScreen,
-                transitionSpec = {
-                    fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(220))
-                },
-                label = "ScreenTransition"
-            ) { screen ->
-                when (screen) {
-                    is Screen.SecretaryDashboard -> SecretaryDashboardScreen(
-                        viewModel = viewModel
-                    )
-                    is Screen.StudentRecord -> StudentRecordScreen(
-                        studentId = screen.studentId,
-                        viewModel = viewModel,
-                        userRole = currentRole
-                    )
-                    is Screen.EnrollmentDashboard -> EnrollmentDashboardScreen(
-                        viewModel = viewModel
-                    )
-                    is Screen.PreApplicationFamilyPortal -> PreApplicationFamilyPortalScreen(
-                        viewModel = viewModel
-                    )
-                    is Screen.SecretariaPreApplicationDashboard -> SecretariaPreApplicationDashboardScreen(
-                        viewModel = viewModel
-                    )
-                    is Screen.OfficialEnrollmentDashboard -> OfficialEnrollmentDashboardScreen(
-                        viewModel = viewModel
-                    )
-                    is Screen.CredentialPreview -> CredentialPreviewScreen(
-                        studentId = screen.studentId,
-                        viewModel = viewModel
-                    )
-                    is Screen.StudentCredentialDashboard -> StudentCredentialDashboardScreen(
-                        viewModel = viewModel
-                    )
-                }
-            }
-
-            // Compact dev role toggle — hidden in production
+    CompositionLocalProvider(LocalToast provides toast) {
+        Scaffold(
+            containerColor = SaseNavy,
+            snackbarHost = { SnackbarHost(snackbarHostState) }
+        ) { innerPadding ->
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(SaseNavy2.copy(alpha = 0.5f))
-                    .clickable {
-                        val roles = AppRole.entries.toTypedArray()
-                        val nextIndex = (roles.indexOf(currentRole) + 1) % roles.size
-                        viewModel.setRole(roles[nextIndex])
-                    }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .fillMaxSize()
+                    .padding(innerPadding)
             ) {
-                Text(
-                    text = "${currentRole.label}",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 9.sp
-                )
+                AnimatedContent(
+                    targetState = currentScreen,
+                    transitionSpec = {
+                        fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(220))
+                    },
+                    label = "ScreenTransition"
+                ) { screen ->
+                    when (screen) {
+                        is Screen.SecretaryDashboard -> SecretaryDashboardScreen(
+                            viewModel = viewModel
+                        )
+                        is Screen.StudentRecord -> StudentRecordScreen(
+                            studentId = screen.studentId,
+                            viewModel = viewModel,
+                            userRole = currentRole
+                        )
+                        is Screen.EnrollmentDashboard -> EnrollmentDashboardScreen(
+                            viewModel = viewModel
+                        )
+                        is Screen.PreApplicationFamilyPortal -> PreApplicationFamilyPortalScreen(
+                            viewModel = viewModel
+                        )
+                        is Screen.SecretariaPreApplicationDashboard -> SecretariaPreApplicationDashboardScreen(
+                            viewModel = viewModel
+                        )
+                        is Screen.OfficialEnrollmentDashboard -> OfficialEnrollmentDashboardScreen(
+                            viewModel = viewModel
+                        )
+                        is Screen.CredentialPreview -> CredentialPreviewScreen(
+                            studentId = screen.studentId,
+                            viewModel = viewModel
+                        )
+                        is Screen.StudentCredentialDashboard -> StudentCredentialDashboardScreen(
+                            viewModel = viewModel
+                        )
+                    }
+                }
+
+                // Compact dev role toggle — hidden in production
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SaseNavy2.copy(alpha = 0.5f))
+                        .clickable {
+                            val roles = AppRole.entries.toTypedArray()
+                            val nextIndex = (roles.indexOf(currentRole) + 1) % roles.size
+                            viewModel.setRole(roles[nextIndex])
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "${currentRole.label}",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 9.sp
+                    )
+                }
             }
         }
     }
