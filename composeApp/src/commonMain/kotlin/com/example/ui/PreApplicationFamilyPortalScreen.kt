@@ -63,7 +63,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
 
             // Header institucional
             Text(
-                text = "Pre-solicitud de Ingreso SASE",
+                text = "Pre-registro y Reinscripción SASE",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = SaseNavy
@@ -74,7 +74,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                 color = SaseMuted
             )
             Text(
-                text = "Este formulario no confirma inscripción oficial. Secretaría validará documentos y datos.",
+                text = "Al enviarlo recibirás un folio/código. Secretaría lo usará para abrir, revisar y convertir el trámite en registro oficial si procede.",
                 fontSize = 11.sp,
                 color = SaseOrange,
                 textAlign = TextAlign.Center,
@@ -193,9 +193,9 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                 ) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SaseGreen, modifier = Modifier.size(64.dp))
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("Pre-solicitud Enviada", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
+                    Text("Pre-registro enviado", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SaseNavy)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Guarda este folio para continuar tu tramite:", textAlign = TextAlign.Center, color = SaseMuted, fontSize = 13.sp)
+                    Text("Guarda este folio/código para que Secretaría pueda localizar tu trámite:", textAlign = TextAlign.Center, color = SaseMuted, fontSize = 13.sp)
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Box(
@@ -211,15 +211,15 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "Guarda este folio.",
+                            text = "Este folio no es matrícula ni inscripción oficial.",
                             fontSize = 12.sp, color = SaseNavy, fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Presentate en Secretaria con documentos originales y copias.",
+                            text = "Preséntate en Secretaría con documentos originales y copias, o proporciona este código para que localicen tu pre-registro.",
                             textAlign = TextAlign.Center, fontSize = 11.sp, color = SaseMuted
                         )
                         Text(
-                            text = "Secretaria validara la informacion y finalizara el alta oficial si procede.",
+                            text = "Secretaría revisará, podrá solicitar correcciones y continuará con el registro o alta oficial si procede.",
                             textAlign = TextAlign.Center, fontSize = 11.sp, color = SaseMuted
                         )
                         Spacer(modifier = Modifier.height(4.dp))
@@ -228,7 +228,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                                 .background(SaseOrange.copy(alpha = 0.1f)).padding(8.dp)
                         ) {
                             Text(
-                                "No se ha generado matricula oficial.",
+                                "No se ha generado matrícula oficial.",
                                 textAlign = TextAlign.Center, fontSize = 11.sp, color = SaseOrange, fontWeight = FontWeight.Bold
                             )
                         }
