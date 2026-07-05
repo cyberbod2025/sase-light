@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -192,7 +193,7 @@ fun SaseSidebar(
         "Inicio" to Icons.Default.Home,
         "Inscripciones" to Icons.Default.School,
         "Portal Familia" to Icons.Default.Groups,
-        "Pre-Solicitudes" to Icons.Default.Assignment,
+        "Pre-Solicitudes" to Icons.AutoMirrored.Filled.Assignment,
         "Altas Oficiales" to Icons.Default.AssignmentTurnedIn,
         "Credenciales" to Icons.Default.Badge
     )
@@ -278,7 +279,7 @@ fun SaseSidebar(
         }
 
         // Bottom profile
-        Divider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
+        HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -930,7 +931,7 @@ fun DataRow(label: String, value: String) {
         Text(label, color = SaseMuted, fontSize = 11.sp)
         Text(value, color = SaseText, fontWeight = FontWeight.Bold, fontSize = 11.sp)
     }
-    Divider(color = SaseBorder.copy(alpha = 0.05f))
+    HorizontalDivider(color = SaseBorder.copy(alpha = 0.05f))
 }
 
 @Composable

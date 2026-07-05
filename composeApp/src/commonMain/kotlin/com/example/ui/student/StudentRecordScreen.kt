@@ -24,12 +24,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Assignment
-import androidx.compose.material.icons.filled.CallSplit
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
@@ -40,8 +40,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalDrawerSheet
@@ -153,7 +153,7 @@ fun StudentRecordScreen(
                                 Icon(Icons.Default.Menu, contentDescription = "Menú", tint = SaseNavy)
                             }
                             IconButton(onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) }) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Regresar", tint = SaseNavy)
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = SaseNavy)
                             }
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Expediente", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = SaseNavy)
@@ -192,7 +192,7 @@ fun StudentRecordScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) }) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Regresar", tint = SaseNavy)
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = SaseNavy)
                             }
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Expediente del Alumno", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = SaseNavy)
@@ -338,7 +338,7 @@ fun StudentRecordScreen(
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
-                    Divider(color = SaseBorder.copy(alpha = 0.08f))
+                    HorizontalDivider(color = SaseBorder.copy(alpha = 0.08f))
                     Spacer(modifier = Modifier.height(10.dp))
 
                     // Pills Row (Riesgo, BAP, Seguro, Documentos)
@@ -440,7 +440,7 @@ fun StudentRecordScreen(
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 CircularProgressIndicator(
-                                                    progress = student.attendancePercent / 100f,
+                                                    progress = { student.attendancePercent / 100f },
                                                     color = SaseGreen,
                                                     trackColor = SaseBgSoft,
                                                     strokeWidth = 6.dp,
@@ -502,7 +502,7 @@ fun StudentRecordScreen(
                                                         Text(incident.status, color = if (incident.status == "Atendida") SaseGreenDark else SaseOrange, fontWeight = FontWeight.Bold, fontSize = 9.sp)
                                                     }
                                                 }
-                                                Divider(color = SaseBorder.copy(alpha = 0.05f))
+                                                HorizontalDivider(color = SaseBorder.copy(alpha = 0.05f))
                                             }
                                         }
                                     }
@@ -545,7 +545,7 @@ fun StudentRecordScreen(
                                                     Text(doc.status, color = SaseGreenDark, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                                                 }
                                             }
-                                            Divider(color = SaseBorder.copy(alpha = 0.05f))
+                                            HorizontalDivider(color = SaseBorder.copy(alpha = 0.05f))
                                         }
                                     }
 
@@ -562,7 +562,7 @@ fun StudentRecordScreen(
                                                     Spacer(modifier = Modifier.height(4.dp))
                                                     Text("Registrado por: ${obs.author} · ${obs.date} · [${obs.category}]", color = SaseMuted, fontWeight = FontWeight.Bold, fontSize = 9.sp)
                                                 }
-                                                Divider(color = SaseBorder.copy(alpha = 0.05f))
+                                                HorizontalDivider(color = SaseBorder.copy(alpha = 0.05f))
                                             }
                                         }
                                     }
@@ -618,7 +618,7 @@ fun StudentRecordScreen(
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     CircularProgressIndicator(
-                                                        progress = student.attendancePercent / 100f,
+                                                        progress = { student.attendancePercent / 100f },
                                                         color = SaseGreen,
                                                         trackColor = SaseBgSoft,
                                                         strokeWidth = 6.dp,
@@ -685,7 +685,7 @@ fun StudentRecordScreen(
                                                             Text(incident.status, color = if (incident.status == "Atendida") SaseGreenDark else SaseOrange, fontWeight = FontWeight.Bold, fontSize = 9.sp)
                                                         }
                                                     }
-                                                    Divider(color = SaseBorder.copy(alpha = 0.05f))
+                                                    HorizontalDivider(color = SaseBorder.copy(alpha = 0.05f))
                                                 }
                                             }
                                         }
@@ -733,7 +733,7 @@ fun StudentRecordScreen(
                                                         Text(doc.status, color = SaseGreenDark, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                                                     }
                                                 }
-                                                Divider(color = SaseBorder.copy(alpha = 0.05f))
+                                                HorizontalDivider(color = SaseBorder.copy(alpha = 0.05f))
                                             }
                                         }
 
@@ -750,7 +750,7 @@ fun StudentRecordScreen(
                                                         Spacer(modifier = Modifier.height(4.dp))
                                                         Text("Registrado por: ${obs.author} · ${obs.date} · [${obs.category}]", color = SaseMuted, fontWeight = FontWeight.Bold, fontSize = 9.sp)
                                                     }
-                                                    Divider(color = SaseBorder.copy(alpha = 0.05f))
+                                                    HorizontalDivider(color = SaseBorder.copy(alpha = 0.05f))
                                                 }
                                             }
                                         }
@@ -814,7 +814,7 @@ fun StudentRecordScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         CircularProgressIndicator(
-                                            progress = student.attendancePercent / 100f,
+                                            progress = { student.attendancePercent / 100f },
                                             color = SaseGreen,
                                             trackColor = SaseBgSoft,
                                             strokeWidth = 8.dp,
@@ -1005,7 +1005,7 @@ fun StudentRecordScreen(
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Default.Comment, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Icon(Icons.AutoMirrored.Filled.Comment, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Agregar observación", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
@@ -1016,7 +1016,7 @@ fun StudentRecordScreen(
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.weight(1.2f)
                         ) {
-                            Icon(Icons.Default.Assignment, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Icon(Icons.AutoMirrored.Filled.Assignment, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Generar documento", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
@@ -1027,7 +1027,7 @@ fun StudentRecordScreen(
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Icon(Icons.AutoMirrored.Filled.CallSplit, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Escalar caso", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
@@ -1277,7 +1277,7 @@ fun StudentRecordScreen(
                             Icon(Icons.Default.Description, contentDescription = null, tint = SaseCyan, modifier = Modifier.size(18.dp))
                             Text(name, color = SaseText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
-                        Divider(color = SaseBorder.copy(alpha = 0.05f))
+                        HorizontalDivider(color = SaseBorder.copy(alpha = 0.05f))
                     }
 
                     TextButton(

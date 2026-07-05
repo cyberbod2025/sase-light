@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -63,7 +64,7 @@ fun CredentialPreviewScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { viewModel.navigateTo(Screen.StudentRecord(studentId)) }) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Regresar", tint = SaseNavy)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = SaseNavy)
                 }
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Credencial Escolar", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = SaseNavy)
@@ -130,7 +131,7 @@ fun CredentialPreviewScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Default.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Volver al expediente", color = SaseNavy, fontSize = 12.sp)
             }
