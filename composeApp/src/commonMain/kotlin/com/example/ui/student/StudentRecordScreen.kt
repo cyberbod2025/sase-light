@@ -783,13 +783,17 @@ fun StudentRecordScreen(
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text("Contacto alterno / Emergencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 13.sp)
                                 Spacer(modifier = Modifier.height(6.dp))
-                                TutorItem(
-                                    name = "Luis Hernández Vargas",
-                                    relation = "Tío",
-                                    phone = "55 9876 5432",
-                                    email = "luish@example.com",
-                                    onCall = { toast("Llamando a contacto alterno...") }
-                                )
+                                if (student.emergencyContactName.isNotBlank()) {
+                                    TutorItem(
+                                        name = student.emergencyContactName,
+                                        relation = student.emergencyContactRelation,
+                                        phone = student.emergencyContactPhone,
+                                        email = student.emergencyContactEmail,
+                                        onCall = { toast("Llamando a contacto alterno...") }
+                                    )
+                                } else {
+                                    Text("No registrado", color = SaseMuted, fontSize = 12.sp)
+                                }
                             }
                         }
 
