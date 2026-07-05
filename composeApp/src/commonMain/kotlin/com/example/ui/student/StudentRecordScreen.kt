@@ -134,6 +134,16 @@ fun StudentRecordScreen(
         val isMobile = maxWidth < 850.dp
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         val scope = rememberCoroutineScope()
+        val navigateFromSidebar: (String) -> Unit = { item ->
+            when (item) {
+                "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
+                "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
+                "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
+                "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
+                "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
+                "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
+            }
+        }
 
         val recordContent = @Composable {
             Column(
@@ -1301,7 +1311,8 @@ fun StudentRecordScreen(
                     ) {
                         SaseSidebar(
                             activeItem = "Expedientes",
-                            modifier = Modifier.fillMaxHeight()
+                            modifier = Modifier.fillMaxHeight(),
+                            onItemClick = navigateFromSidebar
                         )
                     }
                 }
@@ -1312,7 +1323,8 @@ fun StudentRecordScreen(
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
                     activeItem = "Expedientes",
-                    modifier = Modifier.width(260.dp)
+                    modifier = Modifier.width(260.dp),
+                    onItemClick = navigateFromSidebar
                 )
                 Box(modifier = Modifier.weight(1f)) {
                     recordContent()
