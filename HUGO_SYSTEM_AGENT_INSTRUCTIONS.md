@@ -69,13 +69,19 @@ Start:
 
 ```powershell
 cd C:\HUGO_SYSTEM\Projects\sase-light
+git status --short
+```
+
+If `git status --short` is not clean, stop and report before changing branches or pulling.
+
+When clean:
+
+```powershell
 git checkout main
 git pull origin main
 git status --short
 .\gradlew.bat :composeApp:desktopTest --no-daemon
 ```
-
-If `git status --short` is not clean, stop and report.
 
 Create one branch per microtask:
 
