@@ -105,13 +105,13 @@ fun SecretariaEnrollmentDashboard(
         ) {
             Column {
                 Text(
-                    text = "Inscripcion Digital / Expediente Maestro",
+                    text = "Inscripción Digital / Expediente Maestro",
                     color = SaseNavy,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
                 Text(
-                    text = "Base mock para Secretaria: captura, revision documental y firma",
+                    text = "Base mock para Secretaría: captura, revisión documental y firma",
                     color = SaseMuted,
                     fontSize = 11.sp
                 )
@@ -211,7 +211,7 @@ fun EnrollmentSummaryCard(
 private fun EnrollmentSummaryHeader(modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Text(
-            text = "Inscripcion Digital",
+            text = "Inscripción Digital",
             color = SaseNavy,
             fontSize = 16.sp,
             fontWeight = FontWeight.ExtraBold
@@ -240,7 +240,7 @@ private fun EnrollmentOpenButton(
         shape = RoundedCornerShape(14.dp),
         modifier = modifier.height(40.dp)
     ) {
-        Text("Abrir modulo", fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
+        Text("Abrir módulo", fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
         Spacer(modifier = Modifier.width(6.dp))
         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
     }
@@ -479,13 +479,13 @@ private fun DatosTab(enrollment: Enrollment) {
                 value = "${contact.fullName} - ${contact.phone}"
             )
         }
-        SectionTitle("Ficha medica")
+        SectionTitle("Ficha médica")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             MedicalChip("Sangre ${enrollment.medicalRecord.bloodType}", Icons.Default.HealthAndSafety, SaseRed, Modifier.weight(1f))
             MedicalChip(enrollment.medicalRecord.chronicConditions, Icons.Default.Warning, SaseOrange, Modifier.weight(1f))
         }
         DetailLine("Alergias", enrollment.medicalRecord.allergies)
-        DetailLine("Medicacion", enrollment.medicalRecord.medication)
+        DetailLine("Medicación", enrollment.medicalRecord.medication)
     }
 }
 
@@ -542,7 +542,7 @@ private fun PresenterSection(presenter: EnrollmentPresenter?) {
                     IdentityBadge("Puede recoger", true)
                 }
             }
-            DetailLine("Telefono", presenter.phone)
+            DetailLine("Teléfono", presenter.phone)
             DetailLine("Registrado", "${presenter.registeredBy} — ${presenter.createdAt}")
         }
     }
@@ -596,7 +596,7 @@ private fun AuthorizedPickupsSection(pickups: List<AuthorizedPickup>) {
 
 @Composable
 private fun ValidationSection(checklist: IdentityChecklist) {
-    SectionTitleWithIcon("Validacion de identidad", Icons.Default.Shield, SaseCyan)
+    SectionTitleWithIcon("Validación de identidad", Icons.Default.Shield, SaseCyan)
 
     val items = listOf(
         "Alumno fotografiado" to checklist.studentPhotographed,
@@ -641,7 +641,7 @@ private fun IdentityChecklistRow(label: String, ok: Boolean) {
 @Composable
 private fun CredentialSection(enrollment: Enrollment) {
     val ready = enrollment.identityChecklist.expedienteComplete && enrollment.photoForCredential
-    SectionTitleWithIcon("Credencializacion", Icons.Default.Badge, if (ready) SaseGreen else SaseOrange)
+    SectionTitleWithIcon("Credencialización", Icons.Default.Badge, if (ready) SaseGreen else SaseOrange)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -749,7 +749,7 @@ private fun enrollmentStatusColor(status: EnrollmentStatus): Color = when (statu
 
 private fun enrollmentStatusLabel(status: EnrollmentStatus): String = when (status) {
     EnrollmentStatus.Submitted -> "Recibido"
-    EnrollmentStatus.InReview -> "En revision"
+    EnrollmentStatus.InReview -> "En revisión"
     EnrollmentStatus.MissingDocuments -> "Faltan docs"
     EnrollmentStatus.ReadyToSign -> "Listo firma"
     EnrollmentStatus.Completed -> "Completo"

@@ -899,7 +899,7 @@ private fun SimpleDashboardSummary(students: List<Student>) {
     val active = students.count { it.status == "Activo" || it.status == "Nuevo ingreso" }
 
     GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Text("Resumen rapido", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
+        Text("Resumen rápido", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
         Spacer(modifier = Modifier.height(12.dp))
         BoxWithConstraints {
             val compact = maxWidth < 680.dp
@@ -1053,13 +1053,13 @@ fun EnrollmentDashboardScreen(
                         }
                         Column {
                             Text(
-                                text = "Inscripcion Digital",
+                                text = "Inscripción Digital",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = if (isMobile) 20.sp else 24.sp,
                                 color = SaseNavy
                             )
                             Text(
-                                text = "Expediente maestro y validacion documental",
+                                text = "Expediente maestro y validación documental",
                                 fontSize = if (isMobile) 11.sp else 12.sp,
                                 color = SaseMuted
                             )

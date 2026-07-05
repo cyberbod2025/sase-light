@@ -271,7 +271,7 @@ private fun CredentialCard(preview: StudentCredentialPreview) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "SASE Light \u2014 Credencial de identifiaci\u00f3n escolar",
+                    "SASE Light \u2014 Credencial de identificaci\u00f3n escolar",
                     fontSize = 8.sp,
                     color = Color.White.copy(alpha = .35f),
                     letterSpacing = 1.sp,
