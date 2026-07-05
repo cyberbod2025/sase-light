@@ -175,16 +175,6 @@ fun StudentRecordScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Button(
-                                onClick = { toast("Edición de expediente no disponible en esta versión") },
-                                colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Editar", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
-                            }
-                            Button(
                                 onClick = { showDocumentDialog = true },
                                 colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
                                 shape = RoundedCornerShape(12.dp),
@@ -211,15 +201,6 @@ fun StudentRecordScreen(
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = { toast("Edición de expediente no disponible en esta versión") },
-                                colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Editar expediente", fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                            }
                             Button(
                                 onClick = { showDocumentDialog = true },
                                 colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
