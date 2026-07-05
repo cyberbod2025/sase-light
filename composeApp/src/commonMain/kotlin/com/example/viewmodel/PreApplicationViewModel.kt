@@ -726,6 +726,15 @@ class PreApplicationViewModel {
     private val _gradoSolicitado = MutableStateFlow(0)
     val gradoSolicitado: StateFlow<Int> = _gradoSolicitado.asStateFlow()
 
+    private val _apellidoPaterno = MutableStateFlow("")
+    val apellidoPaterno: StateFlow<String> = _apellidoPaterno.asStateFlow()
+
+    private val _apellidoMaterno = MutableStateFlow("")
+    val apellidoMaterno: StateFlow<String> = _apellidoMaterno.asStateFlow()
+
+    private val _nombre = MutableStateFlow("")
+    val nombre: StateFlow<String> = _nombre.asStateFlow()
+
     private val _nombreCompleto = MutableStateFlow("")
     val nombreCompleto: StateFlow<String> = _nombreCompleto.asStateFlow()
 
@@ -998,7 +1007,23 @@ class PreApplicationViewModel {
     fun setTipoTramite(v: String) { _tipoTramite.value = v }
     fun setCicloEscolar(v: String) { _cicloEscolar.value = v }
     fun setGradoSolicitado(v: Int) { _gradoSolicitado.value = v }
+    fun setApellidoPaterno(v: String) {
+        _apellidoPaterno.value = v
+        rebuildNombreCompleto()
+    }
+    fun setApellidoMaterno(v: String) {
+        _apellidoMaterno.value = v
+        rebuildNombreCompleto()
+    }
+    fun setNombre(v: String) {
+        _nombre.value = v
+        rebuildNombreCompleto()
+    }
     fun setNombreCompleto(v: String) { _nombreCompleto.value = v }
+    private fun rebuildNombreCompleto() {
+        val parts = listOf(_apellidoPaterno.value.trim(), _apellidoMaterno.value.trim(), _nombre.value.trim()).filter { it.isNotEmpty() }
+        _nombreCompleto.value = parts.joinToString(" ")
+    }
     fun setCurp(v: String) {
         val upper = v.uppercase().take(18)
         _curp.value = upper
@@ -1289,6 +1314,9 @@ class PreApplicationViewModel {
         _currentStep.value = 0
         _tipoTramite.value = "Nuevo Ingreso"
         _cicloEscolar.value = "2025-2026"
+        _apellidoPaterno.value = ""
+        _apellidoMaterno.value = ""
+        _nombre.value = ""
         _nombreCompleto.value = ""
         _curp.value = ""
         _fechaNacimiento.value = ""
