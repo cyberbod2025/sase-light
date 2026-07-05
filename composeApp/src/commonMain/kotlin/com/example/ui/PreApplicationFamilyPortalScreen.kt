@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.text.TextStyle
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -110,11 +111,12 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
             Spacer(modifier = Modifier.height(20.dp))
 
             // Form card
+            val scrollState = rememberScrollState()
             GlassCard(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(scrollState)
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -168,8 +170,12 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                 if (isSubmitting) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                 } else if (currentStep < 4) {
+                    val coroutineScope = rememberCoroutineScope()
                     Button(
-                        onClick = { familyViewModel.nextStep() },
+                        onClick = {
+                            familyViewModel.nextStep()
+                            coroutineScope.launch { scrollState.animateScrollTo(0) }
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
                         shape = RoundedCornerShape(12.dp)
                     ) {
