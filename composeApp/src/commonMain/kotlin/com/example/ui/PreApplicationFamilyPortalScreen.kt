@@ -69,12 +69,12 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                 color = SaseNavy
             )
             Text(
-                text = "Escuela Secundaria Diurna No. 310 'Presidentes de Mexico'",
+                text = "Escuela Secundaria Diurna No. 310 'Presidentes de México'",
                 fontSize = 14.sp,
                 color = SaseMuted
             )
             Text(
-                text = "Este formulario no confirma inscripcion oficial. Secretaria validara documentos y datos.",
+                text = "Este formulario no confirma inscripción oficial. Secretaría validará documentos y datos.",
                 fontSize = 11.sp,
                 color = SaseOrange,
                 textAlign = TextAlign.Center,
@@ -83,7 +83,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
             Spacer(modifier = Modifier.height(20.dp))
 
             // Step indicator
-            val stepTitles = listOf("Datos", "Contactos", "Contexto", "Docs", "Envio")
+            val stepTitles = listOf("Datos", "Contactos", "Contexto", "Docs", "Envío")
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -144,7 +144,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                         onClick = { familyViewModel.previousStep() },
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Atras", color = SaseNavy)
+                        Text("Atrás", color = SaseNavy)
                     }
                 } else {
                     OutlinedButton(
