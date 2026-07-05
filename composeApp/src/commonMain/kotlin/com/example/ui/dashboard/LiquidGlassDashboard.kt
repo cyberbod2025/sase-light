@@ -21,7 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -283,7 +283,7 @@ fun LiquidGlassDashboard(
                         title = "Asistencia Óptima",
                         value = "$attendanceRate%",
                         subtext = "$highAttendanceCount con +90%",
-                        icon = Icons.Default.TrendingUp,
+                        icon = Icons.AutoMirrored.Filled.TrendingUp,
                         iconTint = SaseBlue,
                         isSelected = selectedFilter == "Asistencia",
                         onClick = { onFilterSelect("Asistencia") },
@@ -335,7 +335,7 @@ fun LiquidGlassDashboard(
                             title = "Asistencia Óptima",
                             value = "$attendanceRate%",
                             subtext = "Asistencia alta",
-                            icon = Icons.Default.TrendingUp,
+                            icon = Icons.AutoMirrored.Filled.TrendingUp,
                             iconTint = SaseBlue,
                             isSelected = selectedFilter == "Asistencia",
                             onClick = { onFilterSelect("Asistencia") },

@@ -7,6 +7,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.FactCheck
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -716,7 +719,7 @@ private fun OfficialEnrollmentReadinessCard(
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Default.FactCheck, contentDescription = null, modifier = Modifier.size(14.dp))
+                Icon(Icons.AutoMirrored.Filled.FactCheck, contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Declarar lista institucionalmente", fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
@@ -1285,7 +1288,7 @@ private fun RevisionTab(
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(14.dp))
+        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(14.dp))
         Spacer(modifier = Modifier.width(6.dp))
         Text("Enviar notificación mock a la familia", fontWeight = FontWeight.Bold, fontSize = 11.sp)
     }
@@ -1326,7 +1329,7 @@ private fun MobilePreApplicationDetail(
             modifier = Modifier.fillMaxWidth()
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Volver", tint = SaseNavy)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = SaseNavy)
             }
             Spacer(modifier = Modifier.width(4.dp))
             Text("Detalle de solicitud", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = SaseNavy)
