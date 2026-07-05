@@ -2,7 +2,7 @@
 
 > Sprint: H1 — Documental de Contexto
 > Fecha: 2026-07-04
-> Último commit: `963878f` — chore(gemini): remove Gemini AI integration and its dependencies
+> Últimos merges documentados: PR #8 `66eb71f`, PR #10 `3e36e87`
 
 ## Resumen
 
@@ -63,9 +63,10 @@ Gatillado en push/PR a `main`.
 
 ## Pruebas
 
-- `commonTest` contiene 2 archivos:
+- `commonTest` contiene 3 archivos:
   - `SaseStudentAnalyticsTest.kt`
   - `PreApplicationGuardrailsTest.kt`
+  - `MockSaseDataTest.kt`
 - Ejecución: `.\gradlew.bat :composeApp:desktopTest --no-daemon`
 
 ## Historial de entregas
@@ -93,6 +94,18 @@ Gatillado en push/PR a `main`.
 **Commit:** `963878f` — chore(gemini): remove Gemini AI integration and its dependencies
 **CI:** Build en PR #6 ✅, mergeado a main
 **Cambio:** Removidos `GeminiImageGenerator`, `GeminiViewModel`, `GeminiTestCard`, dependencias Ktor/Serialization/Napier/Secrets, `.env.example`, `getApiKey()` de 4 Platform files, `INTERNET` permission de AndroidManifest, referencias en docs. SASE Light queda sin integración Gemini activa y con superficie de secretos reducida.
+
+### PR #8 — Guardrails de datos mock de estudiantes
+
+**Commit:** `2bd562c` — test(sase): add mock student data guardrails
+**CI:** mergeado a main en `66eb71f`
+**Cambio:** Agregada suite `MockSaseDataTest.kt` para cubrir altas de estudiantes mock, unicidad de CURP, búsqueda normalizada por CURP, actualización sin duplicados y preservación de conteos ante IDs inexistentes. Refuerza que el origen de datos sigue siendo in-memory mock.
+
+### PR #10 — Salidas de navegación desde dashboards
+
+**Commit:** `477c13a` — fix(sase): improve dashboard navigation exits
+**CI:** mergeado a main en `3e36e87`
+**Cambio:** Mejoradas las salidas de navegación desde pantallas dashboard para mantener rutas claras de regreso al inicio/flujo institucional sin introducir navegación externa ni librerías nuevas.
 
 ## Archivos fuente
 

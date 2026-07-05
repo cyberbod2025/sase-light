@@ -2,7 +2,7 @@
 
 > Sprint: H1 — Documental de Contexto
 > Fecha: 2026-07-04
-> Último merge: `963878f`
+> Últimos merges documentados: PR #8 `66eb71f`, PR #10 `3e36e87`
 
 ## Prioridades
 
@@ -37,3 +37,5 @@
 | PR-D — PR #2 | Eliminar código muerto confirmInitialGroup | `c7bbf06` |
 | PR #5 | Ignorar archivos locales de entorno | `d8815c6` |
 | PR #6 | Eliminar integración Gemini y dependencias | `963878f` |
+| PR #8 | Agregar guardrails de test para `MockSaseData` | `2bd562c` |
+| PR #10 | Mejorar salidas de navegación desde dashboards | `477c13a` |
