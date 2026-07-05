@@ -173,7 +173,7 @@ fun StudentRecordScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Button(
-                                onClick = { toast("Edición habilitada") },
+                                onClick = { toast("Edición de expediente no disponible en esta versión") },
                                 colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f)
@@ -210,7 +210,7 @@ fun StudentRecordScreen(
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
-                                onClick = { toast("Edición habilitada") },
+                                onClick = { toast("Edición de expediente no disponible en esta versión") },
                                 colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
@@ -225,7 +225,7 @@ fun StudentRecordScreen(
                             ) {
                                 Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Generar documento", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                Text("Ver documentos", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             }
                         }
                     }
@@ -1028,7 +1028,7 @@ fun StudentRecordScreen(
                         ) {
                             Icon(Icons.AutoMirrored.Filled.Assignment, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Generar documento", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text("Ver documentos", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
 
                         Button(
@@ -1261,8 +1261,8 @@ fun StudentRecordScreen(
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Generar Documento Institucional", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
-                    Text("Seleccione la plantilla que desea emitir para ${student.fullName}.", color = SaseMuted, fontSize = 11.sp)
+                    Text("Documentos institucionales", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
+                    Text("Vista mock de plantillas para ${student.fullName}. La generación de PDF e impresión no está disponible en esta versión.", color = SaseMuted, fontSize = 11.sp)
 
                     listOf(
                         "Constancia de estudios",
@@ -1276,9 +1276,7 @@ fun StudentRecordScreen(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
                                 .clickable {
-                                    viewModel.logSaseAudit("Documento emitido", "Secretaría", "$name para ${student.fullName}")
-                                    showDocumentDialog = false
-                                    toast("Documento '$name' generado. PDF listo para descargar.")
+                                    toast("'$name' es una plantilla mock; PDF no disponible")
                                 }
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
