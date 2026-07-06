@@ -35,7 +35,7 @@ private val PortalText = Color(0xFFF1F5F9)
 private val PortalMuted = Color(0xFF94A3B8)
 
 @Composable
-fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
+fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: () -> Unit = {}) {
     val familyViewModel = remember { PreApplicationViewModel() }
     val currentStep by familyViewModel.currentStep.collectAsState()
     val submittedFolio by familyViewModel.submittedFolio.collectAsState()
@@ -60,7 +60,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                 horizontalArrangement = Arrangement.End
             ) {
                 OutlinedButton(
-                    onClick = { familyViewModel.resetForm() },
+                    onClick = { familyViewModel.resetForm(); onNavigateBack() },
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, SaseBorder),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = PortalMuted)
@@ -166,7 +166,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel) {
                     }
                 } else {
                     OutlinedButton(
-                        onClick = { familyViewModel.resetForm() },
+                        onClick = { familyViewModel.resetForm(); onNavigateBack() },
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("Cancelar", color = PortalText)

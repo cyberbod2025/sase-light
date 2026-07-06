@@ -50,6 +50,10 @@ class LabViewModel(
         _currentScreen.value = screen
     }
 
+    fun navigateBack() {
+        _currentScreen.value = Screen.SecretaryDashboard
+    }
+
     fun setRole(role: AppRole) {
         _userRole.value = role
     }
