@@ -202,7 +202,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
 
     // Success dialog
     if (submittedFolio != null) {
-        Dialog(onDismissRequest = {}) {
+        Dialog(onDismissRequest = { familyViewModel.resetForm(); onNavigateBack() }) {
             GlassCard {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -253,7 +253,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
 
                     Spacer(modifier = Modifier.height(20.dp))
                     Button(
-                        onClick = { familyViewModel.resetForm() },
+                        onClick = { familyViewModel.resetForm(); onNavigateBack() },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
                         shape = RoundedCornerShape(12.dp)
