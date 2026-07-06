@@ -687,9 +687,26 @@ fun SecretaryDashboardScreen(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = { viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard) },
+                    colors = ButtonDefaults.buttonColors(containerColor = SaseGreen, contentColor = Color.White),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth().height(44.dp)
+                ) {
+                    Icon(Icons.Default.Verified, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Validar Inscripción", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
                 Spacer(modifier = Modifier.height(18.dp))
 
                 SimpleDashboardSummary(students = students)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                EnrollmentCharts(students = students)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -912,6 +929,117 @@ private fun SimpleDashboardSummary(students: List<Student>) {
                     items.forEach { item -> SimpleDashboardMetric(item, Modifier.weight(1f)) }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun EnrollmentCharts(students: List<Student>) {
+    val grades = listOf("1°", "2°", "3°")
+    val groups = listOf("A", "B", "C", "D")
+
+    val studentsByGradeGroup = grades.flatMap { grade ->
+        groups.map { group ->
+            val count = students.count { it.group == "$grade$group" }
+            Triple("$grade$group", count, grade)
+        }
+    }
+
+    data class GradeDocStats(val grade: String, val complete: Int, val total: Int, val pct: Int)
+    val docsCompleteByGrade = grades.map { grade ->
+        val gradeStudents = students.filter { it.group.startsWith(grade) }
+        val complete = gradeStudents.count { it.documentationStatus == "Completa" }
+        val total = gradeStudents.size
+        val pct = if (total > 0) (complete * 100 / total) else 0
+        GradeDocStats(grade, complete, total, pct)
+    }
+
+    val totalComplete = students.count { it.documentationStatus == "Completa" }
+    val totalPct = if (students.isNotEmpty()) (totalComplete * 100 / students.size) else 0
+
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Text("Alumnos por Grado y Grupo", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            grades.forEach { grade ->
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(grade, fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(4.dp))
+                    groups.forEach { group ->
+                        val count = students.count { it.group == "$grade$group" }
+                        val barWidth = if (students.isNotEmpty()) (count.toFloat() / students.size) else 0f
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                        ) {
+                            Text(group, fontSize = 10.sp, color = SaseMuted, modifier = Modifier.width(16.dp))
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(14.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(SaseBorder.copy(alpha = 0.15f))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(barWidth.coerceAtLeast(0.05f))
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(SaseBlue)
+                                )
+                            }
+                            Text(count.toString(), fontSize = 10.sp, color = SaseText, fontWeight = FontWeight.Bold, modifier = Modifier.width(20.dp), textAlign = TextAlign.End)
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider(color = SaseBorder.copy(alpha = 0.1f))
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text("Expediente Completo por Grado", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        docsCompleteByGrade.forEach { stat ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            ) {
+                Text(stat.grade, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp, modifier = Modifier.width(30.dp))
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(SaseBorder.copy(alpha = 0.15f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(stat.pct / 100f)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (stat.pct >= 80) SaseGreen else SaseOrange)
+                    )
+                }
+                Text("${stat.pct}%", fontSize = 11.sp, color = SaseText, fontWeight = FontWeight.Bold, modifier = Modifier.width(35.dp), textAlign = TextAlign.End)
+                Text("(${stat.complete}/${stat.total})", fontSize = 9.sp, color = SaseMuted, modifier = Modifier.width(45.dp), textAlign = TextAlign.End)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(SaseBlue.copy(alpha = 0.08f)).padding(8.dp)
+        ) {
+            Text("Total escuela:", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            Text("$totalPct%", fontWeight = FontWeight.ExtraBold, color = SaseBlue, fontSize = 16.sp)
+            Text("  ($totalComplete/${students.size})", fontSize = 10.sp, color = SaseMuted)
         }
     }
 }
