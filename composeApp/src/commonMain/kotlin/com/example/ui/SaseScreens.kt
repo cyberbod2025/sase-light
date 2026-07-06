@@ -1276,7 +1276,8 @@ fun SaseAppContent(viewModel: LabViewModel) {
                             viewModel = viewModel
                         )
                         is Screen.PreApplicationFamilyPortal -> PreApplicationFamilyPortalScreen(
-                            viewModel = viewModel
+                            viewModel = viewModel,
+                            onNavigateBack = { viewModel.navigateBack() }
                         )
                         is Screen.SecretariaPreApplicationDashboard -> SecretariaPreApplicationDashboardScreen(
                             viewModel = viewModel
