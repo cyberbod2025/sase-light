@@ -1,8 +1,178 @@
 # 10 — Bitácora de Decisiones
 
-> Última actualización: 2026-07-05
+> Última actualización: 2026-07-07
 
 ## Registro
+
+### 2026-07-07 — PR #35: Contexto de agente interno y workflow Codespaces
+
+**Contexto**: AGENTS.md necesitaba secciones adicionales para referenciar archivos de instrucciones de agente y reglas de workflow Codespaces.
+
+**Decisión**: Agregar 3 nuevas secciones a AGENTS.md: Agent workflow references (referencia a HUGO_SYSTEM_AGENT_INSTRUCTIONS.md y SKILLS/SASE_LIGHT_CODESPACES_GIT_PR_SKILL.md), Local agent state (no commitear .codex/, .opencode/, *.patch) y Scope discipline (git status limpio, no usar git add .).
+
+**Impacto**: Agentes tienen referencias centralizadas y reglas de alcance documentadas. PR #35 mergeado a `main`. 1 archivo modificado.
+
+---
+
+### 2026-07-07 — Commit `6d3d157`: Documentación de agente y contexto Codespaces
+
+**Contexto**: El proyecto requería documentación interna para agentes de IA sobre el entorno Codespaces, workflow Git/PR y reglas operativas.
+
+**Decisión**: Crear `00_CONTEXT_FOR_AI/HUGO_SYSTEM_AGENT_INSTRUCTIONS.md` con instrucciones operativas (rol, reglas doradas, workflow, formato) y `00_CONTEXT_FOR_AI/SKILLS/SASE_LIGHT_CODESPACES_GIT_PR_SKILL.md` con workflow Git/PR. Actualizar AGENTS.md con secciones de entorno.
+
+**Impacto**: Agentes tienen documentación de contexto completa. Commit directo a `main` (`6d3d157`). 3 archivos nuevos/modificados.
+
+---
+
+### 2026-07-07 — PR #33: Nueva solicitud cierra diálogo y regresa al dashboard
+
+**Contexto**: Al confirmar una nueva solicitud, el diálogo permanecía abierto sin navegar de regreso al dashboard.
+
+**Decisión**: Cerrar el diálogo de nueva solicitud y navegar al dashboard al confirmar el envío.
+
+**Impacto**: Flujo de creación de solicitudes completo con retorno al dashboard. PR #33 mergeado a `main`.
+
+---
+
+### 2026-07-07 — PR #32: Cerrar y Cancelar regresan al dashboard
+
+**Contexto**: Los botones Cerrar y Cancelar en diálogos del portal familiar no navegaban al dashboard.
+
+**Decisión**: Conectar los botones Cerrar y Cancelar para que naveguen al dashboard en lugar de solo cerrar el diálogo.
+
+**Impacto**: Navegación consistente — el usuario siempre regresa al dashboard al cancelar o cerrar. PR #32 mergeado a `main`.
+
+---
+
+### 2026-07-07 — PR #31: Gráficas de inscripción y botón Validar en dashboard
+
+**Contexto**: El dashboard de secretaría no tenía visualización de datos de inscripción ni acción de validación.
+
+**Decisión**: Agregar gráficas de inscripción al dashboard de secretaría y un botón "Validar" para acciones de inscripción.
+
+**Impacto**: Dashboard de secretaría con visualización de datos y capacidad de validación. PR #31 mergeado a `main`.
+
+---
+
+### 2026-07-07 — PR #30: Corrección de 5 bugs en portal
+
+**Contexto**: Codex code review identificó 5 bugs en el portal familiar de pre-solicitud.
+
+**Decisión**: Corregir los 5 bugs reportados por Codex en el portal familiar.
+
+**Impacto**: Portal familiar más estable con 5 bugs corregidos. PR #30 mergeado a `main`.
+
+---
+
+### 2026-07-07 — PR #29: Scroll arriba al cambiar de sección
+
+**Contexto**: Al cambiar de sección en el formulario multi-paso de pre-solicitud, la vista permanecía en la posición anterior.
+
+**Decisión**: Implementar auto-scroll al inicio de la página al cambiar de sección.
+
+**Impacto**: Mejora de UX — el usuario siempre ve el inicio de cada nueva sección. PR #29 mergeado a `main`.
+
+---
+
+### 2026-07-07 — PR #28: Trabajo social usa checkboxes con opción Otro
+
+**Contexto**: La sección de trabajo social del formulario de pre-solicitud usaba campos de texto abiertos.
+
+**Decisión**: Reemplazar campos de texto con checkboxes predefinidos más una opción "Otro" para entrada adicional.
+
+**Impacto**: UX mejorada con selección estructurada y flexibilidad mediante "Otro". PR #28 mergeado a `main`.
+
+---
+
+### 2026-07-07 — PR #27: Fecha de nacimiento seccionada en día, mes, año
+
+**Contexto**: El campo de fecha de nacimiento era un solo campo de texto, propenso a errores de formato.
+
+**Decisión**: Reemplazar campo único con 3 selectores desplegables para día, mes y año.
+
+**Impacto**: Reducción de errores de ingreso de fecha. Mejora de UX significativa. PR #27 mergeado a `main`.
+
+---
+
+### 2026-07-07 — PR #26: Dividir nombre completo en 3 campos
+
+**Contexto**: El formulario de pre-solicitud usaba un solo campo de nombre completo, insuficiente para fines administrativos.
+
+**Decisión**: Reemplazar campo único con 3 campos separados: apellido paterno, apellido materno y nombre(s). Actualizar modelo `PreApplication` y datos mock.
+
+**Impacto**: Datos de nombre estructurados correctamente para procesos administrativos. PR #26 mergeado a `main`.
+
+---
+
+### 2026-07-07 — PR #25: CURP auto-completa fecha nacimiento, sexo y entidad
+
+**Contexto**: Los usuarios debían ingresar manualmente fecha de nacimiento, sexo y entidad federativa, a pesar de que esta información está codificada en la CURP.
+
+**Decisión**: Implementar auto-completado de fecha de nacimiento, sexo y entidad federativa al ingresar la CURP, extrayendo la información de los caracteres de la CURP.
+
+**Impacto**: Reducción significativa de carga de ingreso de datos. Menos errores de captura. PR #25 mergeado a `main`.
+
+---
+
+### 2026-07-07 — PR #24: Eliminar navegación admin en portal familiar
+
+**Contexto**: El portal familiar mostraba elementos de navegación de administración que no correspondían a su rol.
+
+**Decisión**: Eliminar elementos de navegación de administración del portal familiar. Corregir visibilidad en dark theme.
+
+**Impacto**: Portal familiar muestra solo opciones relevantes para el rol Familia. PR #24 mergeado a `main`. 1 archivo modificado.
+
+---
+
+### 2026-07-07 — PR #23: Eliminar PlaceholderStep, Ver todos stub y FASE 1 label
+
+**Contexto**: El dashboard contenía componentes placeholder y etiquetas de fase que ya no eran necesarios.
+
+**Decisión**: Remover `PlaceholderStep` composable no usado, botón "Ver todos" stub y label "FASE 1" del dashboard.
+
+**Impacto**: Dashboard más limpio sin elementos muertos. PR #23 mergeado a `main` (`9fb32a1`).
+
+---
+
+### 2026-07-07 — PR #22: Contacto de emergencia desde modelo Student
+
+**Contexto**: La pantalla de expediente del alumno mostraba valores hardcoded demo para el contacto de emergencia.
+
+**Decisión**: Conectar la visualización de contacto de emergencia a los campos reales del modelo `Student`: `emergencyContactName`, `emergencyContactRelation`, `emergencyContactPhone`, `emergencyContactEmail`.
+
+**Impacto**: Contacto de emergencia ahora refleja datos reales del estudiante. PR #22 mergeado a `main` (`3769750`).
+
+---
+
+### 2026-07-07 — PR #21: Eliminar botón Edit muerto de expediente
+
+**Contexto**: StudentRecordScreen tenía un botón "Edit" visible pero sin funcionalidad conectada.
+
+**Decisión**: Remover el botón "Edit" no funcional de StudentRecordScreen.
+
+**Impacto**: UI más limpia sin elementos que prometen funcionalidad inexistente. PR #21 mergeado a `main` (`55f34a2`).
+
+---
+
+### 2026-07-07 — PR #20: Reemplazar println toast con Snackbar real
+
+**Contexto**: La acción "Llamar a tutor" en StudentRecordScreen usaba `println()` para simular un toast, sin feedback visual real para el usuario.
+
+**Decisión**: Reemplazar `println("Llamando a tutor...")` con Snackbar de Material3 via `snackbarHostState.showSnackbar()`.
+
+**Impacto**: Feedback visual real al usuario mediante Snackbar. PR #20 mergeado a `main` (`b117f0c`).
+
+---
+
+### 2026-07-07 — PR #34: **ABIERTO/EN REVISIÓN** — Llamar tutor muestra diálogo con teléfono
+
+**Contexto**: Las 4 llamadas a tutor usaban toasts; se propone mostrar un diálogo con el número telefónico.
+
+**Decisión**: Reemplazar 4 toasts con un diálogo que muestra el número telefónico del tutor. **Aún no mergeado — pendiente de revisión.**
+
+**Impacto**: Pendiente de CI y aprobación. PR #34 permanece abierto.
+
+---
 
 ### 2026-07-05 — PR #19: Reglas multi-criterio de asignación de grupo
 
