@@ -94,7 +94,29 @@ After any approved microphase execution:
 - Build Desktop
 - errors if any
 
-## Internal Agent Context Files
+## Agent workflow references
 
 - `00_CONTEXT_FOR_AI/HUGO_SYSTEM_AGENT_INSTRUCTIONS.md` — system instructions for AI agents (architecture, rules, aesthetics, security, communication)
 - `00_CONTEXT_FOR_AI/SKILLS/SASE_LIGHT_CODESPACES_GIT_PR_SKILL.md` — secure Git/PR workflow skill for Codespaces (ritual, branching, validation, commit, PR, CI, conflicts, visual theme, sensitive data)
+
+Before making changes, agents **must** read both files above. These define the current instruction architecture, Git/PR workflow, safety rules, scope rules, Codespaces validation ritual and SASE Light guardrails.
+
+## Local agent state
+
+Do not commit local agent state such as:
+- `.codex/`
+- `.opencode/`
+- `*.patch`
+
+If such files appear in `git status --short`, stop and ask for authorization.
+
+## Scope discipline
+
+If `git status --short` is not clean, stop.
+
+Do not use:
+```
+git add .
+```
+
+Use explicit file paths only.
