@@ -42,13 +42,19 @@ Simple single-ViewModel (`LabViewModel` in `commonMain`) with a sealed `Screen` 
 - The `app/` directory at root is **dead code** — it is not included in `settings.gradle.kts` and references plugins not in the version catalog. Do not edit files there unless explicitly asked.
 - No test suites are wired into the active build (the test files in `app/src/test/` belong to the stale module).
 
+## Environment
+
+- **Current operational environment**: GitHub Codespaces / Linux container
+- All commands assume a Linux shell (bash)
+- Do not use Windows paths (e.g., `C:\HUGO_SYSTEM\Projects\sase-light`) or `.\gradlew.bat`
+
 ## Gradle execution
 
 Always use:
-- `.\gradlew.bat` (not `./gradlew`)
+- `./gradlew` (not `.\gradlew.bat`)
 - `--no-daemon` to avoid stale daemon issues
 - No pipes (`|`) during Gradle execution — use `*>` to redirect to log file if needed
-- `Get-Content <log> -Tail 120` to inspect output
+- `tail -n 120 <log>` to inspect output
 
 ## Auto commit + CI rule
 
@@ -87,3 +93,8 @@ After any approved microphase execution:
 - Test Desktop
 - Build Desktop
 - errors if any
+
+## Internal Agent Context Files
+
+- `00_CONTEXT_FOR_AI/HUGO_SYSTEM_AGENT_INSTRUCTIONS.md` — system instructions for AI agents (architecture, rules, aesthetics, security, communication)
+- `00_CONTEXT_FOR_AI/SKILLS/SASE_LIGHT_CODESPACES_GIT_PR_SKILL.md` — secure Git/PR workflow skill for Codespaces (ritual, branching, validation, commit, PR, CI, conflicts, visual theme, sensitive data)
