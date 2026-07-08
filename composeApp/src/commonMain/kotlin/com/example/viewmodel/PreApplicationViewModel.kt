@@ -1113,9 +1113,9 @@ class PreApplicationViewModel {
     fun setEntidadNacimiento(v: String) { _entidadNacimiento.value = v.uppercase() }
     fun setTelefonoPrincipal(v: String) { _telefonoPrincipal.value = v.take(10) }
     fun setCorreo(v: String) { _correo.value = v }
-    fun setEscuelaProcedencia(v: String) { _escuelaProcedencia.value = v }
+    fun setEscuelaProcedencia(v: String) { _escuelaProcedencia.value = v.uppercase() }
     fun setAceptaAvisoPrivacidad(v: Boolean) { _aceptaAvisoPrivacidad.value = v }
-    fun setDomicilio(v: String) { _domicilio.value = v }
+    fun setDomicilio(v: String) { _domicilio.value = v.uppercase() }
     fun setTelefonoCasa(v: String) { _telefonoCasa.value = v.take(10) }
 
     fun setResponsableNombre(v: String) { _responsableNombre.value = v.uppercase() }

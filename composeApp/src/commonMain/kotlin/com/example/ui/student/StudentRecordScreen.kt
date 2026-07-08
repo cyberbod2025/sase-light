@@ -105,7 +105,7 @@ fun StudentRecordScreen(
     val student = remember(students, studentId) { students.find { it.id == studentId } }
 
     var activeTab by remember { mutableStateOf("Resumen") }
-    val tabs = listOf("Resumen", "Datos generales", "Tutores / Contacto", "Asistencia", "Incidencias", "Salud", "Orientación", "Documentos", "Observaciones")
+    val tabs = listOf("Resumen", "Datos", "Tutores", "Asistencia", "Incidencias", "Salud", "Orientación", "Docs", "Observaciones")
 
     // Modals states
     var showIncidentDialog by remember { mutableStateOf(false) }
@@ -261,7 +261,7 @@ fun StudentRecordScreen(
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("Matrícula", color = SaseMuted, fontSize = 10.sp)
-                                    Text(student.enrollmentId, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 11.sp)
+                                    Text(if (student.enrollmentId.startsWith("S310-")) "Por asignar" else student.enrollmentId, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 11.sp)
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("CURP", color = SaseMuted, fontSize = 10.sp)
@@ -316,7 +316,7 @@ fun StudentRecordScreen(
                                     }
                                     Column {
                                         Text("Matrícula", color = SaseMuted, fontSize = 10.sp)
-                                        Text(student.enrollmentId, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
+                                        Text(if (student.enrollmentId.startsWith("S310-")) "Por asignar" else student.enrollmentId, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
                                     }
                                     Column {
                                         Text("CURP", color = SaseMuted, fontSize = 10.sp)
@@ -362,7 +362,7 @@ fun StudentRecordScreen(
                     contentColor = SaseNavy,
                     divider = {},
                     indicator = {},
-                    edgePadding = 0.dp,
+                    edgePadding = 12.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     tabs.forEach { title ->

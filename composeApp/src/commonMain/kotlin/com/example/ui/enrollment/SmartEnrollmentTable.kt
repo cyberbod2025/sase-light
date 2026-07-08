@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +22,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenuItem
@@ -123,150 +127,202 @@ fun SmartEnrollmentTable(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Wrap table content in a horizontally scrollable container
-        Box(
+        BoxWithConstraints {
+            val isCompact = maxWidth < 500.dp
+
+            if (filteredList.isEmpty()) {
+                EmptyState(students.isEmpty())
+            } else if (isCompact) {
+                CompactStudentList(students = filteredList, onStudentClick = onStudentClick)
+            } else {
+                WideStudentTable(students = filteredList, onStudentClick = onStudentClick, onRegisterObsClick = onRegisterObsClick)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyState(noStudents: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                if (noStudents) Icons.Default.School else Icons.Default.Warning,
+                contentDescription = null,
+                tint = SaseMuted.copy(alpha = 0.4f),
+                modifier = Modifier.size(40.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Sin registros", color = SaseMuted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                if (noStudents) "No hay alumnos cargados en el sistema."
+                else "No hay alumnos que coincidan con los filtros seleccionados.",
+                color = SaseMuted.copy(alpha = 0.7f),
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun WideStudentTable(
+    students: List<Student>,
+    onStudentClick: (String) -> Unit,
+    onRegisterObsClick: (Student) -> Unit
+) {
+    Column(modifier = Modifier.widthIn(min = 480.dp)) {
+        // Table headers
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
+                .background(SaseBgSoft.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(modifier = Modifier.widthIn(min = 480.dp)) {
-                // Table headers
+            Text("Alumno", color = SaseMuted, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.weight(2.5f))
+            Text("Grupo", color = SaseMuted, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.weight(0.8f))
+            Text("Estatus", color = SaseMuted, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.weight(1.2f))
+            Text("Tutor", color = SaseMuted, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.weight(2.0f))
+            Text("Documentos", color = SaseMuted, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.weight(1.5f))
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            students.forEach { student ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(SaseBgSoft.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onStudentClick(student.id) }
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Alumno", color = SaseMuted, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.weight(2.5f))
-                    Text("Grupo", color = SaseMuted, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.weight(0.8f))
-                    Text("Estatus", color = SaseMuted, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.weight(1.2f))
-                    Text("Tutor", color = SaseMuted, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.weight(2.0f))
-                    Text("Documentos", color = SaseMuted, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.weight(1.5f))
+                    Row(modifier = Modifier.weight(2.5f), verticalAlignment = Alignment.CenterVertically) {
+                        StudentAvatar(student)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(student.fullName, color = SaseText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("ID: ${student.enrollmentId}", color = SaseMuted, fontSize = 10.sp)
+                        }
+                    }
+                    Text(student.group, color = SaseText, fontSize = 12.sp, modifier = Modifier.weight(0.8f))
+                    Box(modifier = Modifier.weight(1.2f).padding(end = 4.dp)) {
+                        StatusPill(status = student.status)
+                    }
+                    Text(student.tutorName, color = SaseText, fontSize = 12.sp, modifier = Modifier.weight(2.0f))
+                    Row(modifier = Modifier.weight(1.5f), verticalAlignment = Alignment.CenterVertically) {
+                        DocBadge(student.documentationStatus)
+                        Spacer(modifier = Modifier.weight(1f))
+                        IconButton(
+                            onClick = { onRegisterObsClick(student) },
+                            modifier = Modifier.size(22.dp)
+                        ) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Opciones", tint = SaseMuted, modifier = Modifier.size(16.dp))
+                        }
+                    }
                 }
+                HorizontalDivider(color = SaseBorder.copy(alpha = 0.05f), thickness = 0.5.dp)
+            }
+        }
+    }
+}
 
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Table rows
-                if (filteredList.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Sin registros", color = SaseMuted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                if (students.isEmpty()) "No hay alumnos cargados en el sistema."
-                                else "No hay alumnos que coincidan con los filtros seleccionados.",
-                                color = SaseMuted.copy(alpha = 0.7f),
-                                fontSize = 11.sp,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            )
-                        }
+@Composable
+private fun CompactStudentList(
+    students: List<Student>,
+    onStudentClick: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        students.forEach { student ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.5f))
+                    .clickable { onStudentClick(student.id) }
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                StudentAvatar(student)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(student.fullName, color = SaseText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(student.group, color = SaseMuted, fontSize = 11.sp)
+                        StatusPill(status = student.status)
                     }
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        filteredList.forEach { student ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable { onStudentClick(student.id) }
-                                    .padding(horizontal = 8.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Alumno
-                                Row(modifier = Modifier.weight(2.5f), verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                when (student.riskLevel) {
-                                                    "Alto" -> SaseRed.copy(alpha = 0.15f)
-                                                    "Medio" -> SaseOrange.copy(alpha = 0.15f)
-                                                    else -> SaseGreen.copy(alpha = 0.15f)
-                                                }
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = student.fullName.first().toString(),
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            color = when (student.riskLevel) {
-                                                "Alto" -> SaseRed
-                                                "Medio" -> SaseOrange
-                                                else -> SaseGreenDark
-                                            }
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(student.fullName, color = SaseText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                        Text("ID: ${student.enrollmentId}", color = SaseMuted, fontSize = 10.sp)
-                                    }
-                                }
-
-                                // Grupo
-                                Text(student.group, color = SaseText, fontSize = 12.sp, modifier = Modifier.weight(0.8f))
-
-                                // Estatus
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1.2f)
-                                        .padding(end = 4.dp)
-                                ) {
-                                    StatusPill(status = student.status)
-                                }
-
-                                // Tutor
-                                Text(student.tutorName, color = SaseText, fontSize = 12.sp, modifier = Modifier.weight(2.0f))
-
-                                // Documentacion status
-                                Row(modifier = Modifier.weight(1.5f), verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(
-                                                when (student.documentationStatus) {
-                                                    "Completa" -> SaseGreen.copy(alpha = 0.12f)
-                                                    "Incompleta" -> SaseRed.copy(alpha = 0.12f)
-                                                    else -> SaseOrange.copy(alpha = 0.12f)
-                                                }
-                                            )
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            student.documentationStatus,
-                                            color = when (student.documentationStatus) {
-                                                "Completa" -> SaseGreenDark
-                                                "Incompleta" -> SaseRed
-                                                else -> SaseOrange
-                                            },
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    IconButton(
-                                        onClick = { onRegisterObsClick(student) },
-                                        modifier = Modifier.size(22.dp)
-                                    ) {
-                                        Icon(Icons.Default.MoreVert, contentDescription = "Opciones", tint = SaseMuted, modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                            }
-                            HorizontalDivider(color = SaseBorder.copy(alpha = 0.05f), thickness = 0.5.dp)
-                        }
-                    }
+                }
+                IconButton(
+                    onClick = { onStudentClick(student.id) },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Ver", tint = SaseMuted, modifier = Modifier.size(18.dp))
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun StudentAvatar(student: Student) {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(
+                when (student.riskLevel) {
+                    "Alto" -> SaseRed.copy(alpha = 0.15f)
+                    "Medio" -> SaseOrange.copy(alpha = 0.15f)
+                    else -> SaseGreen.copy(alpha = 0.15f)
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            Icons.Default.Person,
+            contentDescription = null,
+            tint = when (student.riskLevel) {
+                "Alto" -> SaseRed
+                "Medio" -> SaseOrange
+                else -> SaseGreenDark
+            },
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+@Composable
+private fun DocBadge(status: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(
+                when (status) {
+                    "Completa" -> SaseGreen.copy(alpha = 0.12f)
+                    "Incompleta" -> SaseRed.copy(alpha = 0.12f)
+                    else -> SaseOrange.copy(alpha = 0.12f)
+                }
+            )
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(
+            status,
+            color = when (status) {
+                "Completa" -> SaseGreenDark
+                "Incompleta" -> SaseRed
+                else -> SaseOrange
+            },
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

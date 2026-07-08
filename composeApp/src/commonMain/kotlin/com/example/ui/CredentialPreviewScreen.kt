@@ -111,7 +111,6 @@ fun CredentialPreviewScreen(
                         if (preview.enrollmentId.isNotBlank() && !preview.enrollmentId.startsWith("S310-CURP-DEMO")) preview.enrollmentId
                         else "Por asignar"
                     )
-                    DetailLine("Folio interno", preview.preApplicationFolio ?: "No aplica")
                     DetailLine("Ciclo escolar", preview.schoolYear)
                     DetailLine("Estado institucional", preview.status)
                     DetailLine("Origen", if (preview.generatedFromOfficialEnrollment) "Alta oficial" else "Registro directo")

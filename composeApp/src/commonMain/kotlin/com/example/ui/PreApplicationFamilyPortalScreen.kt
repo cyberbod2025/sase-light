@@ -611,8 +611,8 @@ private fun AutorizadoDialog(
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Agregar Autorizado", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PortalText)
 
-                OutlinedTextField(value = nombre, onValueChange = { nombre = it }, label = { Text("Nombre completo") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(value = parentesco, onValueChange = { parentesco = it }, label = { Text("Parentesco") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = nombre, onValueChange = { nombre = it.uppercase() }, label = { Text("Nombre completo") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = parentesco, onValueChange = { parentesco = it.uppercase() }, label = { Text("Parentesco") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 OutlinedTextField(value = telefono, onValueChange = { telefono = it.take(10) }, label = { Text("Telefono (10 digitos)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {

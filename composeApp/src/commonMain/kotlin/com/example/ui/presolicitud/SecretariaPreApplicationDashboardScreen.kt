@@ -277,7 +277,7 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                     Text(provisionalResult ?: "", color = SaseText, fontSize = 12.sp, textAlign = TextAlign.Center)
                     Button(
                         onClick = { showProvisionalDialog = false; provisionalResult = null },
-                        colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
+                        colors = ButtonDefaults.buttonColors(containerColor = SaseNavy, contentColor = Color.White),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -356,7 +356,7 @@ private fun StatusBadge(status: PreApplicationStatus) {
 
 // ── Tabbed Detail ──────────────────────────────────────────────────────────
 
-private val TAB_LABELS = listOf("Datos", "Resp.", "Contexto", "Documentos", "Revisión")
+private val TAB_LABELS = listOf("Datos", "Resp.", "Contexto", "Docs", "Obs.")
 
 @Composable
 private fun PreApplicationDetailTabs(
@@ -453,7 +453,7 @@ private fun PreApplicationDetailTabs(
             selectedTabIndex = selectedTab,
             containerColor = Color.Transparent,
             contentColor = SaseNavy,
-            edgePadding = 0.dp,
+            edgePadding = 12.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             TAB_LABELS.forEachIndexed { index, label ->
@@ -594,7 +594,7 @@ private fun EditPreApplicationDialog(
                         onClick = {
                             onDismiss()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
+                        colors = ButtonDefaults.buttonColors(containerColor = SaseNavy, contentColor = Color.White),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {
@@ -747,10 +747,11 @@ private fun OfficialEnrollmentReadinessCard(
         else -> SaseMuted
     }
     val headerText = when {
+        pendingItems.isNotEmpty() -> "Con pendientes"
         officialCompleted || preApp.readinessStatus == ReadinessStatus.CONVERTED -> "Alta oficial completada"
-        officialStarted -> "Aceptada con pendientes"
+        officialStarted -> "Aceptada"
         readerIsReadyForOfficial -> "Lista para alta oficial"
-        pendingItems.isNotEmpty() || preApp.readinessStatus == ReadinessStatus.BLOCKED -> "Con pendientes"
+        preApp.readinessStatus == ReadinessStatus.BLOCKED -> "Con pendientes"
         else -> "Pendiente"
     }
     Column(
@@ -1034,13 +1035,13 @@ private fun OfficialEnrollmentContextualPanel(
                         resultColor = confirmResult.toUiColor()
                     },
                     enabled = groupConfirmed && selectedGroup.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
+                    colors = ButtonDefaults.buttonColors(containerColor = SaseNavy, contentColor = Color.White),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Confirmar grupo inicial", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("Confirmar grupo inicial", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.White)
                 }
                 Text(
                     "Mientras no se confirme, el estado permanece como PENDIENTE_ASIGNACION_GRUPO.",
