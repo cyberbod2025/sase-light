@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -119,6 +120,10 @@ fun StudentRecordScreen(
     var escalarNotes by remember { mutableStateOf("") }
 
     var showDocumentDialog by remember { mutableStateOf(false) }
+
+    var showPhoneDialog by remember { mutableStateOf(false) }
+    var phoneDialogNumber by remember { mutableStateOf("") }
+    var phoneDialogName by remember { mutableStateOf("") }
 
     if (student == null) {
         Box(modifier = SaseBackgroundModifier(), contentAlignment = Alignment.Center) {
@@ -413,7 +418,7 @@ fun StudentRecordScreen(
                                                 relation = student.tutorRelation,
                                                 phone = student.tutorPhone,
                                                 email = student.tutorEmail,
-                                                onCall = { toast("Llamando a ${student.tutorName}") }
+                                                onCall = { phoneDialogName = student.tutorName; phoneDialogNumber = student.tutorPhone; showPhoneDialog = true }
                                             )
                                         } else {
                                             Text("No hay tutor principal registrado.", color = SaseMuted, fontSize = 11.sp)
@@ -585,7 +590,7 @@ fun StudentRecordScreen(
                                                     relation = student.tutorRelation,
                                                     phone = student.tutorPhone,
                                                     email = student.tutorEmail,
-                                                    onCall = { toast("Llamando a ${student.tutorName}") }
+                                                    onCall = { phoneDialogName = student.tutorName; phoneDialogNumber = student.tutorPhone; showPhoneDialog = true }
                                                 )
                                             } else {
                                                 Text("No hay tutor principal registrado.", color = SaseMuted, fontSize = 11.sp)
@@ -778,7 +783,7 @@ fun StudentRecordScreen(
                                     relation = student.tutorRelation,
                                     phone = student.tutorPhone,
                                     email = student.tutorEmail,
-                                    onCall = { toast("Llamando a tutor principal...") }
+                                    onCall = { phoneDialogName = student.tutorName; phoneDialogNumber = student.tutorPhone; showPhoneDialog = true }
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text("Contacto alterno / Emergencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 13.sp)
@@ -789,7 +794,7 @@ fun StudentRecordScreen(
                                         relation = student.emergencyContactRelation,
                                         phone = student.emergencyContactPhone,
                                         email = student.emergencyContactEmail,
-                                        onCall = { toast("Llamando a contacto alterno...") }
+                                        onCall = { phoneDialogName = student.emergencyContactName; phoneDialogNumber = student.emergencyContactPhone; showPhoneDialog = true }
                                     )
                                 } else {
                                     Text("No registrado", color = SaseMuted, fontSize = 12.sp)
@@ -1281,6 +1286,36 @@ fun StudentRecordScreen(
 
                     TextButton(
                         onClick = { showDocumentDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cerrar", color = SaseMuted)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showPhoneDialog) {
+        Dialog(onDismissRequest = { showPhoneDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, SaseBorder),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(Icons.Default.Phone, contentDescription = null, tint = SaseGreen, modifier = Modifier.size(48.dp))
+                    Text("Llamar a $phoneDialogName", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
+                    Text(phoneDialogNumber, color = SaseText, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("Copia el número y marca desde tu teléfono.", color = SaseMuted, fontSize = 11.sp, textAlign = TextAlign.Center)
+                    TextButton(
+                        onClick = { showPhoneDialog = false },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Cerrar", color = SaseMuted)
