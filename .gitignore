@@ -20,3 +20,4 @@ local.properties
 .vercel/
 composeApp/build/
 debug.keystore
+.vscode/settings.json
