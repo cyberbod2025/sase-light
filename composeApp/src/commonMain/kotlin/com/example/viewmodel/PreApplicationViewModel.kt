@@ -266,7 +266,13 @@ class PreApplicationViewModel {
                 normalizedCurp.length != 18 ||
                 preApplication.alumnoFechaNacimiento.isBlank() ||
                 preApplication.alumnoDomicilio.isBlank() ||
-                preApplication.responsables.isEmpty()
+                preApplication.responsables.isEmpty() ||
+                preApplication.gradoSolicitado !in 1..3 ||
+                preApplication.promedioGradoAnterior?.let { it in 5.0..10.0 } != true ||
+                preApplication.personaTramite.nombreCompleto.isBlank() ||
+                preApplication.personaTramite.parentesco.isBlank() ||
+                preApplication.personaTramite.telefono.length < 10 ||
+                preApplication.personaTramite.identificacionPresentada.isBlank()
             ) {
                 return FamilySubmissionResult.InsufficientData("Faltan datos obligatorios para enviar la pre-solicitud.")
             }
@@ -298,6 +304,16 @@ class PreApplicationViewModel {
                 }
                 if (preApp.documentosDeclarados.any { !it.declarado || !it.cotejadoSecretaria }) {
                     add("Documentos requeridos cotejados")
+                }
+                if (preApp.promedioGradoAnterior?.let { it in 5.0..10.0 } != true) {
+                    add("Promedio del grado anterior capturado y verificado")
+                }
+                if (preApp.personaTramite.nombreCompleto.isBlank() ||
+                    preApp.personaTramite.parentesco.isBlank() ||
+                    preApp.personaTramite.telefono.length < 10 ||
+                    preApp.personaTramite.identificacionPresentada.isBlank()
+                ) {
+                    add("Persona que inscribe/reinscribe capturada")
                 }
                 if (photoState?.studentPhotoMockUrl == null) {
                     add("Foto alumno mock capturada")
@@ -344,9 +360,17 @@ class PreApplicationViewModel {
             _officialStudents.value.find { it.preApplicationFolio == folio }
 
         fun groupOptionsForGrade(grado: Int): List<String> = when (grado) {
-            2 -> listOf("2A", "2B", "2C")
-            3 -> listOf("3A", "3B", "3C")
+            1 -> listOf("1A", "1B", "1C", "1D")
+            2 -> listOf("2A", "2B", "2C", "2D")
+            3 -> listOf("3A", "3B", "3C", "3D")
             else -> emptyList()
+        }
+
+        fun promedioLabelForGrade(grado: Int): String = when (grado) {
+            1 -> "Promedio de primaria"
+            2 -> "Promedio de 1°"
+            3 -> "Promedio de 2°"
+            else -> "Promedio del grado anterior"
         }
 
         private const val MAX_CAPACITY_PER_GROUP = 30
@@ -365,8 +389,8 @@ class PreApplicationViewModel {
 
             val groupData = options.associateWith { group ->
                 val members = candidates.filter { (it.grupoAsignado ?: it.grupoSugerido) == group }
-                val countH = members.count { it.alumnoSexo == "H" }
-                val countM = members.count { it.alumnoSexo == "M" }
+                val countH = members.count { it.alumnoSexo == "H" || it.alumnoSexo == "Masculino" }
+                val countM = members.count { it.alumnoSexo == "M" || it.alumnoSexo == "Femenino" }
                 val avgAge = members.mapNotNull { it.alumnoEdad.takeIf { e -> e > 0 } }
                     .let { ages -> if (ages.isNotEmpty()) ages.average() else 0.0 }
                 val avgPromedio = members.mapNotNull { it.promedio }
@@ -383,9 +407,14 @@ class PreApplicationViewModel {
                 .filter { (groupData[it]?.count ?: 0) < MAX_CAPACITY_PER_GROUP }
                 .minByOrNull { group ->
                     val stats = groupData[group]!!
+                    val normalizedSexo = when (sexo) {
+                        "Masculino", "H" -> "H"
+                        "Femenino", "M" -> "M"
+                        else -> ""
+                    }
                     val sexPenalty = if (sexo.isNotBlank()) {
-                        val newCountH = stats.countH + if (sexo == "H") 1 else 0
-                        val newCountM = stats.countM + if (sexo == "M") 1 else 0
+                        val newCountH = stats.countH + if (normalizedSexo == "H") 1 else 0
+                        val newCountM = stats.countM + if (normalizedSexo == "M") 1 else 0
                         kotlin.math.abs(newCountH - newCountM).toDouble()
                     } else 0.0
 
@@ -500,22 +529,14 @@ class PreApplicationViewModel {
                 return OfficialEnrollmentResult.MasterStudentPropagationError("CURP y matrícula pertenecen a expedientes maestros distintos.")
             }
 
-            val suggestedGroup = if (preApp.gradoSolicitado in 2..3) {
-                selectedGroup?.takeIf { it.isNotBlank() } ?: run {
-                    val edad = calculateAgeFromBirthDate(preApp.alumnoFechaNacimiento)
-                    suggestInitialGroup(preApp.gradoSolicitado, preApp.alumnoSexo, edad, null)
-                }
-            } else {
-                null
-            }
+            val edadAlumno = calculateAgeFromBirthDate(preApp.alumnoFechaNacimiento)
+            val suggestedGroup = selectedGroup?.takeIf { it.isNotBlank() }
+                ?: suggestInitialGroup(preApp.gradoSolicitado, preApp.alumnoSexo, edadAlumno, preApp.promedioGradoAnterior)
 
             val initialStatus = when (preApp.gradoSolicitado) {
-                1 -> OfficialStudentStatus.ALTA_OFICIAL_SIN_GRUPO
-                2, 3 -> OfficialStudentStatus.PENDIENTE_ASIGNACION_GRUPO
+                1, 2, 3 -> OfficialStudentStatus.PENDIENTE_ASIGNACION_GRUPO
                 else -> OfficialStudentStatus.PENDIENTE_ASIGNACION_GRUPO
             }
-
-            val edadAlumno = calculateAgeFromBirthDate(preApp.alumnoFechaNacimiento)
 
             val officialStudent = OfficialStudent(
                 id = "OFF-${preApp.folio.takeLast(4)}-${Random.nextInt(100, 999)}",
@@ -528,7 +549,7 @@ class PreApplicationViewModel {
                 alumnoNombreCompleto = preApp.alumnoNombreCompleto,
                 alumnoSexo = preApp.alumnoSexo,
                 alumnoEdad = edadAlumno,
-                promedio = null,
+                promedio = preApp.promedioGradoAnterior,
                 matriculaOficial = normalizeMatricula(matricula),
                 fechaCreacion = "$preApplicationTimestampPrefix${com.example.formatTimestamp("hh:mm a")}",
                 validacionSecretaria = ValidacionArea(
@@ -771,6 +792,14 @@ class PreApplicationViewModel {
     private val _escuelaProcedencia = MutableStateFlow("")
     val escuelaProcedencia: StateFlow<String> = _escuelaProcedencia.asStateFlow()
 
+    private val _promedioGradoAnterior = MutableStateFlow("")
+    val promedioGradoAnterior: StateFlow<String> = _promedioGradoAnterior.asStateFlow()
+
+    private val _curpSugerida = MutableStateFlow("")
+    val curpSugerida: StateFlow<String> = _curpSugerida.asStateFlow()
+
+    private val _curpEditedByUser = MutableStateFlow(false)
+
     private val _aceptaAvisoPrivacidad = MutableStateFlow(false)
     val aceptaAvisoPrivacidad: StateFlow<Boolean> = _aceptaAvisoPrivacidad.asStateFlow()
 
@@ -799,6 +828,21 @@ class PreApplicationViewModel {
 
     private val _responsablePuedeRecoger = MutableStateFlow(true)
     val responsablePuedeRecoger: StateFlow<Boolean> = _responsablePuedeRecoger.asStateFlow()
+
+    private val _personaTramiteNombre = MutableStateFlow("")
+    val personaTramiteNombre: StateFlow<String> = _personaTramiteNombre.asStateFlow()
+
+    private val _personaTramiteParentesco = MutableStateFlow("")
+    val personaTramiteParentesco: StateFlow<String> = _personaTramiteParentesco.asStateFlow()
+
+    private val _personaTramiteTelefono = MutableStateFlow("")
+    val personaTramiteTelefono: StateFlow<String> = _personaTramiteTelefono.asStateFlow()
+
+    private val _personaTramiteIdentificacion = MutableStateFlow("")
+    val personaTramiteIdentificacion: StateFlow<String> = _personaTramiteIdentificacion.asStateFlow()
+
+    private val _usarPersonaTramiteComoContacto = MutableStateFlow(false)
+    val usarPersonaTramiteComoContacto: StateFlow<Boolean> = _usarPersonaTramiteComoContacto.asStateFlow()
 
     // Block D — Autorizados para recoger
     data class AutorizadoItem(val id: String, val nombre: String, val parentesco: String, val telefono: String)
@@ -962,6 +1006,10 @@ class PreApplicationViewModel {
         DocumentoItem("documentoMedico", "Documento médico (si aplica)"),
         DocumentoItem("documentoUdeii", "Documento UDEII/USAER/CAM (si aplica)"),
         DocumentoItem("custodia", "Resolución de custodia (si aplica)"),
+        DocumentoItem("reglamentoEscolar", "Reglamento Escolar (placeholder PDF)"),
+        DocumentoItem("marcoConvivenciaDoc", "Marco para la Convivencia (placeholder PDF)"),
+        DocumentoItem("avisoPrivacidadDoc", "Aviso de Privacidad (placeholder PDF)"),
+        DocumentoItem("corresponsabilidadDoc", "Corresponsabilidad Familiar (placeholder PDF)"),
         DocumentoItem("otro", "Otro documento relevante")
     ))
     val documentos: StateFlow<List<DocumentoItem>> = _documentos.asStateFlow()
@@ -1022,14 +1070,17 @@ class PreApplicationViewModel {
     fun setApellidoPaterno(v: String) {
         _apellidoPaterno.value = v.uppercase()
         rebuildNombreCompleto()
+        rebuildCurpSuggestion()
     }
     fun setApellidoMaterno(v: String) {
         _apellidoMaterno.value = v.uppercase()
         rebuildNombreCompleto()
+        rebuildCurpSuggestion()
     }
     fun setNombre(v: String) {
         _nombre.value = v.uppercase()
         rebuildNombreCompleto()
+        rebuildCurpSuggestion()
     }
     fun setNombreCompleto(v: String) { _nombreCompleto.value = v }
     private fun rebuildNombreCompleto() {
@@ -1039,6 +1090,7 @@ class PreApplicationViewModel {
     fun setCurp(v: String) {
         val upper = v.uppercase().take(18)
         _curp.value = upper
+        _curpEditedByUser.value = true
         if (upper.length == 18) {
             autoFillFromCurp(upper)
         }
@@ -1088,14 +1140,17 @@ class PreApplicationViewModel {
     fun setDiaNacimiento(v: String) {
         _diaNacimiento.value = v
         rebuildFechaNacimiento()
+        rebuildCurpSuggestion()
     }
     fun setMesNacimiento(v: String) {
         _mesNacimiento.value = v
         rebuildFechaNacimiento()
+        rebuildCurpSuggestion()
     }
     fun setAnioNacimiento(v: String) {
         _anioNacimiento.value = v
         rebuildFechaNacimiento()
+        rebuildCurpSuggestion()
     }
     fun setFechaNacimiento(v: String) { _fechaNacimiento.value = v }
     private fun rebuildFechaNacimiento() {
@@ -1108,12 +1163,13 @@ class PreApplicationViewModel {
             _fechaNacimiento.value = ""
         }
     }
-    fun setSexo(v: String) { _sexo.value = v }
+    fun setSexo(v: String) { _sexo.value = v; rebuildCurpSuggestion() }
     fun setNacionalidad(v: String) { _nacionalidad.value = v.uppercase() }
-    fun setEntidadNacimiento(v: String) { _entidadNacimiento.value = v.uppercase() }
+    fun setEntidadNacimiento(v: String) { _entidadNacimiento.value = v.uppercase(); rebuildCurpSuggestion() }
     fun setTelefonoPrincipal(v: String) { _telefonoPrincipal.value = v.take(10) }
     fun setCorreo(v: String) { _correo.value = v }
     fun setEscuelaProcedencia(v: String) { _escuelaProcedencia.value = v.uppercase() }
+    fun setPromedioGradoAnterior(v: String) { _promedioGradoAnterior.value = v.filter { it.isDigit() || it == '.' }.take(4) }
     fun setAceptaAvisoPrivacidad(v: Boolean) { _aceptaAvisoPrivacidad.value = v }
     fun setDomicilio(v: String) { _domicilio.value = v.uppercase() }
     fun setTelefonoCasa(v: String) { _telefonoCasa.value = v.take(10) }
@@ -1124,6 +1180,51 @@ class PreApplicationViewModel {
     fun setResponsableCorreo(v: String) { _responsableCorreo.value = v }
     fun setResponsableViveConAlumno(v: Boolean) { _responsableViveConAlumno.value = v }
     fun setResponsablePuedeRecoger(v: Boolean) { _responsablePuedeRecoger.value = v }
+
+    fun setPersonaTramiteNombre(v: String) {
+        _personaTramiteNombre.value = v.uppercase()
+        syncPersonaTramiteToContactoIfNeeded()
+    }
+    fun setPersonaTramiteParentesco(v: String) {
+        _personaTramiteParentesco.value = v
+        syncPersonaTramiteToContactoIfNeeded()
+    }
+    fun setPersonaTramiteTelefono(v: String) {
+        _personaTramiteTelefono.value = v.take(10)
+        syncPersonaTramiteToContactoIfNeeded()
+    }
+    fun setPersonaTramiteIdentificacion(v: String) { _personaTramiteIdentificacion.value = v.uppercase() }
+    fun setUsarPersonaTramiteComoContacto(v: Boolean) {
+        _usarPersonaTramiteComoContacto.value = v
+        syncPersonaTramiteToContactoIfNeeded()
+    }
+
+    private fun syncPersonaTramiteToContactoIfNeeded() {
+        if (!_usarPersonaTramiteComoContacto.value) return
+        _responsableNombre.value = _personaTramiteNombre.value
+        _responsableParentesco.value = _personaTramiteParentesco.value
+        _responsableTelefono.value = _personaTramiteTelefono.value
+    }
+
+    private fun rebuildCurpSuggestion() {
+        val yy = _anioNacimiento.value.takeLast(2)
+        val monthIndex = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic").indexOf(_mesNacimiento.value)
+        val month = if (monthIndex >= 0) (monthIndex + 1).toString().padStart(2, '0') else ""
+        val day = _diaNacimiento.value.padStart(2, '0').takeIf { it.length == 2 }.orEmpty()
+        val sex = when (_sexo.value) { "Masculino" -> "H"; "Femenino" -> "M"; else -> "" }
+        val entity = when {
+            _entidadNacimiento.value.contains("MEXICO") || _entidadNacimiento.value.contains("MÉXICO") -> "MC"
+            _entidadNacimiento.value.contains("CDMX") || _entidadNacimiento.value.contains("CIUDAD") -> "DF"
+            _entidadNacimiento.value.contains("EXTRANJ") -> "NE"
+            else -> _entidadNacimiento.value.take(2).padEnd(2, 'X')
+        }
+        val firstSurname = _apellidoPaterno.value.filter { it.isLetter() }.padEnd(2, 'X')
+        val secondSurname = _apellidoMaterno.value.filter { it.isLetter() }.firstOrNull()?.toString() ?: "X"
+        val nameInitial = _nombre.value.filter { it.isLetter() }.firstOrNull()?.toString() ?: "X"
+        val suggestion = (firstSurname.take(2) + secondSurname + nameInitial + yy + month + day + sex + entity + "XXX00").uppercase().take(18)
+        _curpSugerida.value = suggestion
+        if (!_curpEditedByUser.value && suggestion.length == 18) _curp.value = suggestion
+    }
 
     fun addAutorizado(nombre: String, parentesco: String, telefono: String) {
         val id = "AUT-${_autorizados.value.size + 1}-${Random.nextInt(100, 999)}"
@@ -1193,10 +1294,18 @@ class PreApplicationViewModel {
                 if (_curp.value.length != 18) errs["curp"] = "CURP debe tener 18 caracteres"
                 if (_fechaNacimiento.value.isBlank()) errs["fechaNac"] = "Obligatorio"
                 if (_gradoSolicitado.value == 0) errs["grado"] = "Selecciona un grado"
+                val promedio = _promedioGradoAnterior.value.toDoubleOrNull()
+                if (_gradoSolicitado.value in 1..3 && (promedio == null || promedio !in 5.0..10.0)) {
+                    errs["promedio"] = "Promedio requerido entre 5.0 y 10.0"
+                }
                 if (_telefonoPrincipal.value.length < 10) errs["telefono"] = "10 dígitos requeridos"
                 if (!_aceptaAvisoPrivacidad.value) errs["aviso"] = "Debes aceptar el aviso de privacidad"
             }
             1 -> {
+                if (_personaTramiteNombre.value.isBlank()) errs["personaTramite"] = "Persona que realiza el trámite obligatoria"
+                if (_personaTramiteParentesco.value.isBlank()) errs["personaTramiteParentesco"] = "Parentesco obligatorio"
+                if (_personaTramiteTelefono.value.length < 10) errs["personaTramiteTelefono"] = "Teléfono 10 dígitos requerido"
+                if (_personaTramiteIdentificacion.value.isBlank()) errs["personaTramiteIdentificacion"] = "Identificación presentada obligatoria"
                 if (_responsableNombre.value.isBlank()) errs["responsable"] = "Nombre del responsable obligatorio"
                 if (_responsableParentesco.value.isBlank()) errs["parentesco"] = "Parentesco obligatorio"
                 if (_responsableTelefono.value.length < 10) errs["responsableTel"] = "Teléfono 10 dígitos requerido"
@@ -1219,8 +1328,16 @@ class PreApplicationViewModel {
         if (_curp.value.length != 18) errs["curp"] = "CURP debe tener 18 caracteres"
         if (_fechaNacimiento.value.isBlank()) errs["fechaNac"] = "Obligatorio"
         if (_gradoSolicitado.value == 0) errs["grado"] = "Selecciona un grado"
+        val promedio = _promedioGradoAnterior.value.toDoubleOrNull()
+        if (_gradoSolicitado.value in 1..3 && (promedio == null || promedio !in 5.0..10.0)) {
+            errs["promedio"] = "Promedio requerido entre 5.0 y 10.0"
+        }
         if (_telefonoPrincipal.value.length < 10) errs["telefono"] = "10 dígitos requeridos"
         if (!_aceptaAvisoPrivacidad.value) errs["aviso"] = "Debes aceptar el aviso de privacidad"
+        if (_personaTramiteNombre.value.isBlank()) errs["personaTramite"] = "Persona que realiza el trámite obligatoria"
+        if (_personaTramiteParentesco.value.isBlank()) errs["personaTramiteParentesco"] = "Parentesco obligatorio"
+        if (_personaTramiteTelefono.value.length < 10) errs["personaTramiteTelefono"] = "Teléfono 10 dígitos requerido"
+        if (_personaTramiteIdentificacion.value.isBlank()) errs["personaTramiteIdentificacion"] = "Identificación presentada obligatoria"
         if (_responsableNombre.value.isBlank()) errs["responsable"] = "Nombre del responsable obligatorio"
         if (_responsableParentesco.value.isBlank()) errs["parentesco"] = "Parentesco obligatorio"
         if (_responsableTelefono.value.length < 10) errs["responsableTel"] = "Teléfono 10 dígitos requerido"
@@ -1232,7 +1349,7 @@ class PreApplicationViewModel {
             _errors.value = errs
             _currentStep.value = when {
                 errs.containsKey("consentimientoUsoDatos") || errs.containsKey("consentimientoCorresponsabilidad") -> 4
-                errs.containsKey("responsable") || errs.containsKey("parentesco") || errs.containsKey("responsableTel") -> 1
+                errs.keys.any { it.startsWith("personaTramite") } || errs.containsKey("responsable") || errs.containsKey("parentesco") || errs.containsKey("responsableTel") -> 1
                 else -> 0
             }
             return
@@ -1256,6 +1373,14 @@ class PreApplicationViewModel {
                 alumnoDomicilio = _domicilio.value.trim(),
                 alumnoTelefonoCasa = _telefonoCasa.value,
                 escuelaProcedencia = _escuelaProcedencia.value,
+                promedioGradoAnterior = promedio,
+                personaTramite = PersonaTramite(
+                    nombreCompleto = _personaTramiteNombre.value.trim(),
+                    parentesco = _personaTramiteParentesco.value.trim(),
+                    telefono = _personaTramiteTelefono.value,
+                    identificacionPresentada = _personaTramiteIdentificacion.value.trim(),
+                    usarComoContactoPrincipal = _usarPersonaTramiteComoContacto.value
+                ),
                 responsables = listOf(
                     Responsable(
                         nombreCompleto = _responsableNombre.value.trim(),
@@ -1369,6 +1494,8 @@ class PreApplicationViewModel {
         _nombre.value = ""
         _nombreCompleto.value = ""
         _curp.value = ""
+        _curpSugerida.value = ""
+        _curpEditedByUser.value = false
         _diaNacimiento.value = ""
         _mesNacimiento.value = ""
         _anioNacimiento.value = ""
@@ -1380,6 +1507,7 @@ class PreApplicationViewModel {
         _telefonoPrincipal.value = ""
         _correo.value = ""
         _escuelaProcedencia.value = ""
+        _promedioGradoAnterior.value = ""
         _aceptaAvisoPrivacidad.value = false
         _domicilio.value = ""
         _telefonoCasa.value = ""
@@ -1389,6 +1517,11 @@ class PreApplicationViewModel {
         _responsableCorreo.value = ""
         _responsableViveConAlumno.value = true
         _responsablePuedeRecoger.value = true
+        _personaTramiteNombre.value = ""
+        _personaTramiteParentesco.value = ""
+        _personaTramiteTelefono.value = ""
+        _personaTramiteIdentificacion.value = ""
+        _usarPersonaTramiteComoContacto.value = false
         _autorizados.value = emptyList()
         _servicioMedico.value = ""
         _numeroAfiliacionPoliza.value = ""

@@ -2,13 +2,14 @@ package com.example.data.presolicitud
 
 object MockOfficialStudentData {
     val officialStudents = listOf(
-        // Alumno de 1er grado (sin grupo por regla de negocio)
+        // Alumno de 1er grado con grupo balanceado
         OfficialStudent(
             id = "OFF-101",
             preApplicationFolio = "PRE-X1A2",
-            status = OfficialStudentStatus.ALTA_OFICIAL_SIN_GRUPO,
+            status = OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO,
             gradoIngreso = 1,
-            grupoSugerido = null,
+            grupoSugerido = "1A",
+            grupoAsignado = "1A",
             curp = "CURP-DEMO-01",
             alumnoNombreCompleto = "ALUMNO DEMO 01",
             alumnoSexo = "H",
@@ -20,7 +21,7 @@ object MockOfficialStudentData {
             validacionMedico = ValidacionArea("Médico Escolar", true, "Dr. Martinez", "Hoy", "Sin alergias, certificado recibido"),
             validacionTrabajoSocial = ValidacionArea("Trabajo Social", false),
             validacionUdeii = ValidacionArea("UDEII", false),
-            validacionDireccion = ValidacionArea("Dirección", false)
+            validacionDireccion = ValidacionArea("Dirección", true, "Directora Elena", "Hoy", "Grupo 1A aprobado por balance institucional")
         ),
         // Alumno de 2do grado (con grupo sugerido)
         OfficialStudent(
@@ -49,12 +50,12 @@ object MockOfficialStudentData {
             preApplicationFolio = "PRE-B8Y2",
             status = OfficialStudentStatus.DOCS_PENDIENTES,
             gradoIngreso = 1,
-            grupoSugerido = null,
+            grupoSugerido = "1B",
             curp = "CURP-DEMO-02",
             alumnoNombreCompleto = "ALUMNO DEMO 02",
             alumnoSexo = "H",
             alumnoEdad = 6,
-            promedio = null,
+            promedio = 8.2,
             matriculaOficial = null, // Aun no se genera matricula hasta tener el ALTA OFICIAL
             fechaCreacion = "Hoy",
             validacionSecretaria = ValidacionArea("Secretaría", false, observaciones = "Falta comprobante de domicilio reciente"),
