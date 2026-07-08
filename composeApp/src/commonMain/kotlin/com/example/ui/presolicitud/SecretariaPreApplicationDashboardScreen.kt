@@ -621,6 +621,7 @@ private fun DatosTab(preApp: PreApplication) {
     DetailRow("CURP", preApp.alumnoCurp)
     DetailRow("Fecha de nacimiento", preApp.alumnoFechaNacimiento)
     DetailRow("Sexo", preApp.alumnoSexo)
+    DetailRow(PreApplicationViewModel.promedioLabelForGrade(preApp.gradoSolicitado), preApp.promedioGradoAnterior?.toString() ?: "Pendiente")
     DetailRow("Nacionalidad", preApp.alumnoNacionalidad)
     DetailRow("Entidad de nacimiento", preApp.alumnoEntidadNacimiento)
     DetailRow("Domicilio", preApp.alumnoDomicilio)
@@ -633,6 +634,13 @@ private fun DatosTab(preApp: PreApplication) {
 @Composable
 private fun ResponsablesTab(preApp: PreApplication) {
     SectionHeader("Bloque C — Responsables")
+    val tramite = preApp.personaTramite
+    DetailRow("Persona que tramita", tramite.nombreCompleto.ifBlank { "Pendiente" })
+    DetailRow("Parentesco trámite", tramite.parentesco.ifBlank { "Pendiente" })
+    DetailRow("Teléfono trámite", tramite.telefono.ifBlank { "Pendiente" })
+    DetailRow("Identificación trámite", tramite.identificacionPresentada.ifBlank { "Pendiente" })
+    DetailRow("Usar como contacto 1", if (tramite.usarComoContactoPrincipal) "Sí" else "No")
+    Spacer(modifier = Modifier.height(8.dp))
     if (preApp.responsables.isEmpty()) {
         Text("No se registraron responsables", color = SaseOrange, fontSize = 10.sp)
     } else {
@@ -896,8 +904,12 @@ private fun OfficialEnrollmentContextualPanel(
     val grade = preApp.gradoSolicitado
     val matricula = OfficialStudent.generateMatricula(preApp.alumnoCurp, grade)
     val groupOptions = PreApplicationViewModel.groupOptionsForGrade(grade)
-    val suggestedGroup = remember(preApp.folio, grade) { PreApplicationViewModel.suggestInitialGroup(grade) }
-    var selectedGroup by remember(preApp.folio) { mutableStateOf(suggestedGroup ?: groupOptions.firstOrNull().orEmpty()) }
+    val age = remember(preApp.alumnoFechaNacimiento) { PreApplicationViewModel.calculateAgeFromBirthDate(preApp.alumnoFechaNacimiento) }
+    val suggestedGroup = remember(preApp.folio, grade, preApp.promedioGradoAnterior) {
+        PreApplicationViewModel.suggestInitialGroup(grade, preApp.alumnoSexo, age, preApp.promedioGradoAnterior)
+    }
+    val officialStudents by PreApplicationViewModel.officialStudents.collectAsState()
+    var selectedGroup by remember(preApp.folio) { mutableStateOf(officialStudent?.grupoAsignado ?: officialStudent?.grupoSugerido ?: suggestedGroup ?: groupOptions.firstOrNull().orEmpty()) }
     var groupConfirmed by remember(preApp.folio) { mutableStateOf(false) }
     var resultMessage by remember(preApp.folio) { mutableStateOf<String?>(null) }
     var resultColor by remember(preApp.folio) { mutableStateOf(SaseGreen) }
@@ -943,23 +955,16 @@ private fun OfficialEnrollmentContextualPanel(
         Spacer(modifier = Modifier.height(10.dp))
         DetailRow("Nombre", preApp.alumnoNombreCompleto)
         DetailRow("Grado ingreso", "${grade}°")
+        DetailRow(PreApplicationViewModel.promedioLabelForGrade(grade), preApp.promedioGradoAnterior?.toString() ?: "Pendiente")
+        DetailRow("Persona que tramita", preApp.personaTramite.nombreCompleto.ifBlank { "Pendiente" })
         DetailRow("Matrícula generada", matricula ?: "CURP inválida o menor a 10 caracteres")
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        if (grade == 1) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(SaseBlue.copy(alpha = 0.08f))
-                    .padding(10.dp)
-            ) {
-                Text("Grupo pendiente para balance institucional.", color = SaseBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            }
-        } else if (grade in 2..3) {
+        if (grade in 1..3) {
             SectionHeader("Asignación inicial de grupo")
-            DetailRow("Grupo sugerido por cupo básico", suggestedGroup ?: "Sin sugerencia disponible")
+            DetailRow("Grupo sugerido por balance", suggestedGroup ?: "Sin sugerencia disponible")
+            Text("Criterios: sexo, edad y ${PreApplicationViewModel.promedioLabelForGrade(grade).lowercase()}.", color = SaseMuted, fontSize = 9.sp)
             Spacer(modifier = Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                 groupOptions.forEach { option ->
@@ -981,6 +986,8 @@ private fun OfficialEnrollmentContextualPanel(
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            GroupBalanceSnapshot(grade, groupOptions, officialStudents)
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier
@@ -1014,7 +1021,7 @@ private fun OfficialEnrollmentContextualPanel(
                     resultMessage = enrollmentResult.message
                     resultColor = enrollmentResult.toUiColor()
                 },
-                enabled = matricula != null && (grade == 1 || selectedGroup.isNotBlank()),
+                enabled = matricula != null && selectedGroup.isNotBlank() && preApp.personaTramite.nombreCompleto.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -1024,7 +1031,7 @@ private fun OfficialEnrollmentContextualPanel(
                 Text("Generar matrícula oficial", fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
         } else {
-            OfficialEnrollmentConfirmation(officialStudent)
+            OfficialEnrollmentConfirmation(preApp, officialStudent)
 
             if (officialStudent.status == OfficialStudentStatus.PENDIENTE_ASIGNACION_GRUPO) {
                 Spacer(modifier = Modifier.height(10.dp))
@@ -1080,7 +1087,37 @@ private fun ReadinessResult.toUiColor(): Color = when (this) {
 }
 
 @Composable
-private fun OfficialEnrollmentConfirmation(student: OfficialStudent) {
+private fun GroupBalanceSnapshot(
+    grade: Int,
+    groupOptions: List<String>,
+    officialStudents: List<OfficialStudent>
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White.copy(alpha = 0.42f))
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Text("Estadística rápida por grupo", color = SaseNavy, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        groupOptions.forEach { group ->
+            val members = officialStudents.filter { it.gradoIngreso == grade && (it.grupoAsignado ?: it.grupoSugerido) == group }
+            val hombres = members.count { it.alumnoSexo == "Masculino" || it.alumnoSexo == "H" }
+            val mujeres = members.count { it.alumnoSexo == "Femenino" || it.alumnoSexo == "M" }
+            val promedio = members.mapNotNull { it.promedio }.takeIf { it.isNotEmpty() }?.average()
+            Text(
+                "$group: ${members.size} alumnos - H $hombres / M $mujeres - prom ${promedio?.let { ((it * 10).toInt() / 10.0).toString() } ?: "s/d"}",
+                color = SaseText,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+private fun OfficialEnrollmentConfirmation(preApp: PreApplication, student: OfficialStudent) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1093,14 +1130,46 @@ private fun OfficialEnrollmentConfirmation(student: OfficialStudent) {
         DetailRow("Folio", student.preApplicationFolio)
         DetailRow("Nombre", student.alumnoNombreCompleto)
         DetailRow("Grado ingreso", "${student.gradoIngreso}°")
+        DetailRow(PreApplicationViewModel.promedioLabelForGrade(student.gradoIngreso), student.promedio?.toString() ?: "Sin promedio")
         DetailRow("Matrícula", student.matriculaOficial ?: "Sin matrícula")
         DetailRow("Estado inicial", student.status.name)
-        if (student.gradoIngreso == 1) {
-            DetailRow("Grupo", "Pendiente para balance institucional")
-        } else {
-            DetailRow("Grupo sugerido", student.grupoSugerido ?: "Sin sugerencia")
-            DetailRow("Grupo asignado", student.grupoAsignado ?: "Pendiente de confirmación")
+        DetailRow("Grupo sugerido", student.grupoSugerido ?: "Sin sugerencia")
+        DetailRow("Grupo asignado", student.grupoAsignado ?: "Pendiente de confirmación")
+        Spacer(modifier = Modifier.height(10.dp))
+        OfficialEnrollmentReceiptPreview(preApp, student)
+    }
+}
+
+@Composable
+private fun OfficialEnrollmentReceiptPreview(preApp: PreApplication, student: OfficialStudent) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White.copy(alpha = 0.75f))
+            .border(1.dp, SaseNavy.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text("Contrarrecibo imprimible (vista placeholder)", color = SaseNavy, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+        DetailRow("Folio", preApp.folio)
+        DetailRow("Matrícula", student.matriculaOficial ?: "Sin matrícula")
+        DetailRow("Alumno", student.alumnoNombreCompleto)
+        DetailRow("CURP", student.curp)
+        DetailRow("Grado / grupo", "${student.gradoIngreso}° / ${(student.grupoAsignado ?: student.grupoSugerido) ?: "Pendiente"}")
+        DetailRow("Ciclo", preApp.cicloEscolar)
+        DetailRow("Fecha", student.fechaCreacion)
+        DetailRow("Tramitó", "${preApp.personaTramite.nombreCompleto} (${preApp.personaTramite.parentesco})")
+        Spacer(modifier = Modifier.height(4.dp))
+        Text("Documentos presentados", color = SaseNavy, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        preApp.documentosDeclarados.filter { it.declarado }.take(8).forEach { doc ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CheckBox, contentDescription = null, tint = SaseGreen, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(doc.nombre, color = SaseText, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
         }
+        Text("La impresión/PDF real queda fuera de esta fase.", color = SaseOrange, fontSize = 9.sp, fontWeight = FontWeight.Bold)
     }
 }
 

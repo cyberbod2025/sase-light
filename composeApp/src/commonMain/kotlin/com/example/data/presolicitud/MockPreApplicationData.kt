@@ -19,6 +19,8 @@ object MockPreApplicationData {
             alumnoDomicilio = "DOMICILIO DEMO",
             alumnoTelefonoCasa = "TEL-DEMO-01",
             escuelaProcedencia = "Primaria Benito Juarez",
+            promedioGradoAnterior = 8.6,
+            personaTramite = PersonaTramite("TUTOR DEMO 01", "Padre", "5511111111", "INE", true),
             responsables = listOf(
                 Responsable(
                     nombreCompleto = "TUTOR DEMO 01",
@@ -59,6 +61,8 @@ object MockPreApplicationData {
             alumnoDomicilio = "DOMICILIO DEMO",
             alumnoTelefonoCasa = "TEL-DEMO-02",
             escuelaProcedencia = "Primaria 5 de Mayo",
+            promedioGradoAnterior = 8.2,
+            personaTramite = PersonaTramite("TUTOR DEMO 02", "Madre", "5522222222", "INE", true),
             responsables = listOf(
                 Responsable(
                     nombreCompleto = "TUTOR DEMO 02",
@@ -103,6 +107,8 @@ object MockPreApplicationData {
             alumnoDomicilio = "DOMICILIO DEMO",
             alumnoTelefonoCasa = "TEL-DEMO-03",
             escuelaProcedencia = "Secundaria Diurna 1",
+            promedioGradoAnterior = 8.8,
+            personaTramite = PersonaTramite("TUTOR DEMO 03", "Padre", "5533333333", "INE", true),
             responsables = listOf(
                 Responsable(
                     nombreCompleto = "TUTOR DEMO 03",

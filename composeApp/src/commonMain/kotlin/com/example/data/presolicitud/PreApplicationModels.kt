@@ -34,6 +34,8 @@ data class PreApplication(
     val alumnoDomicilio: String,
     val alumnoTelefonoCasa: String,
     val escuelaProcedencia: String,
+    val promedioGradoAnterior: Double? = null,
+    val personaTramite: PersonaTramite = PersonaTramite(),
     // Bloque C: Responsables
     val responsables: List<Responsable>,
     // Bloque D: Autorizados para recoger
@@ -54,6 +56,14 @@ data class PreApplication(
     val readinessStatus: ReadinessStatus = ReadinessStatus.PENDING,
     val readyAt: String? = null,
     val readinessNotes: String = ""
+)
+
+data class PersonaTramite(
+    val nombreCompleto: String = "",
+    val parentesco: String = "",
+    val telefono: String = "",
+    val identificacionPresentada: String = "",
+    val usarComoContactoPrincipal: Boolean = false
 )
 
 data class Responsable(
