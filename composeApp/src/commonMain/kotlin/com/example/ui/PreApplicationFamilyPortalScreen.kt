@@ -345,6 +345,7 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
     val apellidoMat by vm.apellidoMaterno.collectAsState()
     val nombreSolo by vm.nombre.collectAsState()
     val curp by vm.curp.collectAsState()
+    val curpSugerida by vm.curpSugerida.collectAsState()
     val diaNac by vm.diaNacimiento.collectAsState()
     val mesNac by vm.mesNacimiento.collectAsState()
     val anioNac by vm.anioNacimiento.collectAsState()
@@ -355,6 +356,7 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
     val telefono by vm.telefonoPrincipal.collectAsState()
     val correo by vm.correo.collectAsState()
     val escuela by vm.escuelaProcedencia.collectAsState()
+    val promedio by vm.promedioGradoAnterior.collectAsState()
     val acepta by vm.aceptaAvisoPrivacidad.collectAsState()
     val domicilio by vm.domicilio.collectAsState()
     val telefonoCasa by vm.telefonoCasa.collectAsState()
@@ -405,6 +407,22 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
     FormField("Apellido paterno", apellidoPat, { vm.setApellidoPaterno(it) }, errors.containsKey("nombre"), "Obligatorio")
     FormField("Apellido materno", apellidoMat, { vm.setApellidoMaterno(it) }, false, null)
     FormField("Nombre(s)", nombreSolo, { vm.setNombre(it) }, errors.containsKey("nombre"), "Obligatorio")
+    if (curpSugerida.isNotBlank()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(SaseBlue.copy(alpha = 0.08f))
+                .padding(10.dp)
+        ) {
+            Text(
+                "CURP sugerida: $curpSugerida. Validar contra documento oficial; puedes editarla abajo.",
+                color = SaseBlue,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
     FormField("CURP (18 caracteres)", curp, { vm.setCurp(it) }, errors.containsKey("curp"), "18 caracteres requeridos")
 
     Text("Fecha de nacimiento", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
@@ -447,6 +465,13 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
     FormField("Correo electronico (opcional)", correo, { vm.setCorreo(it) }, false, null)
     FormField("Telefono de casa (opcional)", telefonoCasa, { vm.setTelefonoCasa(it) }, false, null)
     FormField("Escuela de procedencia", escuela, { vm.setEscuelaProcedencia(it) }, false, null)
+    FormField(
+        PreApplicationViewModel.promedioLabelForGrade(grado),
+        promedio,
+        { vm.setPromedioGradoAnterior(it) },
+        errors.containsKey("promedio"),
+        "Requerido entre 5.0 y 10.0"
+    )
 
     // Aviso de privacidad
     Row(
@@ -486,6 +511,11 @@ private fun FormField(label: String, value: String, onChange: (String) -> Unit, 
 
 @Composable
 private fun StepContactos(vm: PreApplicationViewModel) {
+    val personaTramiteNombre by vm.personaTramiteNombre.collectAsState()
+    val personaTramiteParentesco by vm.personaTramiteParentesco.collectAsState()
+    val personaTramiteTelefono by vm.personaTramiteTelefono.collectAsState()
+    val personaTramiteIdentificacion by vm.personaTramiteIdentificacion.collectAsState()
+    val usarPersonaTramiteComoContacto by vm.usarPersonaTramiteComoContacto.collectAsState()
     val responsableNombre by vm.responsableNombre.collectAsState()
     val responsableParentesco by vm.responsableParentesco.collectAsState()
     val responsableTelefono by vm.responsableTelefono.collectAsState()
@@ -496,6 +526,33 @@ private fun StepContactos(vm: PreApplicationViewModel) {
 
     var showAddDialog by remember { mutableStateOf(false) }
 
+    Text("Persona que realiza el trámite", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    Text("Dato obligatorio para inscripción/reinscripción y contrarrecibo oficial.", fontSize = 12.sp, color = PortalMuted)
+
+    FormField("Nombre completo", personaTramiteNombre, { vm.setPersonaTramiteNombre(it) }, false, null)
+    CompactOptionGroup(
+        label = "Parentesco",
+        options = listOf("Madre", "Padre", "Ambos", "Tutor", "Otra persona"),
+        selected = personaTramiteParentesco,
+        onSelect = { vm.setPersonaTramiteParentesco(it) }
+    )
+    FormField("Telefono de la persona que tramita", personaTramiteTelefono, { vm.setPersonaTramiteTelefono(it) }, false, null)
+    FormField("Identificacion presentada", personaTramiteIdentificacion, { vm.setPersonaTramiteIdentificacion(it) }, false, null)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(PortalCardBg)
+            .clickable { vm.setUsarPersonaTramiteComoContacto(!usarPersonaTramiteComoContacto) }
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Checkbox(checked = usarPersonaTramiteComoContacto, onCheckedChange = { vm.setUsarPersonaTramiteComoContacto(it) })
+        Spacer(modifier = Modifier.width(6.dp))
+        Text("Usar esta persona como Contacto 1", fontSize = 12.sp, color = PortalText, fontWeight = FontWeight.Medium)
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
     Text("Responsable Principal", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Text("Registra a la madre, padre o tutor legal.", fontSize = 12.sp, color = PortalMuted)
 
@@ -1019,6 +1076,7 @@ private fun StepDocumentos(vm: PreApplicationViewModel) {
     Text("Indica los documentos que presentaras en Secretaria para cotejo.", fontSize = 12.sp, color = PortalMuted)
 
     documentos.forEach { doc ->
+        val isInstitutionalPlaceholder = doc.key in listOf("reglamentoEscolar", "marcoConvivenciaDoc", "avisoPrivacidadDoc", "corresponsabilidadDoc")
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -1030,7 +1088,12 @@ private fun StepDocumentos(vm: PreApplicationViewModel) {
         ) {
             Checkbox(checked = doc.declarado, onCheckedChange = { vm.toggleDocumento(doc.key) })
             Spacer(modifier = Modifier.width(6.dp))
-            Text(doc.label, fontSize = 12.sp, color = PortalText, fontWeight = FontWeight.Medium)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(doc.label, fontSize = 12.sp, color = PortalText, fontWeight = FontWeight.Medium)
+                if (isInstitutionalPlaceholder) {
+                    Text("Ver documento / Descargar PDF placeholder", fontSize = 10.sp, color = SaseBlue, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 
@@ -1095,6 +1158,9 @@ private fun StepResumenEnvio(vm: PreApplicationViewModel) {
     val consentimientos by vm.consentimientos.collectAsState()
     val responsableNombre by vm.responsableNombre.collectAsState()
     val responsableParentesco by vm.responsableParentesco.collectAsState()
+    val promedio by vm.promedioGradoAnterior.collectAsState()
+    val personaTramiteNombre by vm.personaTramiteNombre.collectAsState()
+    val personaTramiteParentesco by vm.personaTramiteParentesco.collectAsState()
 
     Text("Resumen y Envio", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Text("Revisa tus datos antes de enviar.", fontSize = 12.sp, color = PortalMuted)
@@ -1109,6 +1175,8 @@ private fun StepResumenEnvio(vm: PreApplicationViewModel) {
             SummaryLine("Grado", "${grado}°")
             SummaryLine("Nombre", nombreCompleto)
             SummaryLine("CURP", curp)
+            SummaryLine(PreApplicationViewModel.promedioLabelForGrade(grado), promedio)
+            SummaryLine("Persona que tramita", "$personaTramiteNombre ($personaTramiteParentesco)")
             if (responsableNombre.isNotBlank()) SummaryLine("Responsable", "$responsableNombre ($responsableParentesco)")
             SummaryLine("Telefono", telefono)
         }
@@ -1197,5 +1265,3 @@ private fun DropdownField(
         }
     }
 }
-
-

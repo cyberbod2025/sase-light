@@ -19,7 +19,7 @@ data class OfficialStudent(
     val preApplicationFolio: String, // Referencia a la pre-solicitud de origen
     val status: OfficialStudentStatus,
     val gradoIngreso: Int,
-    val grupoSugerido: String?, // Sólo sugerido para 2° y 3°, para 1° queda nulo
+    val grupoSugerido: String?,
     val grupoAsignado: String? = null,
     val curp: String,
     val alumnoNombreCompleto: String,

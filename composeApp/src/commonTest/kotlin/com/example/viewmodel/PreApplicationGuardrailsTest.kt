@@ -10,6 +10,7 @@ import com.example.data.presolicitud.ConsentimientosFamiliares
 import com.example.data.presolicitud.ContextoSociofamiliar
 import com.example.data.presolicitud.DocumentoDeclarado
 import com.example.data.presolicitud.FichaMedicaFamiliar
+import com.example.data.presolicitud.PersonaTramite
 import com.example.data.presolicitud.PreApplication
 import com.example.data.presolicitud.PreApplicationStatus
 import com.example.data.presolicitud.ReadinessStatus
@@ -309,6 +310,14 @@ class PreApplicationGuardrailsTest {
         alumnoDomicilio = "Domicilio de prueba",
         alumnoTelefonoCasa = "55 0000 0000",
         escuelaProcedencia = "Primaria de prueba",
+        promedioGradoAnterior = 8.5,
+        personaTramite = PersonaTramite(
+            nombreCompleto = "Responsable Prueba",
+            parentesco = "Madre",
+            telefono = "5511111111",
+            identificacionPresentada = "INE",
+            usarComoContactoPrincipal = true
+        ),
         responsables = listOf(
             Responsable(
                 nombreCompleto = "Responsable Prueba",
