@@ -206,6 +206,7 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                             )
                             PreApplicationDetailTabs(
                                 preApp = selectedApp,
+                                viewModel = viewModel,
                                 onApprove = { folio ->
                                     PreApplicationViewModel.approvePreApplication(folio)
                                     toast("Pre-solicitud $folio aceptada — pendiente alta oficial")
@@ -360,6 +361,7 @@ private val TAB_LABELS = listOf("Datos", "Responsables", "Contexto", "Documentos
 @Composable
 private fun PreApplicationDetailTabs(
     preApp: PreApplication?,
+    viewModel: LabViewModel,
     onApprove: (String) -> Unit,
     onMarkCorrection: (String) -> Unit,
     onProvisionalCreated: (String) -> Unit,
@@ -386,6 +388,7 @@ private fun PreApplicationDetailTabs(
 
     var selectedTab by remember(preApp.folio) { mutableStateOf(0) }
     var showOfficialEnrollmentPanel by remember(preApp.folio) { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
 
     GlassCard(modifier = modifier) {
         // Folio + Status
@@ -445,11 +448,12 @@ private fun PreApplicationDetailTabs(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Tab Row
-        TabRow(
+        // Tab Row — scrollable for mobile
+        ScrollableTabRow(
             selectedTabIndex = selectedTab,
             containerColor = Color.Transparent,
             contentColor = SaseNavy,
+            edgePadding = 0.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             TAB_LABELS.forEachIndexed { index, label ->
@@ -484,6 +488,17 @@ private fun PreApplicationDetailTabs(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    OutlinedButton(
+                        onClick = { showEditDialog = true },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SaseBlue),
+                        border = BorderStroke(1.dp, SaseBlue.copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Editar datos", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
                     if (preApp.status != PreApplicationStatus.PENDIENTE_CORRECCION) {
                         OutlinedButton(
                             onClick = { onMarkCorrection(preApp.folio) },
@@ -497,19 +512,96 @@ private fun PreApplicationDetailTabs(
                             Text("Requiere corrección", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
                     }
-                    Button(
-                        onClick = { onApprove(preApp.folio) },
-                        colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Aceptar", fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { onApprove(preApp.folio) },
+                    colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Aceptar", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
             }
 
+        }
+
+        // Edit dialog for Secretary
+        if (showEditDialog) {
+            EditPreApplicationDialog(
+                preApp = preApp,
+                onDismiss = { showEditDialog = false }
+            )
+        }
+    }
+}
+
+@Composable
+private fun EditPreApplicationDialog(
+    preApp: PreApplication,
+    onDismiss: () -> Unit
+) {
+    var nombreEdit by remember(preApp.folio) { mutableStateOf(preApp.alumnoNombreCompleto) }
+    var telefonoEdit by remember(preApp.folio) { mutableStateOf(preApp.alumnoTelefonoCasa) }
+    var domicilioEdit by remember(preApp.folio) { mutableStateOf(preApp.alumnoDomicilio) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, SaseBorder),
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Editar datos de pre-solicitud", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 18.sp)
+                Text("Secretaría puede corregir datos antes de aprobar. Folio: ${preApp.folio}", color = SaseMuted, fontSize = 11.sp)
+
+                OutlinedTextField(
+                    value = nombreEdit,
+                    onValueChange = { nombreEdit = it },
+                    label = { Text("Nombre completo") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = telefonoEdit,
+                    onValueChange = { telefonoEdit = it.take(10) },
+                    label = { Text("Teléfono") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = domicilioEdit,
+                    onValueChange = { domicilioEdit = it },
+                    label = { Text("Domicilio") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancelar", color = SaseMuted)
+                    }
+                    Button(
+                        onClick = {
+                            onDismiss()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Guardar (mock)", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
     }
 }
@@ -693,6 +785,8 @@ private fun OfficialEnrollmentReadinessCard(
 
         if (pendingItems.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
+            Text("Pendientes para habilitar alta oficial:", color = SaseOrange, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(4.dp))
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 pendingItems.forEach { item ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -703,7 +797,7 @@ private fun OfficialEnrollmentReadinessCard(
                                 .background(SaseOrange)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(item, color = SaseText, fontSize = 10.sp)
+                        Text(item, color = SaseText, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -727,6 +821,15 @@ private fun OfficialEnrollmentReadinessCard(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Declarar lista institucionalmente", fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
+            if (!isReadyByChecklist) {
+                Text(
+                    "Completa los pendientes de arriba para habilitar.",
+                    color = SaseOrange,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
         }
         Button(
@@ -748,12 +851,23 @@ private fun OfficialEnrollmentReadinessCard(
                 fontSize = 11.sp
             )
         }
-        Text(
-            if (officialStarted) "El seguimiento permanece ligado a esta pre-solicitud y al expediente maestro." else "Disponible cuando documentación, fotografías y readiness institucional estén completos.",
-            color = SaseMuted,
-            fontSize = 9.sp,
-            modifier = Modifier.padding(top = 4.dp)
-        )
+        if (!officialStarted && !isPersistedReady) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(SaseOrange.copy(alpha = 0.08f))
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    "Disponible cuando documentación, fotografías y readiness institucional estén completos.",
+                    color = SaseOrange,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
         if (readinessMessage != null) {
             Text(
                 readinessMessage ?: "",
@@ -1341,6 +1455,7 @@ private fun MobilePreApplicationDetail(
         Spacer(modifier = Modifier.height(12.dp))
         PreApplicationDetailTabs(
             preApp = preApp,
+            viewModel = viewModel,
             onApprove = onApprove,
             onMarkCorrection = onMarkCorrection,
             onProvisionalCreated = onProvisionalCreated,
