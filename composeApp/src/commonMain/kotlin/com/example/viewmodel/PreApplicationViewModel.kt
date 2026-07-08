@@ -1020,15 +1020,15 @@ class PreApplicationViewModel {
     fun setCicloEscolar(v: String) { _cicloEscolar.value = v }
     fun setGradoSolicitado(v: Int) { _gradoSolicitado.value = v }
     fun setApellidoPaterno(v: String) {
-        _apellidoPaterno.value = v
+        _apellidoPaterno.value = v.uppercase()
         rebuildNombreCompleto()
     }
     fun setApellidoMaterno(v: String) {
-        _apellidoMaterno.value = v
+        _apellidoMaterno.value = v.uppercase()
         rebuildNombreCompleto()
     }
     fun setNombre(v: String) {
-        _nombre.value = v
+        _nombre.value = v.uppercase()
         rebuildNombreCompleto()
     }
     fun setNombreCompleto(v: String) { _nombreCompleto.value = v }
@@ -1109,8 +1109,8 @@ class PreApplicationViewModel {
         }
     }
     fun setSexo(v: String) { _sexo.value = v }
-    fun setNacionalidad(v: String) { _nacionalidad.value = v }
-    fun setEntidadNacimiento(v: String) { _entidadNacimiento.value = v }
+    fun setNacionalidad(v: String) { _nacionalidad.value = v.uppercase() }
+    fun setEntidadNacimiento(v: String) { _entidadNacimiento.value = v.uppercase() }
     fun setTelefonoPrincipal(v: String) { _telefonoPrincipal.value = v.take(10) }
     fun setCorreo(v: String) { _correo.value = v }
     fun setEscuelaProcedencia(v: String) { _escuelaProcedencia.value = v }
@@ -1118,7 +1118,7 @@ class PreApplicationViewModel {
     fun setDomicilio(v: String) { _domicilio.value = v }
     fun setTelefonoCasa(v: String) { _telefonoCasa.value = v.take(10) }
 
-    fun setResponsableNombre(v: String) { _responsableNombre.value = v }
+    fun setResponsableNombre(v: String) { _responsableNombre.value = v.uppercase() }
     fun setResponsableParentesco(v: String) { _responsableParentesco.value = v }
     fun setResponsableTelefono(v: String) { _responsableTelefono.value = v.take(10) }
     fun setResponsableCorreo(v: String) { _responsableCorreo.value = v }

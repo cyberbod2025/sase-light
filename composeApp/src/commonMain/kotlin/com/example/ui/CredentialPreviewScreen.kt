@@ -106,8 +106,12 @@ fun CredentialPreviewScreen(
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Detalles del registro", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SaseNavy)
 
-                    DetailLine("Matr\u00edcula oficial", preview.enrollmentId)
-                    DetailLine("Folio de pre-solicitud", preview.preApplicationFolio ?: "No aplica")
+                    DetailLine(
+                        "Matr\u00edcula",
+                        if (preview.enrollmentId.isNotBlank() && !preview.enrollmentId.startsWith("S310-CURP-DEMO")) preview.enrollmentId
+                        else "Por asignar"
+                    )
+                    DetailLine("Folio interno", preview.preApplicationFolio ?: "No aplica")
                     DetailLine("Ciclo escolar", preview.schoolYear)
                     DetailLine("Estado institucional", preview.status)
                     DetailLine("Origen", if (preview.generatedFromOfficialEnrollment) "Alta oficial" else "Registro directo")
@@ -255,7 +259,11 @@ private fun CredentialCard(preview: StudentCredentialPreview) {
             Spacer(modifier = Modifier.height(12.dp))
 
             // Data rows
-            InfoRow("MATR\u00cdCULA", preview.enrollmentId)
+            InfoRow(
+                "MATR\u00cdCULA",
+                if (preview.enrollmentId.isNotBlank() && !preview.enrollmentId.startsWith("S310-CURP-DEMO")) preview.enrollmentId
+                else "Por asignar"
+            )
             InfoRow("CURP", preview.curp)
             InfoRow("ESTATUS", preview.status)
 
@@ -364,11 +372,17 @@ private fun CredentialCardBack(preview: StudentCredentialPreview) {
             HorizontalDivider(color = Color.White.copy(alpha = .12f), thickness = 1.dp)
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Institutional data
+// Institutional data
+            BackInfoRow("ALUMNO", preview.fullName.uppercase())
+            BackInfoRow("CURP", preview.curp)
+            BackInfoRow("GRADO/GRUPO", "${preview.grade} ${preview.group ?: ""}".trim())
             BackInfoRow("CICLO ESCOLAR", preview.schoolYear)
-            BackInfoRow("MATR\u00cdCULA OFICIAL", preview.enrollmentId)
-            BackInfoRow("FOLIO ORIGEN", preview.preApplicationFolio ?: "No aplica")
-            BackInfoRow("ESTADO", "Vista previa")
+            BackInfoRow(
+                "MATRÍCULA",
+                if (preview.enrollmentId.isNotBlank() && !preview.enrollmentId.startsWith("S310-CURP-DEMO")) preview.enrollmentId
+                else "Por asignar"
+            )
+            BackInfoRow("ESTATUS", if (preview.generatedFromOfficialEnrollment) preview.status else "Vista previa sin validez oficial")
 
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(color = Color.White.copy(alpha = .12f), thickness = 1.dp)

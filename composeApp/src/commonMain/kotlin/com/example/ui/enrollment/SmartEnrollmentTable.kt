@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.Student
@@ -122,13 +123,13 @@ fun SmartEnrollmentTable(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Wrap table content in a horizontally scrollable container with a min-width to avoid column squeezing on mobile
+        // Wrap table content in a horizontally scrollable container
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
         ) {
-            Column(modifier = Modifier.widthIn(min = 720.dp)) {
+            Column(modifier = Modifier.widthIn(min = 480.dp)) {
                 // Table headers
                 Row(
                     modifier = Modifier
@@ -151,10 +152,21 @@ fun SmartEnrollmentTable(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 32.dp),
+                            .padding(vertical = 24.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("No hay alumnos que coincidan con los filtros seleccionados.", color = SaseMuted, fontSize = 12.sp)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Sin registros", color = SaseMuted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                if (students.isEmpty()) "No hay alumnos cargados en el sistema."
+                                else "No hay alumnos que coincidan con los filtros seleccionados.",
+                                color = SaseMuted.copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                        }
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

@@ -356,7 +356,7 @@ private fun StatusBadge(status: PreApplicationStatus) {
 
 // ── Tabbed Detail ──────────────────────────────────────────────────────────
 
-private val TAB_LABELS = listOf("Datos", "Responsables", "Contexto", "Documentos", "Revisión")
+private val TAB_LABELS = listOf("Datos", "Resp.", "Contexto", "Documentos", "Revisión")
 
 @Composable
 private fun PreApplicationDetailTabs(
@@ -736,17 +736,22 @@ private fun OfficialEnrollmentReadinessCard(
     val officialStarted = officialStudent != null
     var readinessMessage by remember(preApp.folio, preApp.readinessStatus) { mutableStateOf<String?>(null) }
     var readinessColor by remember(preApp.folio, preApp.readinessStatus) { mutableStateOf(SaseMuted) }
+    val readerIsReadyForOfficial = isPersistedReady && pendingItems.isEmpty()
+    val officialCompleted = officialStarted && pendingItems.isEmpty()
+    val officialWithPending = officialStarted && pendingItems.isNotEmpty()
     val headerColor = when {
-        officialStarted || preApp.readinessStatus == ReadinessStatus.CONVERTED -> SaseNavy
-        isPersistedReady -> SaseGreen
+        officialCompleted || preApp.readinessStatus == ReadinessStatus.CONVERTED -> SaseGreen
+        officialStarted -> SaseNavy
+        readerIsReadyForOfficial -> SaseGreen
         pendingItems.isNotEmpty() || preApp.readinessStatus == ReadinessStatus.BLOCKED -> SaseOrange
         else -> SaseMuted
     }
     val headerText = when {
-        officialStarted || preApp.readinessStatus == ReadinessStatus.CONVERTED -> "Convertida a alta oficial"
-        isPersistedReady -> "Lista para alta oficial"
+        officialCompleted || preApp.readinessStatus == ReadinessStatus.CONVERTED -> "Alta oficial completada"
+        officialStarted -> "Aceptada con pendientes"
+        readerIsReadyForOfficial -> "Lista para alta oficial"
         pendingItems.isNotEmpty() || preApp.readinessStatus == ReadinessStatus.BLOCKED -> "Con pendientes"
-        else -> "Pendiente de readiness"
+        else -> "Pendiente"
     }
     Column(
         modifier = Modifier
@@ -836,7 +841,7 @@ private fun OfficialEnrollmentReadinessCard(
             onClick = onStartOfficialEnrollment,
             enabled = isPersistedReady || officialStarted,
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (officialStarted) SaseNavy else SaseGreen,
+                containerColor = if (officialStarted) SaseBlue else SaseGreen,
                 disabledContainerColor = SaseMuted.copy(alpha = 0.18f),
                 disabledContentColor = SaseMuted
             ),
@@ -846,9 +851,10 @@ private fun OfficialEnrollmentReadinessCard(
             Icon(if (isPersistedReady || officialStarted) Icons.Default.AssignmentTurnedIn else Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                if (officialStarted) "Ver alta oficial contextual" else "Dar de alta oficial",
+                if (officialStarted) "Ver alta oficial" else "Dar de alta oficial",
                 fontWeight = FontWeight.Bold,
-                fontSize = 11.sp
+                fontSize = 11.sp,
+                color = Color.White
             )
         }
         if (!officialStarted && !isPersistedReady) {
@@ -1257,9 +1263,9 @@ private fun RevisionTab(
     var motivoCorreccion by remember(preApp.folio) { mutableStateOf(preApp.motivoCorreccion) }
     var notificationResult by remember { mutableStateOf<String?>(null) }
 
-    SectionHeader("Observaciones de Secretaría")
+    SectionHeader("Observaciones para Familia")
     Text(
-        "Registro interno para revisión de documentos, fotos o corrección solicitada.",
+        "Secretaría registra notas, correcciones o comentarios que serán visibles para la familia.",
         color = SaseMuted,
         fontSize = 9.sp
     )
@@ -1360,7 +1366,7 @@ private fun RevisionTab(
         )
         Column(modifier = Modifier.weight(1f)) {
             Text("Requiere corrección", color = SaseText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text("Permite registrar el motivo que verá Secretaría antes de notificar.", color = SaseMuted, fontSize = 9.sp)
+            Text("Registra el motivo que se comunicará a la familia para que realice los ajustes.", color = SaseMuted, fontSize = 9.sp)
         }
     }
 
