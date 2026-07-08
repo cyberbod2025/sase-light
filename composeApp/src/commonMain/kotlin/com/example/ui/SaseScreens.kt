@@ -427,7 +427,7 @@ fun GlobalStudentSearch(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(student.fullName, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 13.sp)
-                                Text("${student.group} · Matrícula: ${student.enrollmentId} · CURP: ${student.curp}", color = SaseMuted, fontSize = 11.sp)
+                                Text("${student.group} · Matrícula: ${if (student.enrollmentId.startsWith("S310-")) "Por asignar" else student.enrollmentId} · CURP: ${student.curp}", color = SaseMuted, fontSize = 11.sp)
                             }
                             Box(
                                 modifier = Modifier
@@ -885,7 +885,7 @@ fun SecretaryDashboardScreen(
                                         toast("Favor de llenar nombre y CURP")
                                     }
                                 },
-                            colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
+                            colors = ButtonDefaults.buttonColors(containerColor = SaseNavy, contentColor = Color.White),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1.5f)
                         ) {
