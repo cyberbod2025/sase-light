@@ -1,8 +1,8 @@
 # 07 — Tareas Pendientes Priorizadas
 
 > Sprint: H1 — Documental de Contexto
-> Fecha: 2026-07-07
-> Último merge documentado: PR #35
+> Fecha: 2026-07-05
+> Último merge documentado: PR #19 `724b6cc`
 
 ## Prioridades
 
@@ -49,20 +49,3 @@
 | PR #17 | Clarificar copia del portal preregistro familiar | fix(sase): clarify family preregistration copy |
 | PR #18 | Ocultar acciones de Secretario para otros roles | fix(sase): hide incident/escalation actions for non-secretary roles |
 | PR #19 | Reglas multi-criterio de asignación de grupo | feat(sase): multi-criteria group assignment rules |
-| PR #20 | Reemplazar println toast con Snackbar real | fix(sase): replace println toast with real Snackbar |
-| PR #21 | Eliminar botón Edit muerto de expediente | fix(sase): remove dead edit button from student record |
-| PR #22 | Contacto de emergencia desde modelo Student | feat(sase): source emergency contact from Student model |
-| PR #23 | Eliminar PlaceholderStep, Ver todos stub y FASE 1 | chore(sase): remove dead PlaceholderStep, Ver todos stub, FASE 1 label |
-| PR #24 | Eliminar navegación admin en portal familiar | fix(portal): remove admin navigation, fix dark-theme visibility |
-| PR #25 | CURP auto-completa fecha nacimiento, sexo y entidad | feat(portal): CURP auto-fill fecha nacimiento, sexo y entidad |
-| PR #26 | Dividir nombre completo en 3 campos | feat(portal): split nombre completo into apellido paterno, materno, nombre |
-| PR #27 | Fecha de nacimiento seccionada en día, mes, año | feat(portal): fecha nacimiento seccionada en día, mes, año |
-| PR #28 | Trabajo social usa checkboxes con opción Otro | feat(portal): trabajo social usa checkboxes con opción Otro |
-| PR #29 | Scroll arriba al cambiar de sección | feat(portal): scroll arriba al cambiar de sección |
-| PR #30 | Corrección de 5 bugs en portal | fix(portal): 5 bugs reportados por Codex |
-| PR #31 | Gráficas de inscripción y botón Validar | feat(sase): add enrollment charts and validate button to secretary dashboard |
-| PR #32 | Cerrar y Cancelar regresan al dashboard | fix(portal): Cerrar y Cancelar regresan al dashboard |
-| PR #33 | Nueva solicitud cierra diálogo y regresa al dashboard | fix(portal): Nueva solicitud cierra dialogo y regresa al dashboard |
-| `6d3d157` | Doc agente y contexto Codespaces | docs: update AGENTS.md for Codespaces + add internal agent context files |
-| PR #35 | Contexto agente interno y workflow Codespaces | docs(system): add internal agent context and codespaces workflow skill |
-| PR #34 | **🔴 ABIERTO** — Llamar tutor muestra diálogo con teléfono | fix(student): Llamar tutor muestra dialogo con numero — en revisión, NO mergeado |

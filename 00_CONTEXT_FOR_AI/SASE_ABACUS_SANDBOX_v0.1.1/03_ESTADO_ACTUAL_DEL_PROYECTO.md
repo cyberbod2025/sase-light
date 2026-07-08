@@ -1,8 +1,8 @@
 # 03 — Estado Actual del Proyecto
 
 > Sprint: H1 — Documental de Contexto
-> Fecha: 2026-07-07
-> Último merge documentado: PR #35
+> Fecha: 2026-07-05
+> Último merge documentado: PR #19 `724b6cc`
 
 ## Resumen
 
@@ -161,102 +161,6 @@ Gatillado en push/PR a `main`.
 **Commit:** feat(sase): multi-criteria group assignment rules
 **CI:** PASS (Build Android ✅, Test Desktop ✅, Build Desktop ✅)
 **Cambio:** `OfficialStudent` ahora incluye `alumnoSexo`, `alumnoEdad`, `promedio`. `suggestInitialGroup` usa scoring: (sexo×3) + (edad×2) + (promedio×1). Capacidad máxima 30/grupo. Helper `calculateAgeFromBirthDate` calcula edad desde `dd/Mes/yyyy`. Mock data actualizado con sexo/edad/promedio.
-
-### PR #20 — Reemplazar println toast con Snackbar real
-
-**Commit:** `b117f0c` — fix(sase): replace println toast with real Snackbar
-**CI:** PASS
-**Cambio:** Reemplazado `println("Llamando a tutor...")` con Snackbar de Material3 via `snackbarHostState.showSnackbar()` en `StudentRecordScreen`.
-
-### PR #21 — Eliminar botón Edit muerto de expediente
-
-**Commit:** `55f34a2` — fix(sase): remove dead edit button from student record
-**CI:** PASS
-**Cambio:** Eliminado botón "Edit" no funcional de `StudentRecordScreen` que no estaba conectado a funcionalidad de edición.
-
-### PR #22 — Contacto de emergencia desde modelo Student
-
-**Commit:** `3769750` — feat(sase): source emergency contact from Student model
-**CI:** PASS
-**Cambio:** La visualización de contacto de emergencia ahora obtiene datos de los campos reales del modelo `Student` (`emergencyContactName`, `emergencyContactRelation`, `emergencyContactPhone`, `emergencyContactEmail`) en lugar de valores hardcoded demo.
-
-### PR #23 — Eliminar PlaceholderStep, Ver todos stub y FASE 1 label
-
-**Commit:** `9fb32a1` — chore(sase): remove dead PlaceholderStep, Ver todos stub, FASE 1 label
-**CI:** PASS
-**Cambio:** Removidos `PlaceholderStep` composable no usado, botón "Ver todos" stub y label "FASE 1" del dashboard.
-
-### PR #24 — Eliminar navegación admin en portal familiar
-
-**Commit:** (PR #24) — fix(portal): remove admin navigation, fix dark-theme visibility
-**CI:** PASS
-**Cambio:** Eliminados elementos de navegación de administración del portal familiar. Corregida visibilidad en dark theme. Archivo: `PreApplicationFamilyPortalScreen.kt`.
-
-### PR #25 — CURP auto-completa fecha nacimiento, sexo y entidad
-
-**Commit:** (PR #25) — feat(portal): CURP auto-fill fecha nacimiento, sexo y entidad
-**CI:** PASS
-**Cambio:** Al ingresar CURP, auto-completa los campos de fecha de nacimiento, sexo y entidad federativa. Mejora de UX en formulario de pre-solicitud.
-
-### PR #26 — Dividir nombre completo en 3 campos
-
-**Commit:** (PR #26) — feat(portal): split nombre completo into apellido paterno, materno, nombre
-**CI:** PASS
-**Cambio:** Campo de nombre completo reemplazado por 3 campos separados: apellido paterno, apellido materno y nombre(s). Actualizados modelo y datos mock.
-
-### PR #27 — Fecha de nacimiento seccionada en día, mes, año
-
-**Commit:** (PR #27) — feat(portal): fecha nacimiento seccionada en día, mes, año
-**CI:** PASS
-**Cambio:** Campo de fecha de nacimiento reemplazado por 3 selectores desplegables para día, mes y año. Mejora de UX para ingreso de fechas.
-
-### PR #28 — Trabajo social usa checkboxes con opción Otro
-
-**Commit:** (PR #28) — feat(portal): trabajo social usa checkboxes con opción Otro
-**CI:** PASS
-**Cambio:** Sección de trabajo social ahora usa checkboxes con opción "Otro" en lugar de campos de texto.
-
-### PR #29 — Scroll arriba al cambiar de sección
-
-**Commit:** (PR #29) — feat(portal): scroll arriba al cambiar de sección
-**CI:** PASS
-**Cambio:** Auto-scroll al inicio de página al cambiar de sección en formulario multi-paso de pre-solicitud.
-
-### PR #30 — Corrección de 5 bugs en portal
-
-**Commit:** (PR #30) — fix(portal): 5 bugs reportados por Codex
-**CI:** PASS
-**Cambio:** Corregidos 5 bugs encontrados por Codex code review en el portal familiar.
-
-### PR #31 — Gráficas de inscripción y botón Validar en dashboard
-
-**Commit:** (PR #31) — feat(sase): add enrollment charts and validate button to secretary dashboard
-**CI:** PASS
-**Cambio:** Agregadas gráficas de inscripción al dashboard de secretaría. Agregado botón "Validar" para acciones de inscripción.
-
-### PR #32 — Cerrar y Cancelar regresan al dashboard
-
-**Commit:** (PR #32) — fix(portal): Cerrar y Cancelar regresan al dashboard
-**CI:** PASS
-**Cambio:** Los botones Cerrar y Cancelar en diálogos del portal ahora navegan correctamente de regreso al dashboard.
-
-### PR #33 — Nueva solicitud cierra diálogo y regresa al dashboard
-
-**Commit:** (PR #33) — fix(portal): Nueva solicitud cierra dialogo y regresa al dashboard
-**CI:** PASS
-**Cambio:** Diálogo de nueva solicitud se cierra y retorna al dashboard al confirmar envío.
-
-### Commit directo `6d3d157` — Documentación de agente y contexto Codespaces
-
-**Commit:** `6d3d157` — docs: update AGENTS.md for Codespaces + add internal agent context files
-**CI:** PASS
-**Cambio:** Creados `00_CONTEXT_FOR_AI/HUGO_SYSTEM_AGENT_INSTRUCTIONS.md` y `00_CONTEXT_FOR_AI/SKILLS/SASE_LIGHT_CODESPACES_GIT_PR_SKILL.md`. Actualizado AGENTS.md con secciones de entorno.
-
-### PR #35 — Contexto de agente interno y workflow Codespaces
-
-**Commit:** (PR #35) — docs(system): add internal agent context and codespaces workflow skill
-**CI:** PASS
-**Cambio:** Actualizado AGENTS.md con 3 nuevas secciones: Agent workflow references, Local agent state, Scope discipline.
 
 ## Archivos fuente
 
