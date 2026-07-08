@@ -1295,24 +1295,24 @@ fun SaseAppContent(viewModel: LabViewModel) {
                     }
                 }
 
-                // Compact dev role toggle — hidden in production
+                // Debug role toggle — extremely subtle, for dev testing only
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(16.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(SaseNavy2.copy(alpha = 0.5f))
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(SaseNavy2.copy(alpha = 0.12f))
                         .clickable {
                             val roles = AppRole.entries.toTypedArray()
                             val nextIndex = (roles.indexOf(currentRole) + 1) % roles.size
                             viewModel.setRole(roles[nextIndex])
                         }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = "${currentRole.label}",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 9.sp
+                        text = "${currentRole.label.take(1)}",
+                        color = Color.White.copy(alpha = 0.25f),
+                        fontSize = 7.sp
                     )
                 }
             }

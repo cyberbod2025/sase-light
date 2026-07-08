@@ -118,7 +118,11 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                     scrollState.animateScrollTo(0)
                 }
             }
-            GlassCard(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            GlassCard(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                containerColor = PortalCardBg.copy(alpha = 0.9f),
+                borderColor = Color.White.copy(alpha = 0.12f)
+            ) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -139,7 +143,11 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
             // Errors banner
             if (errors.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    containerColor = PortalCardBg.copy(alpha = 0.9f),
+                    borderColor = Color.White.copy(alpha = 0.12f)
+                ) {
                     Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Corrige los siguientes campos:", color = SaseRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         errors.forEach { (field, msg) ->
@@ -203,7 +211,10 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
     // Success dialog
     if (submittedFolio != null) {
         Dialog(onDismissRequest = { familyViewModel.resetForm(); onNavigateBack() }) {
-            GlassCard {
+            GlassCard(
+                containerColor = PortalCardBg.copy(alpha = 0.95f),
+                borderColor = Color.White.copy(alpha = 0.12f)
+            ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(24.dp)
@@ -218,11 +229,20 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(PortalCardBg, RoundedCornerShape(8.dp))
+                            .background(PortalCardBg, RoundedCornerShape(12.dp))
+                            .border(1.dp, SaseBlue.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                             .padding(16.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(submittedFolio!!, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = SaseBlue)
+                        Text(
+                            submittedFolio!!,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = SaseBlue,
+                            maxLines = 2,
+                            softWrap = true,
+                            textAlign = TextAlign.Center
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -255,9 +275,23 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                     Button(
                         onClick = { familyViewModel.resetForm(); onNavigateBack() },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
+                        colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
                         shape = RoundedCornerShape(12.dp)
-                    ) { Text("Nueva solicitud", color = Color.White, fontSize = 12.sp) }
+                    ) { Text("Entendido", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            familyViewModel.resetForm()
+                            onNavigateBack()
+                            // Navegar a Secretaría o mostrar detalle mock
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, SaseBlue.copy(alpha = 0.4f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SaseBlue)
+                    ) {
+                        Text("Nueva solicitud", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -570,7 +604,10 @@ private fun AutorizadoDialog(
     var telefono by remember { mutableStateOf("") }
 
     Dialog(onDismissRequest = onDismiss) {
-        GlassCard {
+        GlassCard(
+            containerColor = PortalCardBg.copy(alpha = 0.95f),
+            borderColor = Color.White.copy(alpha = 0.12f)
+        ) {
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Agregar Autorizado", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PortalText)
 
@@ -1062,7 +1099,10 @@ private fun StepResumenEnvio(vm: PreApplicationViewModel) {
     Text("Resumen y Envio", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Text("Revisa tus datos antes de enviar.", fontSize = 12.sp, color = PortalMuted)
 
-    GlassCard {
+    GlassCard(
+        containerColor = PortalCardBg.copy(alpha = 0.9f),
+        borderColor = Color.White.copy(alpha = 0.12f)
+    ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             SummaryLine("Tramite", tipoTramite)
             SummaryLine("Ciclo", cicloEscolar)
@@ -1075,7 +1115,10 @@ private fun StepResumenEnvio(vm: PreApplicationViewModel) {
     }
 
     Spacer(modifier = Modifier.height(8.dp))
-    GlassCard {
+    GlassCard(
+        containerColor = PortalCardBg.copy(alpha = 0.9f),
+        borderColor = Color.White.copy(alpha = 0.12f)
+    ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             val docsCount = documentos.count { it.declarado }
             SummaryLine("Documentos declarados", "$docsCount de ${documentos.size}")
