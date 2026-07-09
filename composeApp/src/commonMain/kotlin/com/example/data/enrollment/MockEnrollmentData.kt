@@ -6,7 +6,7 @@ object MockEnrollmentData {
         Enrollment(
             id = "ENR-2024-001",
             studentFullName = "ALUMNO DEMO 01",
-            curp = "CURP-DEMO-01",
+            curp = "DEMA100101HDFABC01",
             birthDate = "12/May/2010",
             gradeGroup = "2B",
             schoolYear = "2024-2025",
@@ -20,8 +20,8 @@ object MockEnrollmentData {
                 zipCode = "06000"
             ),
             contacts = listOf(
-                Contact("TUTOR DEMO 01", "Padre", "TEL-DEMO-01", "demo01@example.invalid", true),
-                Contact("TUTOR DEMO 01B", "Madre", "TEL-DEMO-01B", "demo01b@example.invalid", false)
+                Contact("RESPONSABLE DEMO 01", "PADRE", "5500000000", "demo01@example.invalid", true),
+                Contact("CONTACTO DEMO 01", "MADRE", "5500000001", "demo01b@example.invalid", false)
             ),
             medicalRecord = MedicalRecord(
                 bloodType = "O+",
@@ -45,15 +45,15 @@ object MockEnrollmentData {
                 EnrollmentDocument("INE tutor", "Entregado", true, "Secretaria")
             ),
             consents = listOf(
-                Consent("Uso de datos personales", true, "Jose Lopez Ramirez", "Hoy 09:40"),
-                Consent("Autorizacion medica", true, "Jose Lopez Ramirez", "Hoy 09:41")
+                Consent("Uso de datos personales", true, "RESPONSABLE DEMO 01", "Hoy 09:40"),
+                Consent("Autorizacion medica", true, "RESPONSABLE DEMO 01", "Hoy 09:41")
             ),
             riskFlags = listOf(
                 RiskFlag("Alergias", "Medio", "Registrar advertencia visible en expediente medico")
             ),
             readyForSignature = true,
             // v1.1A Identity
-            studentPhotoUrl = "mock://photo/student/mariana_lopez.jpg",
+            studentPhotoUrl = "mock://photo/student/alumno_demo_01.jpg",
             photoTakenAt = "Hoy 09:38",
             photoTakenBy = "Secretaria",
             photoForCredential = true,
@@ -61,9 +61,9 @@ object MockEnrollmentData {
                 id = "PRES-001",
                 enrollmentId = "ENR-2024-001",
                 studentId = "STU-001",
-                fullName = "TUTOR DEMO 01",
-                relationship = "Padre",
-                phone = "TEL-DEMO-01",
+                fullName = "RESPONSABLE DEMO 01",
+                relationship = "PADRE",
+                phone = "5500000000",
                 ineVerified = true,
                 presentAtEnrollment = true,
                 photoUrl = "mock://photo/tutor/demo01.jpg",
@@ -76,9 +76,9 @@ object MockEnrollmentData {
                 AuthorizedPickup(
                     id = "AUTH-001",
                     studentId = "STU-001",
-                    fullName = "TUTOR DEMO 01",
-                    relationship = "Padre",
-                    phone = "TEL-DEMO-01",
+                    fullName = "RESPONSABLE DEMO 01",
+                    relationship = "PADRE",
+                    phone = "5500000000",
                     ineVerified = true,
                     ineCopyUrl = "mock://ine/demo01.pdf",
                     photoUrl = "mock://photo/tutor/demo01.jpg",
@@ -89,9 +89,9 @@ object MockEnrollmentData {
                 AuthorizedPickup(
                     id = "AUTH-002",
                     studentId = "STU-001",
-                    fullName = "TUTOR DEMO 01B",
-                    relationship = "Madre",
-                    phone = "TEL-DEMO-01B",
+                    fullName = "CONTACTO DEMO 01",
+                    relationship = "MADRE",
+                    phone = "5500000001",
                     ineVerified = true,
                     ineCopyUrl = "mock://ine/demo01b.pdf",
                     photoUrl = "mock://photo/tutor/demo01b.jpg",
@@ -114,7 +114,7 @@ object MockEnrollmentData {
         Enrollment(
             id = "ENR-2024-002",
             studentFullName = "ALUMNO DEMO 02",
-            curp = "CURP-DEMO-02",
+            curp = "DEMB110202MDFABC02",
             birthDate = "04/Feb/2011",
             gradeGroup = "1A",
             schoolYear = "2024-2025",
@@ -128,7 +128,7 @@ object MockEnrollmentData {
                 zipCode = "06500"
             ),
             contacts = listOf(
-                Contact("TUTOR DEMO 02", "Madre", "TEL-DEMO-02", "demo02@example.invalid", true)
+                Contact("RESPONSABLE DEMO 02", "MADRE", "5500000002", "demo02@example.invalid", true)
             ),
             medicalRecord = MedicalRecord(
                 bloodType = "A+",
@@ -152,13 +152,13 @@ object MockEnrollmentData {
                 EnrollmentDocument("INE tutor", "Entregado", true, "Secretaria")
             ),
             consents = listOf(
-                Consent("Uso de datos personales", true, "Laura Sanchez Diaz", "Ayer 13:18"),
-                Consent("Autorizacion medica", true, "Laura Sanchez Diaz", "Ayer 13:18")
+                Consent("Uso de datos personales", true, "RESPONSABLE DEMO 02", "Ayer 13:18"),
+                Consent("Autorizacion medica", true, "RESPONSABLE DEMO 02", "Ayer 13:18")
             ),
             riskFlags = emptyList(),
             readyForSignature = false,
             // v1.1A Identity
-            studentPhotoUrl = "mock://photo/student/diego_morales.jpg",
+            studentPhotoUrl = "mock://photo/student/alumno_demo_02.jpg",
             photoTakenAt = "Ayer 13:15",
             photoTakenBy = "Secretaria",
             photoForCredential = true,
@@ -166,9 +166,9 @@ object MockEnrollmentData {
                 id = "PRES-002",
                 enrollmentId = "ENR-2024-002",
                 studentId = "STU-002",
-                fullName = "TUTOR DEMO 02",
-                relationship = "Madre",
-                phone = "TEL-DEMO-02",
+                fullName = "RESPONSABLE DEMO 02",
+                relationship = "MADRE",
+                phone = "5500000002",
                 ineVerified = true,
                 presentAtEnrollment = true,
                 photoUrl = "mock://photo/tutor/demo02.jpg",
@@ -181,9 +181,9 @@ object MockEnrollmentData {
                 AuthorizedPickup(
                     id = "AUTH-003",
                     studentId = "STU-002",
-                    fullName = "TUTOR DEMO 02",
-                    relationship = "Madre",
-                    phone = "TEL-DEMO-02",
+                    fullName = "RESPONSABLE DEMO 02",
+                    relationship = "MADRE",
+                    phone = "5500000002",
                     ineVerified = true,
                     ineCopyUrl = "mock://ine/demo02.pdf",
                     photoUrl = "mock://photo/tutor/demo02.jpg",
@@ -206,7 +206,7 @@ object MockEnrollmentData {
         Enrollment(
             id = "ENR-2024-003",
             studentFullName = "ALUMNO DEMO 03",
-            curp = "CURP-DEMO-03",
+            curp = "DEMC120303HDFABC03",
             birthDate = "12/Ago/2009",
             gradeGroup = "3C",
             schoolYear = "2024-2025",
@@ -220,8 +220,8 @@ object MockEnrollmentData {
                 zipCode = "04000"
             ),
             contacts = listOf(
-                Contact("TUTOR DEMO 03", "Padre", "TEL-DEMO-03", "demo03@example.invalid", true),
-                Contact("AUTORIZADO DEMO 01", "Tia", "TEL-DEMO-03B", "demo03b@example.invalid", false)
+                Contact("RESPONSABLE DEMO 03", "PADRE", "5500000003", "demo03@example.invalid", true),
+                Contact("AUTORIZADO DEMO 01", "TIA", "5500000000", "demo03b@example.invalid", false)
             ),
             medicalRecord = MedicalRecord(
                 bloodType = "B+",
@@ -245,7 +245,7 @@ object MockEnrollmentData {
                 EnrollmentDocument("INE tutor", "Entregado", true, "Secretaria")
             ),
             consents = listOf(
-                Consent("Uso de datos personales", true, "Carlos Jimenez Ruiz", "Hoy 11:12"),
+                Consent("Uso de datos personales", true, "RESPONSABLE DEMO 03", "Hoy 11:12"),
                 Consent("Autorizacion medica", false, "", "")
             ),
             riskFlags = listOf(
@@ -262,9 +262,9 @@ object MockEnrollmentData {
                 id = "PRES-003",
                 enrollmentId = "ENR-2024-003",
                 studentId = "STU-003",
-                fullName = "TUTOR DEMO 03",
-                relationship = "Padre",
-                phone = "TEL-DEMO-03",
+                fullName = "RESPONSABLE DEMO 03",
+                relationship = "PADRE",
+                phone = "5500000003",
                 ineVerified = true,
                 presentAtEnrollment = true,
                 photoUrl = "mock://photo/tutor/demo03.jpg",
@@ -277,9 +277,9 @@ object MockEnrollmentData {
                 AuthorizedPickup(
                     id = "AUTH-004",
                     studentId = "STU-003",
-                    fullName = "TUTOR DEMO 03",
-                    relationship = "Padre",
-                    phone = "TEL-DEMO-03",
+                    fullName = "RESPONSABLE DEMO 03",
+                    relationship = "PADRE",
+                    phone = "5500000003",
                     ineVerified = true,
                     ineCopyUrl = "mock://ine/demo03.pdf",
                     photoUrl = "mock://photo/tutor/demo03.jpg",
@@ -291,8 +291,8 @@ object MockEnrollmentData {
                     id = "AUTH-005",
                     studentId = "STU-003",
                     fullName = "AUTORIZADO DEMO 01",
-                    relationship = "Tia",
-                    phone = "TEL-DEMO-03B",
+                    relationship = "TIA",
+                    phone = "5500000000",
                     ineVerified = false,
                     ineCopyUrl = null,
                     photoUrl = null,
@@ -315,7 +315,7 @@ object MockEnrollmentData {
         Enrollment(
             id = "ENR-2024-004",
             studentFullName = "ALUMNO DEMO 04",
-            curp = "CURP-DEMO-04",
+            curp = "DEMD130404MDFABC04",
             birthDate = "15/Ago/2009",
             gradeGroup = "3A",
             schoolYear = "2024-2025",
@@ -329,7 +329,7 @@ object MockEnrollmentData {
                 zipCode = "03100"
             ),
             contacts = listOf(
-                Contact("TUTOR DEMO 04", "Padre", "TEL-DEMO-04", "demo04@example.invalid", true)
+                Contact("RESPONSABLE DEMO 04", "PADRE", "5500000001", "demo04@example.invalid", true)
             ),
             medicalRecord = MedicalRecord(
                 bloodType = "AB+",
@@ -359,7 +359,7 @@ object MockEnrollmentData {
             riskFlags = emptyList(),
             readyForSignature = false,
             // v1.1A Identity — missing INE, no presenter
-            studentPhotoUrl = "mock://photo/student/sofia_ramirez.jpg",
+            studentPhotoUrl = "mock://photo/student/alumno_demo_04.jpg",
             photoTakenAt = "Hoy 14:25",
             photoTakenBy = "Secretaria",
             photoForCredential = false,
@@ -379,7 +379,7 @@ object MockEnrollmentData {
         Enrollment(
             id = "ENR-2024-005",
             studentFullName = "ALUMNO DEMO 05",
-            curp = "CURP-DEMO-05",
+            curp = "DEME140505HDFABC05",
             birthDate = "25/Jul/2010",
             gradeGroup = "2A",
             schoolYear = "2024-2025",
@@ -393,8 +393,8 @@ object MockEnrollmentData {
                 zipCode = "04020"
             ),
             contacts = listOf(
-                Contact("TUTOR DEMO 05", "Madre", "TEL-DEMO-05", "demo05@example.invalid", true),
-                Contact("TUTOR DEMO 05B", "Padre", "TEL-DEMO-05B", "demo05b@example.invalid", false)
+                Contact("RESPONSABLE DEMO 05", "MADRE", "5500000002", "demo05@example.invalid", true),
+                Contact("CONTACTO DEMO 02", "PADRE", "5500000003", "demo05b@example.invalid", false)
             ),
             medicalRecord = MedicalRecord(
                 bloodType = "O-",
@@ -418,15 +418,15 @@ object MockEnrollmentData {
                 EnrollmentDocument("INE tutor", "Entregado", true, "Secretaria")
             ),
             consents = listOf(
-                Consent("Uso de datos personales", true, "Gabriela Cruz Mendez", "Ayer 10:35"),
-                Consent("Autorizacion medica", true, "Gabriela Cruz Mendez", "Ayer 10:36")
+                Consent("Uso de datos personales", true, "RESPONSABLE DEMO 05", "Ayer 10:35"),
+                Consent("Autorizacion medica", true, "RESPONSABLE DEMO 05", "Ayer 10:36")
             ),
             riskFlags = listOf(
                 RiskFlag("Alergia medica", "Alto", "Penicilina - alertar en cada ingreso")
             ),
             readyForSignature = false,
             // v1.1A Identity — missing authorized pickups
-            studentPhotoUrl = "mock://photo/student/emiliano_torres.jpg",
+            studentPhotoUrl = "mock://photo/student/alumno_demo_05.jpg",
             photoTakenAt = "Ayer 10:32",
             photoTakenBy = "Secretaria",
             photoForCredential = true,
@@ -434,9 +434,9 @@ object MockEnrollmentData {
                 id = "PRES-005",
                 enrollmentId = "ENR-2024-005",
                 studentId = "STU-005",
-                fullName = "TUTOR DEMO 05",
-                relationship = "Madre",
-                phone = "TEL-DEMO-05",
+                fullName = "RESPONSABLE DEMO 05",
+                relationship = "MADRE",
+                phone = "5500000002",
                 ineVerified = true,
                 presentAtEnrollment = true,
                 photoUrl = "mock://photo/tutor/demo05.jpg",
