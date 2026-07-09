@@ -26,7 +26,7 @@ data class OfficialStudent(
     val alumnoSexo: String = "", // H / M
     val alumnoEdad: Int = 0,
     val promedio: Double? = null,
-    // La matrícula se genera con S310-[10 chars CURP]-G[Grado]
+    // La matrícula se genera con S310-[10 chars CURP]-[AA ingreso]
     // Sólo se asigna si pasa a Alta Oficial
     val matriculaOficial: String? = null,
     // Trazabilidad
@@ -41,10 +41,11 @@ data class OfficialStudent(
     val validacionDireccion: ValidacionArea = ValidacionArea("Dirección")
 ) {
     companion object {
-        fun generateMatricula(curp: String, grado: Int): String? {
+        fun generateMatricula(curp: String, ingresoAnioCorto: Int): String? {
             if (curp.length < 10) return null // Inválida o incompleta
+            if (ingresoAnioCorto !in 0..99) return null
             val prefix = curp.substring(0, 10).uppercase()
-            return "S310-$prefix-G$grado"
+            return "S310-$prefix-${ingresoAnioCorto.toString().padStart(2, '0')}"
         }
     }
 }

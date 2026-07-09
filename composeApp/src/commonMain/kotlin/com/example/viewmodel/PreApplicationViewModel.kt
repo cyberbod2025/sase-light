@@ -122,6 +122,7 @@ class PreApplicationViewModel {
         val sharedPreApplications: StateFlow<List<PreApplication>> = _sharedPreApplications.asStateFlow()
         private val preApplicationFolioChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         private const val preApplicationTimestampPrefix = "Hoy "
+        private val officialCurpPattern = Regex("^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z0-9]\\d$")
 
         fun approvePreApplication(folio: String) {
             updatePreApp(folio) { it.copy(status = PreApplicationStatus.ACEPTADA) }
@@ -162,7 +163,13 @@ class PreApplicationViewModel {
             val createdAt: String
         )
 
-        private val _photos = MutableStateFlow<Map<String, PreApplicationPhotoState>>(emptyMap())
+        private fun demoPhotoStates(): Map<String, PreApplicationPhotoState> = mapOf(
+            "PRE-X1A2" to PreApplicationPhotoState("mock://photo/student/PRE-X1A2.jpg", "mock://photo/responsable/PRE-X1A2.jpg"),
+            "PRE-D4L4" to PreApplicationPhotoState("mock://photo/student/PRE-D4L4.jpg", "mock://photo/responsable/PRE-D4L4.jpg"),
+            "PRE-E5M5" to PreApplicationPhotoState("mock://photo/student/PRE-E5M5.jpg", "mock://photo/responsable/PRE-E5M5.jpg")
+        )
+
+        private val _photos = MutableStateFlow(demoPhotoStates())
         val photos: StateFlow<Map<String, PreApplicationPhotoState>> = _photos.asStateFlow()
 
         private val _reviewObservations = MutableStateFlow<Map<String, List<SecretariaReviewObservation>>>(emptyMap())
@@ -173,7 +180,7 @@ class PreApplicationViewModel {
 
         fun resetSharedStateForTests() {
             _sharedPreApplications.value = MockPreApplicationData.preApplications
-            _photos.value = emptyMap()
+            _photos.value = demoPhotoStates()
             _reviewObservations.value = emptyMap()
             _officialStudents.value = MockOfficialStudentData.officialStudents
             MockSaseData.resetForTests()
@@ -232,6 +239,11 @@ class PreApplicationViewModel {
         private fun normalizeCurp(curp: String): String = curp.trim().uppercase()
 
         private fun normalizeMatricula(matricula: String): String = matricula.trim().uppercase()
+
+        private fun isOfficialCurpComplete(curp: String): Boolean = normalizeCurp(curp).matches(officialCurpPattern)
+
+        private fun ingresoAnioCorto(cicloEscolar: String): Int? =
+            Regex("\\d{4}").find(cicloEscolar)?.value?.takeLast(2)?.toIntOrNull()
 
         private fun updatePreApp(
             folio: String,
@@ -493,16 +505,6 @@ class PreApplicationViewModel {
                 return OfficialEnrollmentResult.DuplicateFolio(preApp.folio)
             }
 
-            val matricula = OfficialStudent.generateMatricula(preApp.alumnoCurp, preApp.gradoSolicitado)
-                ?: return OfficialEnrollmentResult.Error("No se puede generar matrícula: CURP inválida o menor a 10 caracteres.")
-            val normalizedCurp = normalizeCurp(preApp.alumnoCurp)
-            if (officialStudentByCurp(normalizedCurp) != null) {
-                return OfficialEnrollmentResult.DuplicateCurp(normalizedCurp)
-            }
-            if (officialStudentByMatricula(matricula) != null) {
-                return OfficialEnrollmentResult.DuplicateMatricula(matricula)
-            }
-
             val sourcePreApplication = _sharedPreApplications.value.firstOrNull { it.folio == preApp.folio }
                 ?: return OfficialEnrollmentResult.PreApplicationNotFound(preApp.folio)
             val pendingItems = officialEnrollmentPendingItems(preApp)
@@ -513,20 +515,20 @@ class PreApplicationViewModel {
                 return OfficialEnrollmentResult.NotReady(listOf("Readiness institucional declarada"))
             }
 
+            val normalizedCurp = normalizeCurp(preApp.alumnoCurp)
             if (normalizeCurp(sourcePreApplication.alumnoCurp) != normalizedCurp) {
                 return OfficialEnrollmentResult.Error("La pre-solicitud ya no coincide con la bandeja institucional compartida.")
             }
-
-            val existingMasterByCurp = masterStudentByCurp(normalizedCurp)
-            val existingMasterByMatricula = masterStudentByMatricula(matricula)
-            if (existingMasterByCurp != null && existingMasterByCurp.preApplicationFolio != preApp.folio) {
+            if (!isOfficialCurpComplete(normalizedCurp) || preApp.gradoSolicitado !in 1..3) {
+                return OfficialEnrollmentResult.Error("La matrícula se asignará cuando la CURP y el alta oficial estén completas.")
+            }
+            if (officialStudentByCurp(normalizedCurp) != null) {
                 return OfficialEnrollmentResult.DuplicateCurp(normalizedCurp)
             }
-            if (existingMasterByMatricula != null && existingMasterByMatricula.preApplicationFolio != preApp.folio) {
-                return OfficialEnrollmentResult.DuplicateMatricula(matricula)
-            }
-            if (existingMasterByCurp != null && existingMasterByMatricula != null && existingMasterByCurp.id != existingMasterByMatricula.id) {
-                return OfficialEnrollmentResult.MasterStudentPropagationError("CURP y matrícula pertenecen a expedientes maestros distintos.")
+
+            val existingMasterByCurp = masterStudentByCurp(normalizedCurp)
+            if (existingMasterByCurp != null && existingMasterByCurp.preApplicationFolio != preApp.folio) {
+                return OfficialEnrollmentResult.DuplicateCurp(normalizedCurp)
             }
 
             val edadAlumno = calculateAgeFromBirthDate(preApp.alumnoFechaNacimiento)
@@ -550,7 +552,7 @@ class PreApplicationViewModel {
                 alumnoSexo = preApp.alumnoSexo,
                 alumnoEdad = edadAlumno,
                 promedio = preApp.promedioGradoAnterior,
-                matriculaOficial = normalizeMatricula(matricula),
+                matriculaOficial = null,
                 fechaCreacion = "$preApplicationTimestampPrefix${com.example.formatTimestamp("hh:mm a")}",
                 validacionSecretaria = ValidacionArea(
                     area = "Secretaría",
@@ -562,43 +564,12 @@ class PreApplicationViewModel {
             )
 
             _officialStudents.value = _officialStudents.value + officialStudent
-
-            val masterResult = propagateOfficialEnrollmentToMasterStudent(sourcePreApplication, officialStudent)
-            return when (masterResult) {
-                is StudentAddResult.Added -> {
-                    markConverted(sourcePreApplication.folio)
-                    OfficialEnrollmentResult.Success(
-                        officialStudent = officialStudent,
-                        masterStudent = masterResult.student,
-                        masterStudentCreated = true
-                    )
-                }
-                is StudentAddResult.DuplicateCurp,
-                is StudentAddResult.DuplicateEnrollmentId -> {
-                    val existingMaster = existingMasterByCurp ?: existingMasterByMatricula
-                    if (existingMaster?.preApplicationFolio == preApp.folio) {
-                        val updatedMaster = masterStudentFromOfficial(sourcePreApplication, officialStudent, existingMaster.id)
-                        MockSaseData.updateStudent(updatedMaster)
-                        markConverted(sourcePreApplication.folio)
-                        OfficialEnrollmentResult.Success(
-                            officialStudent = officialStudent,
-                            masterStudent = updatedMaster,
-                            masterStudentCreated = false
-                        )
-                    } else {
-                        _officialStudents.value = _officialStudents.value.filterNot { it.id == officialStudent.id }
-                        when (masterResult) {
-                            is StudentAddResult.DuplicateCurp -> OfficialEnrollmentResult.DuplicateCurp(masterResult.curp)
-                            is StudentAddResult.DuplicateEnrollmentId -> OfficialEnrollmentResult.DuplicateMatricula(masterResult.enrollmentId)
-                            else -> OfficialEnrollmentResult.MasterStudentPropagationError("Resultado de propagación inesperado.")
-                        }
-                    }
-                }
-                is StudentAddResult.InvalidData -> {
-                    _officialStudents.value = _officialStudents.value.filterNot { it.id == officialStudent.id }
-                    OfficialEnrollmentResult.MasterStudentPropagationError(masterResult.message)
-                }
-            }
+            return OfficialEnrollmentResult.Success(
+                officialStudent = officialStudent,
+                masterStudent = buildProvisionalStudent(sourcePreApplication),
+                masterStudentCreated = false,
+                message = "Alta oficial iniciada. Matrícula pendiente hasta confirmar grupo institucional."
+            )
         }
 
         private fun markConverted(folio: String) {
@@ -667,12 +638,38 @@ class PreApplicationViewModel {
                 return OfficialEnrollmentResult.Error("Selecciona un grupo para confirmar.")
             }
 
+            val sourcePreApplication = _sharedPreApplications.value.firstOrNull { it.folio == folio }
+                ?: return OfficialEnrollmentResult.PreApplicationNotFound(folio)
+            val pendingItems = officialEnrollmentPendingItems(sourcePreApplication)
+            if (pendingItems.isNotEmpty()) {
+                return OfficialEnrollmentResult.NotReady(pendingItems)
+            }
+            if (sourcePreApplication.readinessStatus != ReadinessStatus.READY && sourcePreApplication.readinessStatus != ReadinessStatus.CONVERTED) {
+                return OfficialEnrollmentResult.NotReady(listOf("Readiness institucional declarada"))
+            }
+
             var updatedStudent: OfficialStudent? = null
             _officialStudents.value = _officialStudents.value.map { student ->
                 if (student.preApplicationFolio != folio) return@map student
+                if (!isOfficialCurpComplete(student.curp) || student.gradoIngreso !in 1..3) {
+                    return OfficialEnrollmentResult.Error("La matrícula se asignará cuando la CURP y el alta oficial estén completas.")
+                }
+                val ingreso = ingresoAnioCorto(sourcePreApplication.cicloEscolar)
+                    ?: return OfficialEnrollmentResult.Error("La matrícula se asignará cuando el año de ingreso y el alta oficial estén completos.")
+                val matricula = OfficialStudent.generateMatricula(student.curp, ingreso)
+                    ?: return OfficialEnrollmentResult.Error("La matrícula se asignará cuando la CURP y el alta oficial estén completas.")
+                val existingOfficialByMatricula = officialStudentByMatricula(matricula)
+                if (existingOfficialByMatricula != null && existingOfficialByMatricula.preApplicationFolio != folio) {
+                    return OfficialEnrollmentResult.DuplicateMatricula(matricula)
+                }
+                val existingMasterByMatricula = masterStudentByMatricula(matricula)
+                if (existingMasterByMatricula != null && existingMasterByMatricula.preApplicationFolio != folio) {
+                    return OfficialEnrollmentResult.DuplicateMatricula(matricula)
+                }
                 updatedStudent = student.copy(
                     status = OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO,
                     grupoAsignado = cleanGroup,
+                    matriculaOficial = normalizeMatricula(matricula),
                     validacionDireccion = ValidacionArea(
                         area = "Dirección",
                         validado = true,
@@ -690,12 +687,13 @@ class PreApplicationViewModel {
             val syncedMaster = if (existingMaster != null) {
                 val updatedMaster = existingMaster.copy(
                     group = cleanGroup,
+                    enrollmentId = currentStudent.matriculaOficial.orEmpty(),
                     status = "Alta oficial con grupo"
                 )
                 MockSaseData.updateStudent(updatedMaster)
                 updatedMaster
             } else {
-                Student(
+                val newMaster = Student(
                     id = "MASTER-${folio.takeLast(4)}",
                     fullName = currentStudent.alumnoNombreCompleto,
                     group = cleanGroup,
@@ -704,7 +702,14 @@ class PreApplicationViewModel {
                     status = "Alta oficial con grupo",
                     preApplicationFolio = folio
                 )
+                when (val addResult = MockSaseData.addStudent(newMaster)) {
+                    is StudentAddResult.Added -> addResult.student
+                    is StudentAddResult.DuplicateCurp -> addResult.existing
+                    is StudentAddResult.DuplicateEnrollmentId -> return OfficialEnrollmentResult.DuplicateMatricula(addResult.enrollmentId)
+                    is StudentAddResult.InvalidData -> return OfficialEnrollmentResult.MasterStudentPropagationError(addResult.message)
+                }
             }
+            markConverted(folio)
             return OfficialEnrollmentResult.Success(
                 officialStudent = currentStudent,
                 masterStudent = syncedMaster,
@@ -741,7 +746,7 @@ class PreApplicationViewModel {
     private val _tipoTramite = MutableStateFlow("Nuevo Ingreso")
     val tipoTramite: StateFlow<String> = _tipoTramite.asStateFlow()
 
-    private val _cicloEscolar = MutableStateFlow("2025-2026")
+    private val _cicloEscolar = MutableStateFlow("2026-2027")
     val cicloEscolar: StateFlow<String> = _cicloEscolar.asStateFlow()
 
     private val _gradoSolicitado = MutableStateFlow(0)
@@ -1082,13 +1087,13 @@ class PreApplicationViewModel {
         rebuildNombreCompleto()
         rebuildCurpSuggestion()
     }
-    fun setNombreCompleto(v: String) { _nombreCompleto.value = v }
+    fun setNombreCompleto(v: String) { _nombreCompleto.value = v.uppercase() }
     private fun rebuildNombreCompleto() {
         val parts = listOf(_apellidoPaterno.value.trim(), _apellidoMaterno.value.trim(), _nombre.value.trim()).filter { it.isNotEmpty() }
         _nombreCompleto.value = parts.joinToString(" ")
     }
     fun setCurp(v: String) {
-        val upper = v.uppercase().take(18)
+        val upper = v.filter { it.isLetterOrDigit() }.uppercase().take(18)
         _curp.value = upper
         _curpEditedByUser.value = true
         if (upper.length == 18) {
@@ -1166,17 +1171,17 @@ class PreApplicationViewModel {
     fun setSexo(v: String) { _sexo.value = v; rebuildCurpSuggestion() }
     fun setNacionalidad(v: String) { _nacionalidad.value = v.uppercase() }
     fun setEntidadNacimiento(v: String) { _entidadNacimiento.value = v.uppercase(); rebuildCurpSuggestion() }
-    fun setTelefonoPrincipal(v: String) { _telefonoPrincipal.value = v.take(10) }
+    fun setTelefonoPrincipal(v: String) { _telefonoPrincipal.value = v.filter { it.isDigit() }.take(10) }
     fun setCorreo(v: String) { _correo.value = v }
     fun setEscuelaProcedencia(v: String) { _escuelaProcedencia.value = v.uppercase() }
     fun setPromedioGradoAnterior(v: String) { _promedioGradoAnterior.value = v.filter { it.isDigit() || it == '.' }.take(4) }
     fun setAceptaAvisoPrivacidad(v: Boolean) { _aceptaAvisoPrivacidad.value = v }
     fun setDomicilio(v: String) { _domicilio.value = v.uppercase() }
-    fun setTelefonoCasa(v: String) { _telefonoCasa.value = v.take(10) }
+    fun setTelefonoCasa(v: String) { _telefonoCasa.value = v.filter { it.isDigit() }.take(10) }
 
     fun setResponsableNombre(v: String) { _responsableNombre.value = v.uppercase() }
     fun setResponsableParentesco(v: String) { _responsableParentesco.value = v }
-    fun setResponsableTelefono(v: String) { _responsableTelefono.value = v.take(10) }
+    fun setResponsableTelefono(v: String) { _responsableTelefono.value = v.filter { it.isDigit() }.take(10) }
     fun setResponsableCorreo(v: String) { _responsableCorreo.value = v }
     fun setResponsableViveConAlumno(v: Boolean) { _responsableViveConAlumno.value = v }
     fun setResponsablePuedeRecoger(v: Boolean) { _responsablePuedeRecoger.value = v }
@@ -1190,7 +1195,7 @@ class PreApplicationViewModel {
         syncPersonaTramiteToContactoIfNeeded()
     }
     fun setPersonaTramiteTelefono(v: String) {
-        _personaTramiteTelefono.value = v.take(10)
+        _personaTramiteTelefono.value = v.filter { it.isDigit() }.take(10)
         syncPersonaTramiteToContactoIfNeeded()
     }
     fun setPersonaTramiteIdentificacion(v: String) { _personaTramiteIdentificacion.value = v.uppercase() }
@@ -1228,22 +1233,22 @@ class PreApplicationViewModel {
 
     fun addAutorizado(nombre: String, parentesco: String, telefono: String) {
         val id = "AUT-${_autorizados.value.size + 1}-${Random.nextInt(100, 999)}"
-        _autorizados.value = _autorizados.value + AutorizadoItem(id, nombre, parentesco, telefono.take(10))
+        _autorizados.value = _autorizados.value + AutorizadoItem(id, nombre.uppercase(), parentesco.uppercase(), telefono.filter { it.isDigit() }.take(10))
     }
 
     fun removeAutorizado(id: String) {
         _autorizados.value = _autorizados.value.filter { it.id != id }
     }
 
-    fun setServicioMedico(v: String) { _servicioMedico.value = v }
-    fun setNumeroAfiliacionPoliza(v: String) { _numeroAfiliacionPoliza.value = v }
-    fun setTipoSangre(v: String) { _tipoSangre.value = v }
+    fun setServicioMedico(v: String) { _servicioMedico.value = v.uppercase() }
+    fun setNumeroAfiliacionPoliza(v: String) { _numeroAfiliacionPoliza.value = v.uppercase() }
+    fun setTipoSangre(v: String) { _tipoSangre.value = v.uppercase() }
     fun setTieneAlergias(v: Boolean) { _tieneAlergias.value = v }
-    fun setAlergiasDetalle(v: String) { _alergiasDetalle.value = v }
+    fun setAlergiasDetalle(v: String) { _alergiasDetalle.value = v.uppercase() }
     fun setTienePadecimientos(v: Boolean) { _tienePadecimientos.value = v }
-    fun setPadecimientosDetalle(v: String) { _padecimientosDetalle.value = v }
+    fun setPadecimientosDetalle(v: String) { _padecimientosDetalle.value = v.uppercase() }
     fun setTomaMedicamentos(v: Boolean) { _tomaMedicamentos.value = v }
-    fun setMedicamentosDetalle(v: String) { _medicamentosDetalle.value = v }
+    fun setMedicamentosDetalle(v: String) { _medicamentosDetalle.value = v.uppercase() }
     fun setRestriccionActividadFisica(v: Boolean) { _restriccionActividadFisica.value = v }
     fun setRestriccionActividadFisicaDetalle(v: String) { _restriccionActividadFisicaDetalle.value = v }
     fun setUsaLentes(v: Boolean) { _usaLentes.value = v }
@@ -1254,36 +1259,36 @@ class PreApplicationViewModel {
     fun setSaludBucalReferida(v: String) { _saludBucalReferida.value = v }
     fun setCartillaVacunacionActualizada(v: Boolean) { _cartillaVacunacionActualizada.value = v }
 
-    fun setViveConQuien(v: String) { _viveConQuien.value = v }
+    fun setViveConQuien(v: String) { _viveConQuien.value = v.uppercase() }
     fun setTipoFamilia(v: String) { _tipoFamilia.value = v }
     fun setHijoUnico(v: Boolean) { _hijoUnico.value = v }
     fun setLugarEntreHermanos(v: String) { _lugarEntreHermanos.value = v }
     fun setHermanosEnEscuela(v: Boolean) { _hermanosEnEscuela.value = v }
     fun setIntegrantesHogar(v: String) { _integrantesHogar.value = v.filter { it.isDigit() }.take(2) }
-    fun setPrincipalSostenEconomico(v: String) { _principalSostenEconomico.value = v }
+    fun setPrincipalSostenEconomico(v: String) { _principalSostenEconomico.value = v.uppercase() }
     fun setIngresoFamiliarRango(v: String) { _ingresoFamiliarRango.value = v }
     fun setTipoVivienda(v: String) { _tipoVivienda.value = v }
     fun setServiciosBasicos(v: Boolean) { _serviciosBasicos.value = v }
     fun setInternetCasa(v: Boolean) { _internetCasa.value = v }
     fun setDispositivoTareas(v: String) { _dispositivoTareas.value = v }
-    fun setBecaApoyoSocial(v: String) { _becaApoyoSocial.value = v }
+    fun setBecaApoyoSocial(v: String) { _becaApoyoSocial.value = v.uppercase() }
     fun setMedioTransporte(v: String) { _medioTransporte.value = v }
     fun setDificultadComprarMateriales(v: Boolean) { _dificultadComprarMateriales.value = v }
-    fun setPersonaAtiendeAvisos(v: String) { _personaAtiendeAvisos.value = v }
+    fun setPersonaAtiendeAvisos(v: String) { _personaAtiendeAvisos.value = v.uppercase() }
     fun setHorarioPreferenteComunicacion(v: String) { _horarioPreferenteComunicacion.value = v }
     fun setPuedeAcudirCitatorios(v: Boolean) { _puedeAcudirCitatorios.value = v }
 
     fun setIsUdeii(v: Boolean) { _isUdeii.value = v }
-    fun setUdeiiAntecedenteApoyo(v: String) { _udeiiAntecedenteApoyo.value = v }
+    fun setUdeiiAntecedenteApoyo(v: String) { _udeiiAntecedenteApoyo.value = v.uppercase() }
     fun setUdeiiTerapiaLenguaje(v: Boolean) { _udeiiTerapiaLenguaje.value = v }
     fun setUdeiiApoyoPsicologico(v: Boolean) { _udeiiApoyoPsicologico.value = v }
     fun setUdeiiApoyoPedagogico(v: Boolean) { _udeiiApoyoPedagogico.value = v }
-    fun setUdeiiDocumentosDisponibles(v: String) { _udeiiDocumentosDisponibles.value = v }
+    fun setUdeiiDocumentosDisponibles(v: String) { _udeiiDocumentosDisponibles.value = v.uppercase() }
     fun setUdeiiInformeEscuelaAnterior(v: Boolean) { _udeiiInformeEscuelaAnterior.value = v }
     fun setUdeiiEvaluacionPsicopedagogica(v: Boolean) { _udeiiEvaluacionPsicopedagogica.value = v }
     fun setUdeiiPlanIntervencion(v: Boolean) { _udeiiPlanIntervencion.value = v }
     fun setUdeiiPortafolio(v: Boolean) { _udeiiPortafolio.value = v }
-    fun setUdeiiObservaciones(v: String) { _udeiiObservaciones.value = v }
+    fun setUdeiiObservaciones(v: String) { _udeiiObservaciones.value = v.uppercase() }
 
     private fun validateStep(step: Int): Boolean {
         val errs = mutableMapOf<String, String>()
@@ -1309,6 +1314,27 @@ class PreApplicationViewModel {
                 if (_responsableNombre.value.isBlank()) errs["responsable"] = "Nombre del responsable obligatorio"
                 if (_responsableParentesco.value.isBlank()) errs["parentesco"] = "Parentesco obligatorio"
                 if (_responsableTelefono.value.length < 10) errs["responsableTel"] = "Teléfono 10 dígitos requerido"
+            }
+            2 -> {
+                if (_servicioMedico.value.isBlank()) errs["servicioMedico"] = "Servicio médico obligatorio"
+                if (_tipoSangre.value.isBlank()) errs["tipoSangre"] = "Tipo de sangre obligatorio"
+                if (_tieneAlergias.value && _alergiasDetalle.value.isBlank()) errs["alergiasDetalle"] = "Detalle de alergias obligatorio"
+                if (_tienePadecimientos.value && _padecimientosDetalle.value.isBlank()) errs["padecimientosDetalle"] = "Detalle de padecimientos obligatorio"
+                if (_tomaMedicamentos.value && _medicamentosDetalle.value.isBlank()) errs["medicamentosDetalle"] = "Detalle de medicamentos obligatorio"
+                if (_viveConQuien.value.isBlank()) errs["viveConQuien"] = "Indica con quién vive el alumno"
+                if (_tipoFamilia.value.isBlank()) errs["tipoFamilia"] = "Tipo de familia obligatorio"
+                val hogar = _integrantesHogar.value.toIntOrNull()
+                if (hogar == null || hogar < 1) errs["integrantesHogar"] = "Número de integrantes inválido"
+                if (_personaAtiendeAvisos.value.isBlank()) errs["personaAtiendeAvisos"] = "Persona que atiende avisos obligatoria"
+            }
+            3 -> {
+                if (_documentos.value.none { it.declarado }) errs["documentos"] = "Debes declarar al menos un documento"
+                val aceptaUsoDatos = _consentimientos.value.find { it.key == "usoDatos" }?.aceptado == true
+                val aceptaReglamento = _consentimientos.value.find { it.key == "reglamento" }?.aceptado == true
+                val aceptaMarcoConvivencia = _consentimientos.value.find { it.key == "marcoConvivencia" }?.aceptado == true
+                if (!aceptaUsoDatos) errs["consentimientoUsoDatos"] = "Debes aceptar el uso de datos para expediente"
+                if (!aceptaReglamento) errs["consentimientoReglamento"] = "Debes aceptar el reglamento escolar"
+                if (!aceptaMarcoConvivencia) errs["consentimientoMarcoConvivencia"] = "Debes aceptar el marco para la convivencia"
             }
             4 -> {
                 val usoDatos = _consentimientos.value.find { it.key == "usoDatos" }?.aceptado == true
@@ -1341,6 +1367,17 @@ class PreApplicationViewModel {
         if (_responsableNombre.value.isBlank()) errs["responsable"] = "Nombre del responsable obligatorio"
         if (_responsableParentesco.value.isBlank()) errs["parentesco"] = "Parentesco obligatorio"
         if (_responsableTelefono.value.length < 10) errs["responsableTel"] = "Teléfono 10 dígitos requerido"
+        if (_servicioMedico.value.isBlank()) errs["servicioMedico"] = "Servicio médico obligatorio"
+        if (_tipoSangre.value.isBlank()) errs["tipoSangre"] = "Tipo de sangre obligatorio"
+        if (_tieneAlergias.value && _alergiasDetalle.value.isBlank()) errs["alergiasDetalle"] = "Detalle de alergias obligatorio"
+        if (_tienePadecimientos.value && _padecimientosDetalle.value.isBlank()) errs["padecimientosDetalle"] = "Detalle de padecimientos obligatorio"
+        if (_tomaMedicamentos.value && _medicamentosDetalle.value.isBlank()) errs["medicamentosDetalle"] = "Detalle de medicamentos obligatorio"
+        if (_viveConQuien.value.isBlank()) errs["viveConQuien"] = "Indica con quién vive el alumno"
+        if (_tipoFamilia.value.isBlank()) errs["tipoFamilia"] = "Tipo de familia obligatorio"
+        val hogar = _integrantesHogar.value.toIntOrNull()
+        if (hogar == null || hogar < 1) errs["integrantesHogar"] = "Número de integrantes inválido"
+        if (_personaAtiendeAvisos.value.isBlank()) errs["personaAtiendeAvisos"] = "Persona que atiende avisos obligatoria"
+        if (_documentos.value.none { it.declarado }) errs["documentos"] = "Debes declarar al menos un documento"
         val usoDatos = _consentimientos.value.find { it.key == "usoDatos" }?.aceptado == true
         val corresponsabilidad = _consentimientos.value.find { it.key == "corresponsabilidad" }?.aceptado == true
         if (!usoDatos) errs["consentimientoUsoDatos"] = "Debes aceptar el uso de datos para expediente"
@@ -1350,6 +1387,8 @@ class PreApplicationViewModel {
             _currentStep.value = when {
                 errs.containsKey("consentimientoUsoDatos") || errs.containsKey("consentimientoCorresponsabilidad") -> 4
                 errs.keys.any { it.startsWith("personaTramite") } || errs.containsKey("responsable") || errs.containsKey("parentesco") || errs.containsKey("responsableTel") -> 1
+                errs.keys.any { it in setOf("servicioMedico", "tipoSangre", "alergiasDetalle", "padecimientosDetalle", "medicamentosDetalle", "viveConQuien", "tipoFamilia", "integrantesHogar", "personaAtiendeAvisos") } -> 2
+                errs.containsKey("documentos") -> 3
                 else -> 0
             }
             return
@@ -1488,7 +1527,7 @@ class PreApplicationViewModel {
     fun resetForm() {
         _currentStep.value = 0
         _tipoTramite.value = "Nuevo Ingreso"
-        _cicloEscolar.value = "2025-2026"
+        _cicloEscolar.value = "2026-2027"
         _apellidoPaterno.value = ""
         _apellidoMaterno.value = ""
         _nombre.value = ""
