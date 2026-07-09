@@ -58,6 +58,22 @@ import com.example.ui.SaseOrange
 import com.example.ui.SaseRed
 import com.example.ui.SaseText
 
+private val officialEnrollmentPattern = Regex("^S310-[A-Z0-9]{10}-\\d{2}$")
+private val curpPattern = Regex("^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z0-9]\\d$")
+
+private fun hasOfficialEnrollment(student: Student): Boolean =
+    student.enrollmentId.matches(officialEnrollmentPattern) && student.curp.matches(curpPattern)
+
+private fun visibleEnrollmentId(student: Student): String =
+    if (hasOfficialEnrollment(student)) student.enrollmentId else "Por asignar"
+
+private fun enrollmentPendingReason(student: Student): String =
+    if (!student.curp.matches(curpPattern)) {
+        "La matrícula se asignará cuando la CURP y el alta oficial estén completas."
+    } else {
+        "Pendiente de alta oficial."
+    }
+
 // Smart table filters
 @Composable
 fun SmartEnrollmentTable(
@@ -157,12 +173,17 @@ private fun EmptyState(noStudents: Boolean) {
                 modifier = Modifier.size(40.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Sin registros", color = SaseMuted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(
+                if (noStudents) "Sin matrícula cargada" else "Sin coincidencias",
+                color = SaseNavy,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 if (noStudents) "No hay alumnos cargados en el sistema."
-                else "No hay alumnos que coincidan con los filtros seleccionados.",
-                color = SaseMuted.copy(alpha = 0.7f),
+                else "Ajusta grupo, estatus o riesgo para ampliar los resultados.",
+                color = SaseMuted,
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -210,7 +231,7 @@ private fun WideStudentTable(
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(student.fullName, color = SaseText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            Text("ID: ${student.enrollmentId}", color = SaseMuted, fontSize = 10.sp)
+                            Text("Matrícula: ${visibleEnrollmentId(student)}", color = SaseMuted, fontSize = 10.sp)
                         }
                     }
                     Text(student.group, color = SaseText, fontSize = 12.sp, modifier = Modifier.weight(0.8f))
@@ -242,29 +263,40 @@ private fun CompactStudentList(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         students.forEach { student ->
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.5f))
+                    .background(Color.White.copy(alpha = 0.72f))
                     .clickable { onStudentClick(student.id) }
                     .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                StudentAvatar(student)
-                Spacer(modifier = Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(student.fullName, color = SaseText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(student.group, color = SaseMuted, fontSize = 11.sp)
-                        StatusPill(status = student.status)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StudentAvatar(student)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(student.fullName, color = SaseText, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                        Text("Matrícula: ${visibleEnrollmentId(student)}", color = SaseMuted, fontSize = 10.sp)
+                        if (!hasOfficialEnrollment(student)) {
+                            Text(enrollmentPendingReason(student), color = SaseOrange, fontSize = 9.sp, lineHeight = 11.sp)
+                        }
+                    }
+                    IconButton(
+                        onClick = { onStudentClick(student.id) },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Ver expediente", tint = SaseNavy, modifier = Modifier.size(18.dp))
                     }
                 }
-                IconButton(
-                    onClick = { onStudentClick(student.id) },
-                    modifier = Modifier.size(28.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Ver", tint = SaseMuted, modifier = Modifier.size(18.dp))
+                    Text(student.group, color = SaseNavy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    StatusPill(status = student.status)
+                    DocBadge(student.documentationStatus)
                 }
             }
         }

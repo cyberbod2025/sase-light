@@ -46,8 +46,20 @@ import com.example.ui.presolicitud.SectionHeader
 import com.example.ui.presolicitud.DetailRow
 import kotlinx.coroutines.launch
 
-private fun fastTrackGradeFromGroup(group: String): Int =
-    group.trim().firstOrNull()?.digitToIntOrNull() ?: 1
+private val officialEnrollmentPattern = Regex("^S310-[A-Z0-9]{10}-\\d{2}$")
+private val curpPattern = Regex("^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z0-9]\\d$")
+
+private fun visibleEnrollmentId(student: Student): String =
+    if (student.enrollmentId.matches(officialEnrollmentPattern) && student.curp.matches(curpPattern)) {
+        student.enrollmentId
+    } else {
+        "Por asignar"
+    }
+
+private fun visibleOfficialEnrollment(officialStudent: OfficialStudent): String =
+    officialStudent.matriculaOficial
+        ?.takeIf { officialStudent.status == OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO && it.matches(officialEnrollmentPattern) }
+        ?: "Por asignar"
 
 // Colors matching palette
 val SaseBg = Color(0xFFF6FAFC)
@@ -427,7 +439,7 @@ fun GlobalStudentSearch(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(student.fullName, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 13.sp)
-                                Text("${student.group} · Matrícula: ${if (student.enrollmentId.startsWith("S310-")) "Por asignar" else student.enrollmentId} · CURP: ${student.curp}", color = SaseMuted, fontSize = 11.sp)
+                                Text("${student.group} · Matrícula: ${visibleEnrollmentId(student)} · CURP: ${student.curp}", color = SaseMuted, fontSize = 11.sp)
                             }
                             Box(
                                 modifier = Modifier
@@ -846,15 +858,11 @@ fun SecretaryDashboardScreen(
                                 onClick = {
                                     if (newStudentName.isNotBlank() && newStudentCurp.isNotBlank()) {
                                         val newId = (students.size + 1).toString()
-                                        val generatedEnrollmentId = OfficialStudent.generateMatricula(
-                                            newStudentCurp.uppercase(),
-                                            fastTrackGradeFromGroup(newStudentGroup)
-                                        )
                                         val std = Student(
                                         id = newId,
                                         fullName = newStudentName,
                                         group = newStudentGroup,
-                                        enrollmentId = generatedEnrollmentId ?: "",
+                                        enrollmentId = "",
                                         curp = newStudentCurp.uppercase(),
                                         tutorName = newStudentTutor,
                                         tutorRelation = "Tutor",
@@ -869,7 +877,7 @@ fun SecretaryDashboardScreen(
                                                 newStudentName = ""
                                                 newStudentCurp = ""
                                                 newStudentTutor = ""
-                                                toast("Expediente rápido registrado con guardrails de unicidad.")
+                                                toast("Expediente registrado. Matrícula pendiente de alta oficial.")
                                             }
                                             is StudentAddResult.DuplicateCurp -> {
                                                 toast("Ya existe un alumno con esta CURP.")
@@ -1582,9 +1590,7 @@ private fun OfficialStudentListItem(
             Text(os.alumnoNombreCompleto, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(os.curp, color = SaseMuted, fontSize = 9.sp)
-                if (os.matriculaOficial != null) {
-                    Text("· ${os.matriculaOficial}", color = SaseCyan, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
-                }
+                Text("· ${visibleOfficialEnrollment(os)}", color = SaseCyan, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
             }
             Text("Folio: ${os.preApplicationFolio}", color = SaseMuted.copy(alpha = 0.7f), fontSize = 9.sp)
         }
@@ -1631,7 +1637,7 @@ private fun OfficialStudentDetailWithMaster(
     SectionHeader("Alta oficial")
     DetailRow("Nombre", officialStudent.alumnoNombreCompleto)
     DetailRow("CURP", officialStudent.curp)
-    DetailRow("Matrícula", officialStudent.matriculaOficial ?: "Sin asignar")
+    DetailRow("Matrícula", visibleOfficialEnrollment(officialStudent))
     DetailRow("Grado ingreso", "${officialStudent.gradoIngreso}°")
     DetailRow("Grupo sugerido", officialStudent.grupoSugerido ?: "N/A")
     DetailRow("Grupo asignado", officialStudent.grupoAsignado ?: "Pendiente")
@@ -1651,7 +1657,7 @@ private fun OfficialStudentDetailWithMaster(
 
     SectionHeader("Expediente maestro")
     if (masterStudent != null) {
-        DetailRow("Matrícula oficial", masterStudent.enrollmentId)
+        DetailRow("Matrícula oficial", visibleEnrollmentId(masterStudent))
         DetailRow("Nombre", masterStudent.fullName)
         DetailRow("CURP", masterStudent.curp)
         DetailRow("Grado", masterStudent.group)

@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -29,10 +30,38 @@ import androidx.compose.ui.window.Dialog
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.PreApplicationViewModel
 
-private val PortalBg = Color(0xFF0B1120)
-private val PortalCardBg = Color(0xFF1A2332)
-private val PortalText = Color(0xFFF1F5F9)
-private val PortalMuted = Color(0xFF94A3B8)
+private val PortalBg = Color(0xFF080B16)
+private val PortalBgAlt = Color(0xFF10172A)
+private val PortalCardBg = Color(0xFF151B2E)
+private val PortalCardRaised = Color(0xFF1B2340)
+private val PortalText = Color(0xFFF8FAFC)
+private val PortalMuted = Color(0xFFAAB4CF)
+private val PortalSoft = Color(0xFF7C89A8)
+private val PortalAccent = Color(0xFF3B82F6)
+private val PortalCyan = Color(0xFF22D3EE)
+private val PortalPurple = Color(0xFF8B5CF6)
+private val PortalBorder = Color(0x66334155)
+
+@Composable
+private fun portalTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = PortalText,
+    unfocusedTextColor = PortalText,
+    focusedContainerColor = PortalCardRaised.copy(alpha = 0.92f),
+    unfocusedContainerColor = PortalCardBg.copy(alpha = 0.86f),
+    errorContainerColor = Color(0xFF2A1824).copy(alpha = 0.92f),
+    cursorColor = PortalCyan,
+    focusedBorderColor = PortalCyan,
+    unfocusedBorderColor = PortalBorder,
+    errorBorderColor = SaseRed,
+    focusedLabelColor = PortalCyan,
+    unfocusedLabelColor = PortalMuted,
+    errorLabelColor = Color(0xFFFCA5A5),
+    focusedPlaceholderColor = PortalSoft,
+    unfocusedPlaceholderColor = PortalSoft,
+    focusedSupportingTextColor = Color(0xFFFCA5A5),
+    unfocusedSupportingTextColor = Color(0xFFFCA5A5),
+    errorSupportingTextColor = Color(0xFFFCA5A5)
+)
 
 @Composable
 fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: () -> Unit = {}) {
@@ -45,7 +74,11 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(PortalBg)
+            .background(
+                Brush.verticalGradient(
+                    listOf(PortalBg, PortalBgAlt, PortalBg)
+                )
+            )
             .padding(16.dp),
         contentAlignment = Alignment.TopCenter
     ) {
@@ -62,12 +95,12 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                 OutlinedButton(
                     onClick = { familyViewModel.resetForm(); onNavigateBack() },
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, SaseBorder),
+                    border = BorderStroke(1.dp, PortalBorder),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = PortalMuted)
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Cerrar", fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
+                    Text("Salir", fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -85,9 +118,9 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                 color = PortalMuted
             )
             Text(
-                text = "Al enviarlo recibirás un folio/código. Secretaría lo usará para abrir, revisar y convertir el trámite en registro oficial si procede.",
+                text = "Al enviarlo recibirás un folio/código. Secretaría revisará documentos y continuará el alta oficial si procede.",
                 fontSize = 11.sp,
-                color = SaseOrange,
+                color = PortalCyan,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 4.dp)
             )
@@ -120,8 +153,8 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
             }
             GlassCard(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                containerColor = PortalCardBg.copy(alpha = 0.9f),
-                borderColor = Color.White.copy(alpha = 0.12f)
+                containerColor = PortalCardBg.copy(alpha = 0.96f),
+                borderColor = PortalBorder
             ) {
                 Column(
                     modifier = Modifier
@@ -145,13 +178,22 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                 Spacer(modifier = Modifier.height(8.dp))
                 GlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    containerColor = PortalCardBg.copy(alpha = 0.9f),
-                    borderColor = Color.White.copy(alpha = 0.12f)
+                    containerColor = Color(0xFF2A1824).copy(alpha = 0.96f),
+                    borderColor = SaseRed.copy(alpha = 0.36f)
                 ) {
-                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("Corrige los siguientes campos:", color = SaseRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Hay campos pendientes por corregir", color = Color(0xFFFCA5A5), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         errors.forEach { (field, msg) ->
-                            Text("  - $field: $msg", color = SaseRed, fontSize = 10.sp)
+                            Text("• $field: $msg", color = PortalText, fontSize = 10.sp)
+                        }
+                        OutlinedButton(
+                            onClick = { coroutineScope.launch { scrollState.animateScrollTo(0) } },
+                            border = BorderStroke(1.dp, SaseRed.copy(alpha = 0.45f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFCA5A5)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Corregir campos", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -170,14 +212,16 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                         onClick = { familyViewModel.previousStep() },
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Atrás", color = PortalText)
+                        Text("Atrás", color = PortalText, fontWeight = FontWeight.Bold)
                     }
                 } else {
                     OutlinedButton(
                         onClick = { familyViewModel.resetForm(); onNavigateBack() },
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, PortalBorder),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = PortalMuted)
                     ) {
-                        Text("Cancelar", color = PortalText)
+                        Text("Salir del trámite", color = PortalText, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -188,20 +232,20 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                         onClick = {
                             familyViewModel.nextStep()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = SaseNavy),
+                        colors = ButtonDefaults.buttonColors(containerColor = PortalAccent, contentColor = Color.White),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Siguiente", color = Color.White)
+                        Text("Siguiente", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 } else {
                     Button(
                         onClick = { familyViewModel.submitApplication() },
-                        colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
+                        colors = ButtonDefaults.buttonColors(containerColor = SaseGreen, contentColor = Color.White),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Enviar Pre-solicitud", color = Color.White)
+                        Text("Enviar pre-solicitud", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -212,8 +256,8 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
     if (submittedFolio != null) {
         Dialog(onDismissRequest = { familyViewModel.resetForm(); onNavigateBack() }) {
             GlassCard(
-                containerColor = PortalCardBg.copy(alpha = 0.95f),
-                borderColor = Color.White.copy(alpha = 0.12f)
+                containerColor = PortalCardBg.copy(alpha = 0.98f),
+                borderColor = PortalBorder
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -302,15 +346,16 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
 private fun StepIndicator(step: Int, currentStep: Int, title: String) {
     val isActive = step <= currentStep
     val color = when {
-        step == currentStep -> SaseBlue
+        step == currentStep -> PortalPurple
         step < currentStep -> SaseGreen
-        else -> SaseMuted.copy(alpha = 0.3f)
+        else -> PortalCardRaised
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
-                .size(30.dp)
-                .background(color, CircleShape),
+                .size(if (step == currentStep) 34.dp else 30.dp)
+                .background(color, CircleShape)
+                .border(1.dp, if (step == currentStep) PortalCyan.copy(alpha = 0.75f) else PortalBorder, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             if (step < currentStep) {
@@ -320,7 +365,7 @@ private fun StepIndicator(step: Int, currentStep: Int, title: String) {
             }
         }
         Spacer(modifier = Modifier.height(4.dp))
-        Text(title, fontSize = 9.sp, color = if (isActive) PortalText else PortalMuted)
+        Text(title, fontSize = 9.sp, color = if (isActive) PortalText else PortalSoft, fontWeight = if (step == currentStep) FontWeight.Bold else FontWeight.Medium)
     }
 }
 
@@ -331,7 +376,7 @@ private fun RowScope.StepDivider(active: Boolean) {
             .weight(1f)
             .height(2.dp)
             .padding(horizontal = 4.dp)
-            .background(if (active) SaseGreen else SaseBorder)
+            .background(if (active) SaseGreen else PortalBorder)
     )
 }
 
@@ -374,7 +419,8 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) SaseNavy else PortalCardBg)
+                    .background(if (selected) PortalPurple else PortalCardRaised)
+                    .border(1.dp, if (selected) PortalCyan.copy(alpha = 0.55f) else PortalBorder, RoundedCornerShape(10.dp))
                     .clickable { vm.setTipoTramite(opt) }
                     .padding(12.dp),
                 contentAlignment = Alignment.Center
@@ -393,7 +439,7 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) SaseBlue else PortalCardBg)
+                    .background(if (selected) PortalAccent else PortalCardRaised)
                     .border(if (errors.containsKey("grado")) 2.dp else 0.dp, SaseRed, RoundedCornerShape(10.dp))
                     .clickable { vm.setGradoSolicitado(g) }
                     .padding(12.dp),
@@ -416,8 +462,8 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
                 .padding(10.dp)
         ) {
             Text(
-                "CURP sugerida: $curpSugerida. Validar contra documento oficial; puedes editarla abajo.",
-                color = SaseBlue,
+                "CURP asistida: $curpSugerida. No sustituye la validación contra documento oficial; puedes editarla abajo.",
+                color = PortalCyan,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -444,7 +490,8 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) SaseViolet else PortalCardBg)
+                    .background(if (selected) PortalPurple else PortalCardRaised)
+                    .border(1.dp, if (selected) PortalCyan.copy(alpha = 0.45f) else PortalBorder, RoundedCornerShape(10.dp))
                     .clickable { vm.setSexo(opt) }
                     .padding(12.dp),
                 contentAlignment = Alignment.Center
@@ -501,7 +548,10 @@ private fun FormField(label: String, value: String, onChange: (String) -> Unit, 
             isError = hasError,
             supportingText = if (hasError && errorMsg != null) {{ Text(errorMsg, color = SaseRed) }} else null,
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 14.sp, color = PortalText),
+            shape = RoundedCornerShape(14.dp),
+            colors = portalTextFieldColors()
         )
         Spacer(modifier = Modifier.height(6.dp))
     }
@@ -556,14 +606,7 @@ private fun StepContactos(vm: PreApplicationViewModel) {
     Text("Responsable Principal", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Text("Registra a la madre, padre o tutor legal.", fontSize = 12.sp, color = PortalMuted)
 
-    OutlinedTextField(
-        value = responsableNombre,
-        onValueChange = { vm.setResponsableNombre(it) },
-        label = { Text("Nombre completo del responsable") },
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true
-    )
-    Spacer(modifier = Modifier.height(6.dp))
+    FormField("Nombre completo del responsable", responsableNombre, { vm.setResponsableNombre(it) }, false, null)
 
     Text("Parentesco", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
@@ -573,7 +616,8 @@ private fun StepContactos(vm: PreApplicationViewModel) {
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) SaseBlue else PortalCardBg)
+                    .background(if (selected) PortalAccent else PortalCardRaised)
+                    .border(1.dp, if (selected) PortalCyan.copy(alpha = 0.45f) else PortalBorder, RoundedCornerShape(10.dp))
                     .clickable { vm.setResponsableParentesco(opt) }
                     .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
@@ -584,21 +628,8 @@ private fun StepContactos(vm: PreApplicationViewModel) {
     }
 
     Spacer(modifier = Modifier.height(6.dp))
-    OutlinedTextField(
-        value = responsableTelefono,
-        onValueChange = { vm.setResponsableTelefono(it) },
-        label = { Text("Telefono (10 digitos)") },
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true
-    )
-    Spacer(modifier = Modifier.height(6.dp))
-    OutlinedTextField(
-        value = responsableCorreo,
-        onValueChange = { vm.setResponsableCorreo(it) },
-        label = { Text("Correo electronico (opcional)") },
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true
-    )
+    FormField("Teléfono (10 dígitos)", responsableTelefono, { vm.setResponsableTelefono(it) }, false, null)
+    FormField("Correo electrónico (opcional)", responsableCorreo, { vm.setResponsableCorreo(it) }, false, null)
 
     Spacer(modifier = Modifier.height(8.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -668,12 +699,12 @@ private fun AutorizadoDialog(
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Agregar Autorizado", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PortalText)
 
-                OutlinedTextField(value = nombre, onValueChange = { nombre = it.uppercase() }, label = { Text("Nombre completo") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(value = parentesco, onValueChange = { parentesco = it.uppercase() }, label = { Text("Parentesco") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(value = telefono, onValueChange = { telefono = it.take(10) }, label = { Text("Telefono (10 digitos)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = nombre, onValueChange = { nombre = it.uppercase() }, label = { Text("Nombre completo") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(14.dp), textStyle = TextStyle(color = PortalText), colors = portalTextFieldColors())
+                OutlinedTextField(value = parentesco, onValueChange = { parentesco = it.uppercase() }, label = { Text("Parentesco") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(14.dp), textStyle = TextStyle(color = PortalText), colors = portalTextFieldColors())
+                OutlinedTextField(value = telefono, onValueChange = { telefono = it.take(10) }, label = { Text("Teléfono (10 dígitos)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(14.dp), textStyle = TextStyle(color = PortalText), colors = portalTextFieldColors())
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancelar", color = PortalText) }
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f), border = BorderStroke(1.dp, PortalBorder)) { Text("Cancelar", color = PortalText) }
                     Button(
                         onClick = { onConfirm(nombre, parentesco, telefono) },
                         enabled = nombre.isNotBlank() && parentesco.isNotBlank() && telefono.length == 10,
@@ -999,7 +1030,10 @@ private fun UdeiiSection(vm: PreApplicationViewModel) {
         onValueChange = { vm.setUdeiiObservaciones(it) },
         label = { Text("Observaciones familiares sobre aprendizaje") },
         modifier = Modifier.fillMaxWidth(),
-        maxLines = 4
+        maxLines = 4,
+        shape = RoundedCornerShape(14.dp),
+        textStyle = TextStyle(color = PortalText),
+        colors = portalTextFieldColors()
     )
     Spacer(modifier = Modifier.height(6.dp))
 }
@@ -1015,7 +1049,8 @@ private fun DeclarativeCheckbox(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(PortalCardBg)
+            .background(PortalCardRaised)
+            .border(1.dp, PortalBorder, RoundedCornerShape(10.dp))
             .clickable { onCheckedChange(!checked) }
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
@@ -1042,7 +1077,8 @@ private fun CompactOptionGroup(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (isSelected) SaseNavy else PortalCardBg)
+                            .background(if (isSelected) PortalPurple else PortalCardRaised)
+                            .border(1.dp, if (isSelected) PortalCyan.copy(alpha = 0.45f) else PortalBorder, RoundedCornerShape(10.dp))
                             .clickable { onSelect(option) }
                             .padding(horizontal = 8.dp, vertical = 9.dp),
                         contentAlignment = Alignment.Center
@@ -1240,14 +1276,8 @@ private fun DropdownField(
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor().fillMaxWidth(),
             textStyle = TextStyle(fontSize = 12.sp, color = PortalText),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = PortalText,
-                unfocusedTextColor = PortalText,
-                focusedBorderColor = SaseBlue,
-                unfocusedBorderColor = SaseBorder,
-                focusedLabelColor = SaseBlue,
-                unfocusedLabelColor = PortalMuted
-            )
+            shape = RoundedCornerShape(14.dp),
+            colors = portalTextFieldColors()
         )
         ExposedDropdownMenu(
             expanded = expanded,

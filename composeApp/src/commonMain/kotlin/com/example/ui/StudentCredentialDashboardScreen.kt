@@ -32,6 +32,13 @@ import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.PreApplicationViewModel
 import com.example.viewmodel.Screen
 
+private val credentialOfficialEnrollmentPattern = Regex("^S310-[A-Z0-9]{10}-\\d{2}$")
+
+private fun visibleCredentialEnrollment(official: OfficialStudent): String =
+    official.matriculaOficial
+        ?.takeIf { official.status == OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO && it.matches(credentialOfficialEnrollmentPattern) }
+        ?: "Por asignar"
+
 @Composable
 fun StudentCredentialDashboardScreen(viewModel: LabViewModel) {
     val officialStudents by PreApplicationViewModel.officialStudents.collectAsState()
@@ -250,14 +257,15 @@ private fun StudentCredentialList(
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(official.alumnoNombreCompleto, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SaseNavy, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${official.matriculaOficial ?: "Sin matr\u00edcula"} \u00b7 ${official.curp}", fontSize = 10.sp, color = SaseMuted)
+                    Text(
+                        "Matrícula: ${visibleCredentialEnrollment(official)}",
+                        fontSize = 10.sp,
+                        color = SaseMuted
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("${official.gradoIngreso}\u00b0 ${official.grupoAsignado ?: official.grupoSugerido ?: "-"}", fontSize = 11.sp, color = SaseNavy)
                         Text("\u00b7", fontSize = 10.sp, color = SaseMuted)
                         Text(statusLabel, fontSize = 10.sp, color = SaseMuted)
-                    }
-                    if (official.preApplicationFolio.isNotBlank()) {
-                        Text("Folio: ${official.preApplicationFolio}", fontSize = 9.sp, color = SaseMuted)
                     }
                 }
                 Icon(Icons.Default.ChevronRight, contentDescription = null, tint = SaseMuted, modifier = Modifier.size(20.dp))
@@ -278,7 +286,7 @@ private fun CredentialPreviewCard(
     val schoolYear = master?.schoolYear ?: "2026-2027"
     val groupDisplay = official.grupoAsignado ?: official.grupoSugerido ?: "Por asignar"
     val statusText = if (official.status == OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO) "Vigente" else "Vista previa"
-    val matricula = official.matriculaOficial ?: "Sin asignar"
+    val matricula = visibleCredentialEnrollment(official)
     val hasPhoto = false
 
     GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -358,8 +366,6 @@ private fun CredentialPreviewCard(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 CredentialInfoLine("MATR\u00cdCULA", matricula)
-                CredentialInfoLine("CURP", official.curp)
-                CredentialInfoLine("FOLIO ORIGEN", official.preApplicationFolio)
                 CredentialInfoLine("ESTATUS", statusText)
 
                 Spacer(modifier = Modifier.height(8.dp))

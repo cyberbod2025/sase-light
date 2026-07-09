@@ -1,6 +1,8 @@
 package com.example.ui.student
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -48,7 +51,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
@@ -62,6 +65,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -94,6 +98,22 @@ import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
 import kotlinx.coroutines.launch
 
+private val officialEnrollmentPattern = Regex("^S310-[A-Z0-9]{10}-\\d{2}$")
+private val curpPattern = Regex("^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z0-9]\\d$")
+
+private fun hasOfficialEnrollment(enrollmentId: String, curp: String): Boolean =
+    enrollmentId.matches(officialEnrollmentPattern) && curp.matches(curpPattern)
+
+private fun visibleEnrollmentId(enrollmentId: String, curp: String): String =
+    if (hasOfficialEnrollment(enrollmentId, curp)) enrollmentId else "Por asignar"
+
+private fun enrollmentPendingReason(curp: String): String =
+    if (!curp.matches(curpPattern)) {
+        "La matrícula se asignará cuando la CURP y el alta oficial estén completas."
+    } else {
+        "Pendiente de alta oficial."
+    }
+
 @Composable
 fun StudentRecordScreen(
     studentId: String,
@@ -105,7 +125,7 @@ fun StudentRecordScreen(
     val student = remember(students, studentId) { students.find { it.id == studentId } }
 
     var activeTab by remember { mutableStateOf("Resumen") }
-    val tabs = listOf("Resumen", "Datos", "Tutores", "Asistencia", "Incidencias", "Salud", "Orientación", "Docs", "Observaciones")
+    val tabs = listOf("Resumen", "Datos generales", "Tutores / Contacto", "Asistencia", "Incidencias", "Salud", "Orientación", "Documentos", "Observaciones")
 
     // Modals states
     var showIncidentDialog by remember { mutableStateOf(false) }
@@ -232,10 +252,23 @@ fun StudentRecordScreen(
                                 modifier = Modifier
                                     .size(72.dp)
                                     .clip(RoundedCornerShape(18.dp))
-                                    .background(SaseNavy.copy(alpha = 0.12f)),
-                                contentAlignment = Alignment.Center
+                                    .background(SaseNavy.copy(alpha = 0.08f))
+                                    .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(18.dp))
+                                    .padding(3.dp)
                             ) {
-                                Icon(Icons.Default.Person, contentDescription = "Foto Alumno", tint = SaseNavy, modifier = Modifier.size(38.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(15.dp))
+                                        .background(
+                                            Brush.linearGradient(
+                                                colors = listOf(SaseNavy.copy(alpha = 0.22f), SaseNavy.copy(alpha = 0.08f))
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Person, contentDescription = "Foto Alumno", tint = SaseNavy, modifier = Modifier.size(34.dp))
+                                }
                             }
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(student.fullName, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = SaseNavy, textAlign = TextAlign.Center)
@@ -261,7 +294,7 @@ fun StudentRecordScreen(
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("Matrícula", color = SaseMuted, fontSize = 10.sp)
-                                    Text(if (student.enrollmentId.startsWith("S310-")) "Por asignar" else student.enrollmentId, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 11.sp)
+                                    Text(visibleEnrollmentId(student.enrollmentId, student.curp), fontWeight = FontWeight.Bold, color = SaseText, fontSize = 11.sp)
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("CURP", color = SaseMuted, fontSize = 10.sp)
@@ -287,10 +320,23 @@ fun StudentRecordScreen(
                                 modifier = Modifier
                                     .size(80.dp)
                                     .clip(RoundedCornerShape(20.dp))
-                                    .background(SaseNavy.copy(alpha = 0.12f)),
-                                contentAlignment = Alignment.Center
+                                    .background(SaseNavy.copy(alpha = 0.08f))
+                                    .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(20.dp))
+                                    .padding(4.dp)
                             ) {
-                                Icon(Icons.Default.Person, contentDescription = "Foto Alumno", tint = SaseNavy, modifier = Modifier.size(44.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(
+                                            Brush.linearGradient(
+                                                colors = listOf(SaseNavy.copy(alpha = 0.22f), SaseNavy.copy(alpha = 0.08f))
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Person, contentDescription = "Foto Alumno", tint = SaseNavy, modifier = Modifier.size(40.dp))
+                                }
                             }
                             Spacer(modifier = Modifier.width(20.dp))
                             Column(modifier = Modifier.weight(1f)) {
@@ -316,7 +362,7 @@ fun StudentRecordScreen(
                                     }
                                     Column {
                                         Text("Matrícula", color = SaseMuted, fontSize = 10.sp)
-                                        Text(if (student.enrollmentId.startsWith("S310-")) "Por asignar" else student.enrollmentId, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
+                                        Text(visibleEnrollmentId(student.enrollmentId, student.curp), fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
                                     }
                                     Column {
                                         Text("CURP", color = SaseMuted, fontSize = 10.sp)
@@ -339,6 +385,18 @@ fun StudentRecordScreen(
                     HorizontalDivider(color = SaseBorder.copy(alpha = 0.08f))
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    if (!hasOfficialEnrollment(student.enrollmentId, student.curp)) {
+                        Text(
+                            enrollmentPendingReason(student.curp),
+                            color = SaseOrange,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = if (isMobile) TextAlign.Center else TextAlign.Start,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+
                     // Pills Row (Riesgo, BAP, Seguro, Documentos)
                     Row(
                         modifier = Modifier
@@ -355,30 +413,37 @@ fun StudentRecordScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Scrollable tab selector
-                ScrollableTabRow(
-                    selectedTabIndex = tabs.indexOf(activeTab),
-                    containerColor = Color.Transparent,
-                    contentColor = SaseNavy,
-                    divider = {},
-                    indicator = {},
-                    edgePadding = 12.dp,
-                    modifier = Modifier.fillMaxWidth()
+                // Full-row horizontal scroll target for mobile; avoids tiny tab gesture zones.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     tabs.forEach { title ->
                         val selected = activeTab == title
+                        val bgColor by animateColorAsState(
+                            targetValue = if (selected) SaseNavy else Color.White.copy(alpha = 0.66f),
+                            animationSpec = spring(dampingRatio = 0.68f, stiffness = 300f),
+                            label = "tabBg"
+                        )
+                        val textColor by animateColorAsState(
+                            targetValue = if (selected) Color.White else SaseText,
+                            animationSpec = spring(dampingRatio = 0.68f, stiffness = 300f),
+                            label = "tabText"
+                        )
                         Box(
                             modifier = Modifier
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (selected) SaseNavy else Color.White.copy(alpha = 0.5f))
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(bgColor)
                                 .border(1.dp, if (selected) SaseNavy else SaseBorder, RoundedCornerShape(12.dp))
                                 .clickable { activeTab = title }
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
                             Text(
                                 text = title,
-                                color = if (selected) Color.White else SaseText,
+                                color = textColor,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp
                             )
@@ -399,7 +464,11 @@ fun StudentRecordScreen(
                                 if (isMobile) {
                                     // General data block
                                     GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                        Text("Datos generales", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseBlue))
+    Spacer(Modifier.width(8.dp))
+    Text("Datos generales", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+}
                                         Spacer(modifier = Modifier.height(10.dp))
                                         DataRow(label = "Fecha de nacimiento", value = student.birthDate)
                                         DataRow(label = "Edad", value = "${student.age} años")
@@ -410,7 +479,11 @@ fun StudentRecordScreen(
 
                                     // Contacts block
                                     GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                        Text("Tutores y contacto de emergencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseCyan))
+    Spacer(Modifier.width(8.dp))
+    Text("Tutores y contacto de emergencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+}
                                         Spacer(modifier = Modifier.height(10.dp))
                                         if (student.tutorName.isNotBlank()) {
                                             TutorItem(
@@ -427,7 +500,11 @@ fun StudentRecordScreen(
 
                                     // Attendance block
                                     GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                        Text("Asistencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseGreen))
+    Spacer(Modifier.width(8.dp))
+    Text("Asistencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+}
                                         Spacer(modifier = Modifier.height(12.dp))
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
@@ -457,7 +534,11 @@ fun StudentRecordScreen(
 
                                     // Health block
                                     GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                        Text("Salud", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseCyan))
+    Spacer(Modifier.width(8.dp))
+    Text("Salud", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+}
                                         Spacer(modifier = Modifier.height(10.dp))
                                         DataRow(label = "Alergias", value = student.healthAlergies)
                                         DataRow(label = "Obs. Médicas", value = student.healthNotes)
@@ -472,7 +553,11 @@ fun StudentRecordScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text("Historial de incidencias", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseRed))
+                                                Spacer(Modifier.width(8.dp))
+                                                Text("Historial de incidencias", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                            }
                                             Text("Ver todas", color = SaseBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { activeTab = "Incidencias" })
                                         }
                                         Spacer(modifier = Modifier.height(10.dp))
@@ -507,7 +592,11 @@ fun StudentRecordScreen(
 
                                     // Orientation block
                                     GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                        Text("Orientación / Trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseViolet))
+    Spacer(Modifier.width(8.dp))
+    Text("Orientación / Trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+}
                                         Spacer(modifier = Modifier.height(10.dp))
                                         DataRow(label = "Estatus de seguimiento", value = student.orientationStatus)
                                         DataRow(label = "Última cita", value = student.orientationLastAppointment)
@@ -522,7 +611,11 @@ fun StudentRecordScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text("Documentos digitalizados", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseNavy))
+                                                Spacer(Modifier.width(8.dp))
+                                                Text("Documentos digitalizados", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                            }
                                             Text("Ver todos", color = SaseBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { activeTab = "Documentos" })
                                         }
                                         Spacer(modifier = Modifier.height(10.dp))
@@ -549,7 +642,11 @@ fun StudentRecordScreen(
 
                                     // Observations block
                                     GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                        Text("Observaciones y Bitácora", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseOrange))
+    Spacer(Modifier.width(8.dp))
+    Text("Observaciones y Bitácora", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+}
                                         Spacer(modifier = Modifier.height(10.dp))
                                         if (student.observations.isEmpty()) {
                                             Text("No hay observaciones registradas.", color = SaseMuted, fontSize = 11.sp)
@@ -571,7 +668,11 @@ fun StudentRecordScreen(
                                     ) {
                                         // General data block
                                         GlassCard(modifier = Modifier.weight(1f)) {
-                                            Text("Datos generales", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseBlue))
+    Spacer(Modifier.width(8.dp))
+    Text("Datos generales", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+}
                                             Spacer(modifier = Modifier.height(10.dp))
                                             DataRow(label = "Fecha de nacimiento", value = student.birthDate)
                                             DataRow(label = "Edad", value = "${student.age} años")
@@ -582,7 +683,11 @@ fun StudentRecordScreen(
 
                                         // Contacts block
                                         GlassCard(modifier = Modifier.weight(1f)) {
-                                            Text("Tutores y contacto de emergencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseCyan))
+    Spacer(Modifier.width(8.dp))
+    Text("Tutores y contacto de emergencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+}
                                             Spacer(modifier = Modifier.height(10.dp))
                                             if (student.tutorName.isNotBlank()) {
                                                 TutorItem(
@@ -604,7 +709,11 @@ fun StudentRecordScreen(
                                     ) {
                                         // Attendance block
                                         GlassCard(modifier = Modifier.weight(1f)) {
-                                            Text("Asistencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseGreen))
+    Spacer(Modifier.width(8.dp))
+    Text("Asistencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+}
                                             Spacer(modifier = Modifier.height(12.dp))
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
@@ -635,7 +744,11 @@ fun StudentRecordScreen(
 
                                         // Health block
                                         GlassCard(modifier = Modifier.weight(1.5f)) {
-                                            Text("Salud", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseCyan))
+    Spacer(Modifier.width(8.dp))
+    Text("Salud", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+}
                                             Spacer(modifier = Modifier.height(10.dp))
                                             DataRow(label = "Alergias", value = student.healthAlergies)
                                             DataRow(label = "Obs. Médicas", value = student.healthNotes)
@@ -690,7 +803,11 @@ fun StudentRecordScreen(
 
                                         // Orientation block
                                         GlassCard(modifier = Modifier.weight(1.2f)) {
-                                            Text("Orientación / Trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseViolet))
+    Spacer(Modifier.width(8.dp))
+    Text("Orientación / Trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+}
                                             Spacer(modifier = Modifier.height(10.dp))
                                             DataRow(label = "Estatus de seguimiento", value = student.orientationStatus)
                                             DataRow(label = "Última cita", value = student.orientationLastAppointment)
@@ -737,7 +854,11 @@ fun StudentRecordScreen(
 
                                         // Observations block
                                         GlassCard(modifier = Modifier.weight(1.5f)) {
-                                            Text("Observaciones y Bitácora", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseOrange))
+    Spacer(Modifier.width(8.dp))
+    Text("Observaciones y Bitácora", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+}
                                             Spacer(modifier = Modifier.height(10.dp))
                                             if (student.observations.isEmpty()) {
                                                 Text("No hay observaciones registradas.", color = SaseMuted, fontSize = 11.sp)
@@ -763,7 +884,10 @@ fun StudentRecordScreen(
                                 Spacer(modifier = Modifier.height(12.dp))
                                 DataRow(label = "Nombre completo", value = student.fullName)
                                 DataRow(label = "CURP", value = student.curp)
-                                DataRow(label = "Matrícula escolar", value = student.enrollmentId)
+                                DataRow(label = "Matrícula escolar", value = visibleEnrollmentId(student.enrollmentId, student.curp))
+                                if (!hasOfficialEnrollment(student.enrollmentId, student.curp)) {
+                                    DataRow(label = "Estado de matrícula", value = enrollmentPendingReason(student.curp))
+                                }
                                 DataRow(label = "Fecha de nacimiento", value = student.birthDate)
                                 DataRow(label = "Edad", value = "${student.age} años")
                                 DataRow(label = "Lugar de nacimiento", value = student.birthPlace)
@@ -985,56 +1109,53 @@ fun StudentRecordScreen(
                     borderColor = SaseBlue.copy(alpha = 0.4f),
                     containerColor = SaseNavy.copy(alpha = 0.03f)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    @Composable
+                    fun ActionButton(
+                        text: String,
+                        icon: androidx.compose.ui.graphics.vector.ImageVector,
+                        color: Color,
+                        modifier: Modifier,
+                        onClick: () -> Unit
                     ) {
-                        if (userRole == AppRole.SECRETARIA) {
-                            Button(
-                                onClick = { showIncidentDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = SaseRed),
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Registrar incidencia", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Button(
+                            onClick = onClick,
+                            colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = Color.White),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = modifier.heightIn(min = 44.dp)
+                        ) {
+                            Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, color = Color.White)
+                        }
+                    }
+
+                    if (isMobile) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (userRole == AppRole.SECRETARIA) {
+                                ActionButton("Registrar incidencia", Icons.Default.Warning, SaseRed, Modifier.fillMaxWidth()) { showIncidentDialog = true }
+                            }
+                            ActionButton("Agregar observación", Icons.AutoMirrored.Filled.Comment, SaseBlue, Modifier.fillMaxWidth()) { showObsDialog = true }
+                            ActionButton("Ver documentos", Icons.AutoMirrored.Filled.Assignment, SaseViolet, Modifier.fillMaxWidth()) { showDocumentDialog = true }
+                            if (userRole == AppRole.SECRETARIA) {
+                                ActionButton("Escalar caso", Icons.AutoMirrored.Filled.CallSplit, SaseOrange, Modifier.fillMaxWidth()) { showEscalarDialog = true }
                             }
                         }
-
-                        Button(
-                            onClick = { showObsDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.weight(1f)
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Comment, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Agregar observación", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                        }
-
-                        Button(
-                            onClick = { showDocumentDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = SaseViolet),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.weight(1.2f)
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.Assignment, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Ver documentos", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                        }
-
-                        if (userRole == AppRole.SECRETARIA) {
-                            Button(
-                                onClick = { showEscalarDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = SaseOrange),
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.CallSplit, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Escalar caso", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            if (userRole == AppRole.SECRETARIA) {
+                                ActionButton("Registrar incidencia", Icons.Default.Warning, SaseRed, Modifier.weight(1f)) { showIncidentDialog = true }
+                            }
+                            ActionButton("Agregar observación", Icons.AutoMirrored.Filled.Comment, SaseBlue, Modifier.weight(1f)) { showObsDialog = true }
+                            ActionButton("Ver documentos", Icons.AutoMirrored.Filled.Assignment, SaseViolet, Modifier.weight(1.2f)) { showDocumentDialog = true }
+                            if (userRole == AppRole.SECRETARIA) {
+                                ActionButton("Escalar caso", Icons.AutoMirrored.Filled.CallSplit, SaseOrange, Modifier.weight(1f)) { showEscalarDialog = true }
                             }
                         }
                     }
@@ -1047,8 +1168,8 @@ fun StudentRecordScreen(
         Dialog(onDismissRequest = { showIncidentDialog = false }) {
             Card(
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, SaseBorder),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FBFF)),
+                border = BorderStroke(1.dp, SaseBlue.copy(alpha = 0.22f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
@@ -1060,7 +1181,10 @@ fun StudentRecordScreen(
                     Text("Registrar incidencia disciplinaria/asistencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
 
                     // Incident types
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         listOf("Atraso", "Falta de material", "Conducta").forEach { type ->
                             val selected = incType == type
                             Box(
@@ -1131,7 +1255,8 @@ fun StudentRecordScreen(
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Agregar observación pedagógica", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
+                    Text("Agregar observación pedagógica", fontWeight = FontWeight.ExtraBold, color = SaseNavy, fontSize = 17.sp)
+                    Text("Registra una nota breve y clara para el expediente escolar.", color = SaseMuted, fontSize = 11.sp)
 
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("Académica", "Conductual", "Tutoría").forEach { cat ->
@@ -1152,7 +1277,22 @@ fun StudentRecordScreen(
                         value = obsText,
                         onValueChange = { obsText = it },
                         label = { Text("Comentarios de observación") },
-                        modifier = Modifier.fillMaxWidth()
+                        placeholder = { Text("Ej. Requiere seguimiento académico en próximas sesiones") },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 110.dp),
+                        minLines = 3,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = SaseText,
+                            unfocusedTextColor = SaseText,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White.copy(alpha = 0.82f),
+                            focusedBorderColor = SaseBlue,
+                            unfocusedBorderColor = SaseBorder,
+                            focusedLabelColor = SaseBlue,
+                            unfocusedLabelColor = SaseMuted,
+                            focusedPlaceholderColor = SaseMuted,
+                            unfocusedPlaceholderColor = SaseMuted
+                        )
                     )
 
                     Row(
@@ -1160,7 +1300,7 @@ fun StudentRecordScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         TextButton(onClick = { showObsDialog = false }, modifier = Modifier.weight(1f)) {
-                            Text("Cancelar", color = SaseMuted)
+                            Text("Cerrar", color = SaseMuted, fontWeight = FontWeight.Bold)
                         }
                         Button(
                             onClick = {
@@ -1177,10 +1317,11 @@ fun StudentRecordScreen(
                                     toast("Favor de agregar observaciones")
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
+                            colors = ButtonDefaults.buttonColors(containerColor = SaseBlue, contentColor = Color.White),
+                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1.5f)
                         ) {
-                            Text("Agregar", fontWeight = FontWeight.Bold)
+                            Text("Agregar", fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
                 }

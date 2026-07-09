@@ -1,5 +1,7 @@
 package com.example.ui.presolicitud
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -357,6 +359,14 @@ private fun StatusBadge(status: PreApplicationStatus) {
 // ── Tabbed Detail ──────────────────────────────────────────────────────────
 
 private val TAB_LABELS = listOf("Datos", "Resp.", "Contexto", "Docs", "Obs.")
+private val SecretaryMobileBg = Color(0xFF08111F)
+private val SecretaryMobileCard = Color(0xFFF8FBFF)
+private val officialEnrollmentPattern = Regex("^S310-[A-Z0-9]{10}-\\d{2}$")
+
+private fun visibleOfficialEnrollment(student: OfficialStudent?): String =
+    student?.matriculaOficial
+        ?.takeIf { student.status == OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO && it.matches(officialEnrollmentPattern) }
+        ?: "Por asignar"
 
 @Composable
 private fun PreApplicationDetailTabs(
@@ -390,7 +400,7 @@ private fun PreApplicationDetailTabs(
     var showOfficialEnrollmentPanel by remember(preApp.folio) { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
 
-    GlassCard(modifier = modifier) {
+    GlassCard(modifier = modifier, containerColor = SecretaryMobileCard.copy(alpha = 0.92f)) {
         // Folio + Status
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -448,26 +458,48 @@ private fun PreApplicationDetailTabs(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Tab Row — scrollable for mobile
-        ScrollableTabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = Color.Transparent,
-            contentColor = SaseNavy,
-            edgePadding = 12.dp,
-            modifier = Modifier.fillMaxWidth()
+        // Full-width scroll target for mobile; avoids tiny draggable tab handles.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             TAB_LABELS.forEachIndexed { index, label ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(label, fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal, fontSize = 11.sp) }
+                val selected = selectedTab == index
+                val bgColor by animateColorAsState(
+                    targetValue = if (selected) SaseNavy else Color.White.copy(alpha = 0.58f),
+                    animationSpec = spring(dampingRatio = 0.68f, stiffness = 300f),
+                    label = "tabBg"
                 )
+                val textColor by animateColorAsState(
+                    targetValue = if (selected) Color.White else SaseNavy,
+                    animationSpec = spring(dampingRatio = 0.68f, stiffness = 300f),
+                    label = "tabText"
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(bgColor)
+                        .border(1.dp, if (selected) SaseBlue.copy(alpha = 0.35f) else SaseBorder, RoundedCornerShape(999.dp))
+                        .clickable { selectedTab = index }
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        label,
+                        color = textColor,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+        Column {
             when (selectedTab) {
                 0 -> DatosTab(preApp)
                 1 -> ResponsablesTab(preApp)
@@ -522,7 +554,7 @@ private fun PreApplicationDetailTabs(
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Aceptar", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("Aceptar para alta oficial", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
             }
 
@@ -558,24 +590,24 @@ private fun EditPreApplicationDialog(
                 modifier = Modifier.padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Editar datos de pre-solicitud", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 18.sp)
-                Text("Secretaría puede corregir datos antes de aprobar. Folio: ${preApp.folio}", color = SaseMuted, fontSize = 11.sp)
+                Text("Editar datos capturados", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 18.sp)
+                Text("Ajuste interno de Secretaría antes de aceptar para alta oficial. Folio: ${preApp.folio}", color = SaseMuted, fontSize = 11.sp)
 
                 OutlinedTextField(
                     value = nombreEdit,
-                    onValueChange = { nombreEdit = it },
+                    onValueChange = { nombreEdit = it.uppercase() },
                     label = { Text("Nombre completo") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = telefonoEdit,
-                    onValueChange = { telefonoEdit = it.take(10) },
+                    onValueChange = { telefonoEdit = it.filter { char -> char.isDigit() }.take(10) },
                     label = { Text("Teléfono") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = domicilioEdit,
-                    onValueChange = { domicilioEdit = it },
+                    onValueChange = { domicilioEdit = it.uppercase() },
                     label = { Text("Domicilio") },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -588,7 +620,7 @@ private fun EditPreApplicationDialog(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Cancelar", color = SaseMuted)
+                        Text("Cerrar sin guardar", color = SaseMuted)
                     }
                     Button(
                         onClick = {
@@ -598,7 +630,7 @@ private fun EditPreApplicationDialog(
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Guardar (mock)", fontWeight = FontWeight.Bold)
+                        Text("Guardar ajustes (mock)", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -755,7 +787,8 @@ private fun OfficialEnrollmentReadinessCard(
         else -> SaseMuted
     }
     val headerText = when {
-        pendingItems.isNotEmpty() -> "Con pendientes"
+        officialWithPending -> "Alta oficial iniciada con pendientes"
+        pendingItems.isNotEmpty() -> "Con pendientes bloqueantes"
         officialCompleted || preApp.readinessStatus == ReadinessStatus.CONVERTED -> "Alta oficial completada"
         officialStarted -> "Aceptada"
         readerIsReadyForOfficial -> "Lista para alta oficial"
@@ -787,6 +820,7 @@ private fun OfficialEnrollmentReadinessCard(
                 )
                 Text(
                     when {
+                        officialWithPending -> "La alta existe, pero conserva requisitos por cerrar."
                         officialStarted -> "Alta oficial iniciada desde esta pre-solicitud."
                         preApp.readyAt != null -> "Declarada lista: ${preApp.readyAt}"
                         else -> "La matrícula se genera solo desde este folio validado."
@@ -799,7 +833,7 @@ private fun OfficialEnrollmentReadinessCard(
 
         if (pendingItems.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Pendientes para habilitar alta oficial:", color = SaseOrange, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text("Pendientes institucionales:", color = SaseOrange, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(4.dp))
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 pendingItems.forEach { item ->
@@ -837,7 +871,7 @@ private fun OfficialEnrollmentReadinessCard(
             }
             if (!isReadyByChecklist) {
                 Text(
-                    "Completa los pendientes de arriba para habilitar.",
+                    "Completa los pendientes institucionales para habilitar esta acción.",
                     color = SaseOrange,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
@@ -860,10 +894,9 @@ private fun OfficialEnrollmentReadinessCard(
             Icon(if (isPersistedReady || officialStarted) Icons.Default.AssignmentTurnedIn else Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                if (officialStarted) "Ver alta oficial" else "Dar de alta oficial",
+                if (officialStarted) "Ver seguimiento de alta" else "Dar de alta oficial",
                 fontWeight = FontWeight.Bold,
-                fontSize = 11.sp,
-                color = Color.White
+                fontSize = 11.sp
             )
         }
         if (!officialStarted && !isPersistedReady) {
@@ -876,7 +909,7 @@ private fun OfficialEnrollmentReadinessCard(
                     .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
                 Text(
-                    "Disponible cuando documentación, fotografías y readiness institucional estén completos.",
+                    "Disponible cuando Secretaría haya aceptado la solicitud, cotejado documentos y capturado fotografías requeridas.",
                     color = SaseOrange,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
@@ -902,7 +935,6 @@ private fun OfficialEnrollmentContextualPanel(
     onClose: () -> Unit
 ) {
     val grade = preApp.gradoSolicitado
-    val matricula = OfficialStudent.generateMatricula(preApp.alumnoCurp, grade)
     val groupOptions = PreApplicationViewModel.groupOptionsForGrade(grade)
     val age = remember(preApp.alumnoFechaNacimiento) { PreApplicationViewModel.calculateAgeFromBirthDate(preApp.alumnoFechaNacimiento) }
     val suggestedGroup = remember(preApp.folio, grade, preApp.promedioGradoAnterior) {
@@ -945,7 +977,7 @@ private fun OfficialEnrollmentContextualPanel(
                 .padding(10.dp)
         ) {
             Text(
-                "Esta acción genera matrícula oficial y debe realizarse solo después de validar documentos, fotografías y firmas.",
+                "La matrícula se asignará al completar CURP, documentos, fotografías y alta oficial.",
                 color = SaseOrange,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold
@@ -957,7 +989,10 @@ private fun OfficialEnrollmentContextualPanel(
         DetailRow("Grado ingreso", "${grade}°")
         DetailRow(PreApplicationViewModel.promedioLabelForGrade(grade), preApp.promedioGradoAnterior?.toString() ?: "Pendiente")
         DetailRow("Persona que tramita", preApp.personaTramite.nombreCompleto.ifBlank { "Pendiente" })
-        DetailRow("Matrícula generada", matricula ?: "CURP inválida o menor a 10 caracteres")
+        DetailRow(
+            "Matrícula",
+            visibleOfficialEnrollment(officialStudent)
+        )
 
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -1021,14 +1056,14 @@ private fun OfficialEnrollmentContextualPanel(
                     resultMessage = enrollmentResult.message
                     resultColor = enrollmentResult.toUiColor()
                 },
-                enabled = matricula != null && selectedGroup.isNotBlank() && preApp.personaTramite.nombreCompleto.isNotBlank(),
+                enabled = selectedGroup.isNotBlank() && preApp.personaTramite.nombreCompleto.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Default.VerifiedUser, contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Generar matrícula oficial", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Text("Iniciar alta oficial", fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
         } else {
             OfficialEnrollmentConfirmation(preApp, officialStudent)
@@ -1131,7 +1166,7 @@ private fun OfficialEnrollmentConfirmation(preApp: PreApplication, student: Offi
         DetailRow("Nombre", student.alumnoNombreCompleto)
         DetailRow("Grado ingreso", "${student.gradoIngreso}°")
         DetailRow(PreApplicationViewModel.promedioLabelForGrade(student.gradoIngreso), student.promedio?.toString() ?: "Sin promedio")
-        DetailRow("Matrícula", student.matriculaOficial ?: "Sin matrícula")
+        DetailRow("Matrícula", visibleOfficialEnrollment(student))
         DetailRow("Estado inicial", student.status.name)
         DetailRow("Grupo sugerido", student.grupoSugerido ?: "Sin sugerencia")
         DetailRow("Grupo asignado", student.grupoAsignado ?: "Pendiente de confirmación")
@@ -1153,7 +1188,7 @@ private fun OfficialEnrollmentReceiptPreview(preApp: PreApplication, student: Of
     ) {
         Text("Contrarrecibo imprimible (vista placeholder)", color = SaseNavy, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
         DetailRow("Folio", preApp.folio)
-        DetailRow("Matrícula", student.matriculaOficial ?: "Sin matrícula")
+        DetailRow("Matrícula", visibleOfficialEnrollment(student))
         DetailRow("Alumno", student.alumnoNombreCompleto)
         DetailRow("CURP", student.curp)
         DetailRow("Grado / grupo", "${student.gradoIngreso}° / ${(student.grupoAsignado ?: student.grupoSugerido) ?: "Pendiente"}")
@@ -1515,7 +1550,8 @@ private fun MobilePreApplicationDetail(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(SaseBgSoft)
+            .background(SecretaryMobileBg)
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
         Row(
@@ -1523,10 +1559,13 @@ private fun MobilePreApplicationDetail(
             modifier = Modifier.fillMaxWidth()
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = SaseNavy)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Color.White)
             }
             Spacer(modifier = Modifier.width(4.dp))
-            Text("Detalle de solicitud", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = SaseNavy)
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Revisión institucional", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color.White)
+                Text("Datos capturados por familia; acciones internas de Secretaría", color = Color.White.copy(alpha = 0.68f), fontSize = 11.sp)
+            }
         }
         Spacer(modifier = Modifier.height(12.dp))
         PreApplicationDetailTabs(

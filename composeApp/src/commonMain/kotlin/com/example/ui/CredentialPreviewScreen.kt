@@ -26,6 +26,18 @@ import com.example.data.StudentCredentialPreview
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
 
+private val officialEnrollmentPattern = Regex("^S310-[A-Z0-9]{10}-\\d{2}$")
+private val curpPattern = Regex("^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z0-9]\\d$")
+
+private fun hasOfficialEnrollment(preview: StudentCredentialPreview): Boolean =
+    preview.enrollmentId.matches(officialEnrollmentPattern) && preview.curp.matches(curpPattern)
+
+private fun credentialEnrollmentLabel(preview: StudentCredentialPreview): String =
+    if (hasOfficialEnrollment(preview)) preview.enrollmentId else "Por asignar"
+
+private fun credentialStatusLabel(preview: StudentCredentialPreview): String =
+    if (hasOfficialEnrollment(preview)) preview.status else "Pendiente de alta oficial"
+
 @Composable
 fun CredentialPreviewScreen(
     studentId: String,
@@ -108,18 +120,16 @@ fun CredentialPreviewScreen(
 
                     DetailLine(
                         "Matr\u00edcula",
-                        if (preview.enrollmentId.isNotBlank() && !preview.enrollmentId.startsWith("S310-CURP-DEMO")) preview.enrollmentId
-                        else "Por asignar"
+                        credentialEnrollmentLabel(preview)
                     )
                     DetailLine("Ciclo escolar", preview.schoolYear)
-                    DetailLine("Estado institucional", preview.status)
-                    DetailLine("Origen", if (preview.generatedFromOfficialEnrollment) "Alta oficial" else "Registro directo")
+                    DetailLine("Estado institucional", credentialStatusLabel(preview))
                     DetailLine("Foto", preview.photoStatus)
 
                     HorizontalDivider(color = SaseBorder, thickness = 1.dp)
 
                     Text(
-                        "Esta es una vista previa institucional. La credencial oficial ser\u00e1 emitida por Secretar\u00eda.",
+                        "Vista previa sin validez oficial hasta validaci\u00f3n de Direcci\u00f3n.",
                         fontSize = 11.sp,
                         color = SaseMuted,
                         textAlign = TextAlign.Center,
@@ -260,11 +270,9 @@ private fun CredentialCard(preview: StudentCredentialPreview) {
             // Data rows
             InfoRow(
                 "MATR\u00cdCULA",
-                if (preview.enrollmentId.isNotBlank() && !preview.enrollmentId.startsWith("S310-CURP-DEMO")) preview.enrollmentId
-                else "Por asignar"
+                credentialEnrollmentLabel(preview)
             )
-            InfoRow("CURP", preview.curp)
-            InfoRow("ESTATUS", preview.status)
+            InfoRow("ESTATUS", credentialStatusLabel(preview))
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -373,15 +381,13 @@ private fun CredentialCardBack(preview: StudentCredentialPreview) {
 
 // Institutional data
             BackInfoRow("ALUMNO", preview.fullName.uppercase())
-            BackInfoRow("CURP", preview.curp)
             BackInfoRow("GRADO/GRUPO", "${preview.grade} ${preview.group ?: ""}".trim())
             BackInfoRow("CICLO ESCOLAR", preview.schoolYear)
             BackInfoRow(
                 "MATRÍCULA",
-                if (preview.enrollmentId.isNotBlank() && !preview.enrollmentId.startsWith("S310-CURP-DEMO")) preview.enrollmentId
-                else "Por asignar"
+                credentialEnrollmentLabel(preview)
             )
-            BackInfoRow("ESTATUS", if (preview.generatedFromOfficialEnrollment) preview.status else "Vista previa sin validez oficial")
+            BackInfoRow("ESTATUS", credentialStatusLabel(preview))
 
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(color = Color.White.copy(alpha = .12f), thickness = 1.dp)
@@ -389,7 +395,7 @@ private fun CredentialCardBack(preview: StudentCredentialPreview) {
 
             // Disclaimer
             Text(
-                "Esta credencial es una vista previa generada por SASE Light. Su uso oficial requiere validaci\u00f3n de Direcci\u00f3n.",
+                "Vista previa sin validez oficial hasta validaci\u00f3n de Direcci\u00f3n.",
                 fontSize = 10.sp,
                 color = Color.White.copy(alpha = .7f),
                 lineHeight = 14.sp,
