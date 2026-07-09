@@ -16,7 +16,7 @@ class MockSaseDataTest {
     @Test
     fun addStudentRejectsDuplicateCURP() {
         val result = MockSaseData.addStudent(
-            student(curp = "CURP-SASE-01", enrollmentId = uniqId("UNIQ1"))
+            student(curp = "DEMA100101HDFABC01", enrollmentId = uniqId("UNIQ1"))
         )
         assertIs<StudentAddResult.DuplicateCurp>(result)
     }
@@ -24,7 +24,7 @@ class MockSaseDataTest {
     @Test
     fun addStudentRejectsDuplicateCURPIgnoringCaseAndWhitespace() {
         val result = MockSaseData.addStudent(
-            student(curp = "  curp-sase-01  ", enrollmentId = uniqId("UNIQ2"))
+            student(curp = "  dema100101hdfabc01  ", enrollmentId = uniqId("UNIQ2"))
         )
         assertIs<StudentAddResult.DuplicateCurp>(result)
     }
@@ -32,7 +32,7 @@ class MockSaseDataTest {
     @Test
     fun addStudentRejectsDuplicateEnrollmentId() {
         val result = MockSaseData.addStudent(
-            student(curp = uniqCurp("DUENR"), enrollmentId = "2023-00258")
+            student(curp = uniqCurp("DUENR"), enrollmentId = "S310-DEMA100101-26")
         )
         assertIs<StudentAddResult.DuplicateEnrollmentId>(result)
     }
@@ -40,7 +40,7 @@ class MockSaseDataTest {
     @Test
     fun addStudentRejectsDuplicateEnrollmentIdIgnoringCaseAndWhitespace() {
         val result = MockSaseData.addStudent(
-            student(curp = uniqCurp("DUENR2"), enrollmentId = "  2023-00258  ")
+            student(curp = uniqCurp("DUENR2"), enrollmentId = "  S310-DEMA100101-26  ")
         )
         assertIs<StudentAddResult.DuplicateEnrollmentId>(result)
     }
@@ -63,9 +63,9 @@ class MockSaseDataTest {
 
     @Test
     fun studentByCurpNormalizesTrimUppercase() {
-        val found = MockSaseData.studentByCurp("  curp-sase-01  ")
+        val found = MockSaseData.studentByCurp("  dema100101hdfabc01  ")
         assertNotNull(found)
-        assertEquals("CURP-SASE-01", found.curp)
+        assertEquals("DEMA100101HDFABC01", found.curp)
     }
 
     @Test
@@ -76,11 +76,11 @@ class MockSaseDataTest {
 
     @Test
     fun updateStudentModifiesExistingStudent() {
-        val student = MockSaseData.studentByCurp("CURP-SASE-01")
+        val student = MockSaseData.studentByCurp("DEMA100101HDFABC01")
         assertNotNull(student)
         val updated = student.copy(fullName = "NOMBRE ACTUALIZADO")
         MockSaseData.updateStudent(updated)
-        val reloaded = MockSaseData.studentByCurp("CURP-SASE-01")
+        val reloaded = MockSaseData.studentByCurp("DEMA100101HDFABC01")
         assertNotNull(reloaded)
         assertEquals("NOMBRE ACTUALIZADO", reloaded.fullName)
     }
@@ -100,7 +100,7 @@ class MockSaseDataTest {
     @Test
     fun updateStudentDoesNotDuplicateExistingStudent() {
         val countBefore = MockSaseData.students.value.size
-        val student = MockSaseData.studentByCurp("CURP-SASE-01")
+        val student = MockSaseData.studentByCurp("DEMA100101HDFABC01")
         assertNotNull(student)
         MockSaseData.updateStudent(student)
         assertEquals(countBefore, MockSaseData.students.value.size)
