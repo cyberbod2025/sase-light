@@ -35,6 +35,25 @@ sealed class FamilySubmissionResult {
     ) : FamilySubmissionResult()
 }
 
+sealed class FamilyResubmissionResult {
+    data class Success(
+        val preApplication: PreApplication
+    ) : FamilyResubmissionResult()
+
+    data class NotFound(
+        val folio: String
+    ) : FamilyResubmissionResult()
+
+    data class InvalidStatus(
+        val folio: String,
+        val status: PreApplicationStatus
+    ) : FamilyResubmissionResult()
+
+    data class DuplicateCurp(
+        val curp: String
+    ) : FamilyResubmissionResult()
+}
+
 sealed class OfficialEnrollmentResult {
     abstract val message: String
 
@@ -306,6 +325,68 @@ class PreApplicationViewModel {
             val stored = buildStoredPreApplication(preApplication)
             _sharedPreApplications.value = _sharedPreApplications.value + stored
             return FamilySubmissionResult.Success(stored)
+        }
+
+        fun resubmitCorrectedPreApplication(
+            preApplication: PreApplication
+        ): FamilyResubmissionResult {
+            val normalizedFolio = preApplication.folio.trim()
+            val normalizedCurp = normalizeCurp(preApplication.alumnoCurp)
+            val currentPreApplications = _sharedPreApplications.value
+            val storedIndex = currentPreApplications.indexOfFirst { it.folio == normalizedFolio }
+            if (storedIndex == -1) {
+                return FamilyResubmissionResult.NotFound(normalizedFolio)
+            }
+
+            val stored = currentPreApplications[storedIndex]
+            if (stored.status != PreApplicationStatus.PENDIENTE_CORRECCION) {
+                return FamilyResubmissionResult.InvalidStatus(stored.folio, stored.status)
+            }
+
+            val duplicateCurp = currentPreApplications.any {
+                it.folio != stored.folio && normalizeCurp(it.alumnoCurp) == normalizedCurp
+            }
+            if (duplicateCurp) {
+                return FamilyResubmissionResult.DuplicateCurp(normalizedCurp)
+            }
+
+            val familyDocumentsByName = preApplication.documentosDeclarados.associateBy { it.nombre }
+            val resubmitted = stored.copy(
+                status = PreApplicationStatus.ENVIADA,
+                tramite = preApplication.tramite,
+                cicloEscolar = preApplication.cicloEscolar,
+                gradoSolicitado = preApplication.gradoSolicitado,
+                alumnoNombreCompleto = preApplication.alumnoNombreCompleto,
+                alumnoCurp = normalizedCurp,
+                alumnoFechaNacimiento = preApplication.alumnoFechaNacimiento,
+                alumnoSexo = preApplication.alumnoSexo,
+                alumnoNacionalidad = preApplication.alumnoNacionalidad,
+                alumnoEntidadNacimiento = preApplication.alumnoEntidadNacimiento,
+                alumnoDomicilio = preApplication.alumnoDomicilio,
+                alumnoTelefonoCasa = preApplication.alumnoTelefonoCasa,
+                escuelaProcedencia = preApplication.escuelaProcedencia,
+                promedioGradoAnterior = preApplication.promedioGradoAnterior,
+                personaTramite = preApplication.personaTramite,
+                responsables = preApplication.responsables,
+                autorizados = preApplication.autorizados,
+                fichaMedicaFamiliar = preApplication.fichaMedicaFamiliar,
+                contextoSociofamiliar = preApplication.contextoSociofamiliar,
+                antecedentesUdeii = preApplication.antecedentesUdeii,
+                documentosDeclarados = stored.documentosDeclarados.map { storedDocument ->
+                    val familyDocument = familyDocumentsByName[storedDocument.nombre]
+                    if (familyDocument == null) storedDocument
+                    else storedDocument.copy(declarado = familyDocument.declarado)
+                },
+                consentimientos = preApplication.consentimientos,
+                readinessStatus = ReadinessStatus.PENDING,
+                readyAt = null,
+                readinessNotes = ""
+            )
+
+            val updatedPreApplications = currentPreApplications.toMutableList()
+            updatedPreApplications[storedIndex] = resubmitted
+            _sharedPreApplications.value = updatedPreApplications
+            return FamilyResubmissionResult.Success(resubmitted)
         }
 
         fun officialEnrollmentPendingItems(preApp: PreApplication): List<String> {

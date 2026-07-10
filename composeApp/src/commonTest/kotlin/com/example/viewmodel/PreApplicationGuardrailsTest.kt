@@ -922,6 +922,255 @@ class PreApplicationGuardrailsTest {
         assertEquals(motivosBefore, motivosAfter)
     }
 
+    // -- Family correction resubmission contract (Microloop 4C) ----------
+
+    @Test
+    fun resubmitCorrectionPreservesIdentityAndCollectionSize() {
+        val original = submitCorrectablePreApplication(uniqueCurp("RESID"))
+        val sizeBefore = PreApplicationViewModel.sharedPreApplications.value.size
+        val correctedAddress = "Domicilio familiar corregido"
+        val corrected = original.copy(alumnoDomicilio = correctedAddress)
+        assertEquals(PreApplicationStatus.PENDIENTE_CORRECCION, original.status)
+
+        val result = PreApplicationViewModel.resubmitCorrectedPreApplication(corrected)
+
+        val success = assertIs<FamilyResubmissionResult.Success>(result)
+        val stored = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == original.folio }
+        assertEquals(original.folio, success.preApplication.folio)
+        assertEquals(original.folio, stored.folio)
+        assertEquals(original.submittedAt, stored.submittedAt)
+        assertEquals(correctedAddress, stored.alumnoDomicilio)
+        assertEquals(sizeBefore, PreApplicationViewModel.sharedPreApplications.value.size)
+    }
+
+    @Test
+    fun resubmitCorrectionTransitionsPendingCorrectionToSent() {
+        val original = submitCorrectablePreApplication(uniqueCurp("RESTR"))
+        assertEquals(PreApplicationStatus.PENDIENTE_CORRECCION, original.status)
+
+        val result = PreApplicationViewModel.resubmitCorrectedPreApplication(
+            original.copy(alumnoTelefonoCasa = "5512345678")
+        )
+
+        val success = assertIs<FamilyResubmissionResult.Success>(result)
+        assertEquals(PreApplicationStatus.ENVIADA, success.preApplication.status)
+        assertEquals(
+            PreApplicationStatus.ENVIADA,
+            PreApplicationViewModel.sharedPreApplications.value.single { it.folio == original.folio }.status
+        )
+    }
+
+    @Test
+    fun resubmitCorrectionRejectsSentStatusWithoutMutation() {
+        val original = submitAndGetRaw { preApplication(curp = uniqueCurp("RSTSENT")) }
+        assertEquals(PreApplicationStatus.ENVIADA, original.status)
+        val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
+
+        val result = PreApplicationViewModel.resubmitCorrectedPreApplication(
+            original.copy(alumnoDomicilio = "Cambio no permitido")
+        )
+
+        assertIs<FamilyResubmissionResult.InvalidStatus>(result)
+        assertEquals(allBefore, PreApplicationViewModel.sharedPreApplications.value)
+    }
+
+    @Test
+    fun resubmitCorrectionRejectsAcceptedStatusWithoutMutation() {
+        val submitted = submitAndGetRaw { preApplication(curp = uniqueCurp("RSTACC")) }
+        PreApplicationViewModel.approvePreApplication(submitted.folio)
+        val original = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == submitted.folio }
+        assertEquals(PreApplicationStatus.ACEPTADA, original.status)
+        val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
+
+        val result = PreApplicationViewModel.resubmitCorrectedPreApplication(
+            original.copy(alumnoDomicilio = "Cambio no permitido")
+        )
+
+        assertIs<FamilyResubmissionResult.InvalidStatus>(result)
+        assertEquals(allBefore, PreApplicationViewModel.sharedPreApplications.value)
+    }
+
+    // BORRADOR is not persisted; DUPLICADA and CANCELADA have no public transition.
+
+    @Test
+    fun resubmitCorrectionReturnsNotFoundWithoutMutatingAnyApplication() {
+        val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
+        val missing = preApplication(
+            folio = "FOLIO-INEXISTENTE-RESUBMIT",
+            curp = uniqueCurp("RESNF"),
+            status = PreApplicationStatus.PENDIENTE_CORRECCION
+        )
+
+        val result = PreApplicationViewModel.resubmitCorrectedPreApplication(missing)
+
+        val notFound = assertIs<FamilyResubmissionResult.NotFound>(result)
+        assertEquals(missing.folio, notFound.folio)
+        assertEquals(allBefore, PreApplicationViewModel.sharedPreApplications.value)
+    }
+
+    @Test
+    fun resubmitCorrectionAllowsOriginalCurp() {
+        val original = submitCorrectablePreApplication(uniqueCurp("RESOWN"))
+        val correctedPhone = "5598765432"
+        val corrected = original.copy(
+            alumnoCurp = "  ${original.alumnoCurp.lowercase()}  ",
+            alumnoTelefonoCasa = correctedPhone
+        )
+
+        val result = PreApplicationViewModel.resubmitCorrectedPreApplication(corrected)
+
+        assertIs<FamilyResubmissionResult.Success>(result)
+        val stored = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == original.folio }
+        assertEquals(original.alumnoCurp, stored.alumnoCurp)
+        assertEquals(correctedPhone, stored.alumnoTelefonoCasa)
+    }
+
+    @Test
+    fun resubmitCorrectionRejectsCurpOwnedByAnotherPreApplication() {
+        val original = submitCorrectablePreApplication(uniqueCurp("RESCUR1"))
+        val other = submitAndGetRaw { preApplication(curp = uniqueCurp("RESCUR2")) }
+        val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
+
+        val result = PreApplicationViewModel.resubmitCorrectedPreApplication(
+            original.copy(alumnoCurp = other.alumnoCurp.lowercase())
+        )
+
+        val duplicate = assertIs<FamilyResubmissionResult.DuplicateCurp>(result)
+        assertEquals(other.alumnoCurp, duplicate.curp)
+        assertEquals(allBefore, PreApplicationViewModel.sharedPreApplications.value)
+        assertEquals(
+            original,
+            PreApplicationViewModel.sharedPreApplications.value.single { it.folio == original.folio }
+        )
+        assertEquals(
+            other,
+            PreApplicationViewModel.sharedPreApplications.value.single { it.folio == other.folio }
+        )
+    }
+
+    @Test
+    fun resubmitCorrectionPreservesInstitutionalDataAndFolioLinkedStructures() {
+        val original = submitReadyCorrectionCandidate(uniqueCurp("RESINS"))
+        val photosBefore = assertNotNull(PreApplicationViewModel.photos.value[original.folio])
+        val observationsBefore = assertNotNull(PreApplicationViewModel.reviewObservations.value[original.folio])
+        val correctedAddress = "Domicilio familiar corregido"
+        assertEquals("Observacion institucional", original.observacionesSecretaria)
+        assertEquals("Corregir domicilio", original.motivoCorreccion)
+        assertTrue(original.documentosDeclarados.all { it.cotejadoSecretaria })
+        assertNotNull(photosBefore.studentPhotoMockUrl)
+        assertNotNull(photosBefore.responsablePhotoMockUrl)
+        assertTrue(observationsBefore.isNotEmpty())
+        assertEquals(ReadinessStatus.READY, original.readinessStatus)
+        assertNotNull(original.readyAt)
+        assertTrue(original.readinessNotes.isNotBlank())
+        val corrected = original.copy(
+            alumnoDomicilio = correctedAddress,
+            observacionesSecretaria = "No debe aceptar este cambio familiar",
+            motivoCorreccion = "No debe aceptar este motivo familiar",
+            documentosDeclarados = original.documentosDeclarados.map {
+                it.copy(cotejadoSecretaria = false)
+            }
+        )
+
+        val result = PreApplicationViewModel.resubmitCorrectedPreApplication(corrected)
+
+        assertIs<FamilyResubmissionResult.Success>(result)
+        val stored = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == original.folio }
+        assertEquals(correctedAddress, stored.alumnoDomicilio)
+        assertEquals(original.observacionesSecretaria, stored.observacionesSecretaria)
+        assertEquals(original.motivoCorreccion, stored.motivoCorreccion)
+        assertEquals(
+            original.documentosDeclarados.map { it.cotejadoSecretaria },
+            stored.documentosDeclarados.map { it.cotejadoSecretaria }
+        )
+        assertEquals(photosBefore, PreApplicationViewModel.photos.value[original.folio])
+        assertEquals(observationsBefore, PreApplicationViewModel.reviewObservations.value[original.folio])
+    }
+
+    @Test
+    fun resubmitCorrectionInvalidatesPreviousReadiness() {
+        val original = submitReadyCorrectionCandidate(uniqueCurp("RESRDY"))
+        assertEquals(ReadinessStatus.READY, original.readinessStatus)
+        assertNotNull(original.readyAt)
+
+        val result = PreApplicationViewModel.resubmitCorrectedPreApplication(
+            original.copy(alumnoDomicilio = "Domicilio corregido para revalidar")
+        )
+
+        assertIs<FamilyResubmissionResult.Success>(result)
+        val stored = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == original.folio }
+        assertEquals(ReadinessStatus.PENDING, stored.readinessStatus)
+        assertNull(stored.readyAt)
+        assertEquals("", stored.readinessNotes)
+    }
+
+    @Test
+    fun resubmitCorrectionDoesNotChangeAnotherPreApplication() {
+        val original = submitCorrectablePreApplication(uniqueCurp("RESISO1"))
+        val other = submitAndGetRaw { preApplication(curp = uniqueCurp("RESISO2")) }
+
+        val result = PreApplicationViewModel.resubmitCorrectedPreApplication(
+            original.copy(alumnoDomicilio = "Solo cambia la solicitud objetivo")
+        )
+
+        assertIs<FamilyResubmissionResult.Success>(result)
+        assertEquals(
+            other,
+            PreApplicationViewModel.sharedPreApplications.value.single { it.folio == other.folio }
+        )
+    }
+
+    @Test
+    fun resubmitCorrectionSecondAttemptDoesNotModifyAlreadyResubmittedApplication() {
+        val original = submitCorrectablePreApplication(uniqueCurp("RESTW"))
+        val corrected = original.copy(alumnoDomicilio = "Primera correccion")
+        val firstResult = assertIs<FamilyResubmissionResult.Success>(
+            PreApplicationViewModel.resubmitCorrectedPreApplication(corrected)
+        )
+        assertEquals(PreApplicationStatus.ENVIADA, firstResult.preApplication.status)
+        assertEquals(
+            PreApplicationStatus.ENVIADA,
+            PreApplicationViewModel.sharedPreApplications.value.single { it.folio == original.folio }.status
+        )
+        val afterFirstAttempt = PreApplicationViewModel.sharedPreApplications.value.toList()
+
+        val secondResult = PreApplicationViewModel.resubmitCorrectedPreApplication(
+            corrected.copy(alumnoDomicilio = "Segundo intento no permitido")
+        )
+
+        assertIs<FamilyResubmissionResult.InvalidStatus>(secondResult)
+        assertEquals(afterFirstAttempt, PreApplicationViewModel.sharedPreApplications.value)
+    }
+
+    private fun submitCorrectablePreApplication(curp: String): PreApplication {
+        val submitted = submitAndGetRaw { preApplication(curp = curp) }
+        PreApplicationViewModel.markForCorrection(submitted.folio)
+        return PreApplicationViewModel.sharedPreApplications.value.single { it.folio == submitted.folio }
+    }
+
+    private fun submitReadyCorrectionCandidate(curp: String): PreApplication {
+        val document = DocumentoDeclarado("CURP", declarado = true)
+        val submitted = submitAndGetRaw {
+            preApplication(curp = curp, documents = listOf(document))
+        }
+        PreApplicationViewModel.setObservaciones(submitted.folio, "Observacion institucional")
+        PreApplicationViewModel.setMotivoCorreccion(submitted.folio, "Corregir domicilio")
+        PreApplicationViewModel.addReviewObservation(
+            submitted.folio,
+            "Correccion solicitada",
+            "Corregir domicilio"
+        )
+        PreApplicationViewModel.toggleDocumentCotejado(submitted.folio, document.nombre)
+        PreApplicationViewModel.simulateCaptureStudentPhoto(submitted.folio)
+        PreApplicationViewModel.simulateCaptureResponsablePhoto(submitted.folio)
+        PreApplicationViewModel.approvePreApplication(submitted.folio)
+        assertIs<ReadinessResult.Success>(
+            PreApplicationViewModel.markReadyForOfficialEnrollment(submitted.folio)
+        )
+        PreApplicationViewModel.markForCorrection(submitted.folio)
+        return PreApplicationViewModel.sharedPreApplications.value.single { it.folio == submitted.folio }
+    }
+
     /** Submit a pre-application and return the stored ENVIADA result. */
     private fun submitAndGetRaw(buildPreApp: () -> PreApplication): PreApplication {
         val result = PreApplicationViewModel.submitFamilyPreApplication(buildPreApp())
