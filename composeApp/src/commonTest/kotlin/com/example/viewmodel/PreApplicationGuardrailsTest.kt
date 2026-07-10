@@ -843,4 +843,89 @@ class PreApplicationGuardrailsTest {
         photoUrl = photoUrl,
         preApplicationFolio = preApplicationFolio
     )
+
+    // ── Correction flow characterization (Microloop 2) ──────────────────
+
+    @Test
+    fun markForCorrectionChangesStatusToPENDIENTE_CORRECCION() {
+        val preApp = submitAndGetRaw { preApplication(curp = uniqueCurp("CORR1")) }
+        val folio = preApp.folio
+        assertEquals(PreApplicationStatus.ENVIADA, preApp.status)
+
+        PreApplicationViewModel.markForCorrection(folio)
+
+        val updated = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == folio }
+        assertEquals(PreApplicationStatus.PENDIENTE_CORRECCION, updated.status)
+    }
+
+    @Test
+    fun markForCorrectionPreservesFolioAndCollectionSize() {
+        val preApp = submitAndGetRaw { preApplication(curp = uniqueCurp("CORR2")) }
+        val folio = preApp.folio
+        val sizeBefore = PreApplicationViewModel.sharedPreApplications.value.size
+
+        PreApplicationViewModel.markForCorrection(folio)
+
+        val updated = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == folio }
+        assertNotNull(updated)
+        assertEquals(folio, updated.folio)
+        assertEquals(sizeBefore, PreApplicationViewModel.sharedPreApplications.value.size)
+    }
+
+    @Test
+    fun setMotivoCorreccionStoresTextOnCorrectPreApplication() {
+        val preApp1 = submitAndGetRaw { preApplication(curp = uniqueCurp("MOT1")) }
+        val preApp2 = submitAndGetRaw { preApplication(curp = uniqueCurp("MOT2")) }
+
+        PreApplicationViewModel.setMotivoCorreccion(preApp1.folio, "Documento incompleto")
+
+        val updated1 = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == preApp1.folio }
+        val updated2 = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == preApp2.folio }
+
+        assertEquals("Documento incompleto", updated1.motivoCorreccion)
+        assertEquals("", updated2.motivoCorreccion)
+    }
+
+    @Test
+    fun correctionStatusAndMotivoAreBothPersisted() {
+        val preApp = submitAndGetRaw { preApplication(curp = uniqueCurp("BOTH")) }
+
+        PreApplicationViewModel.markForCorrection(preApp.folio)
+        PreApplicationViewModel.setMotivoCorreccion(preApp.folio, "Falta firma")
+
+        val updated = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == preApp.folio }
+        assertEquals(PreApplicationStatus.PENDIENTE_CORRECCION, updated.status)
+        assertEquals("Falta firma", updated.motivoCorreccion)
+    }
+
+    @Test
+    fun markForCorrectionOnUnknownFolioDoesNothing() {
+        val sizeBefore = PreApplicationViewModel.sharedPreApplications.value.size
+        val statusesBefore = PreApplicationViewModel.sharedPreApplications.value.map { it.status to it.motivoCorreccion }
+
+        PreApplicationViewModel.markForCorrection("FOLIO-INEXISTENTE-999")
+
+        assertEquals(sizeBefore, PreApplicationViewModel.sharedPreApplications.value.size)
+        val statusesAfter = PreApplicationViewModel.sharedPreApplications.value.map { it.status to it.motivoCorreccion }
+        assertEquals(statusesBefore, statusesAfter)
+    }
+
+    @Test
+    fun setMotivoCorreccionOnUnknownFolioDoesNothing() {
+        val sizeBefore = PreApplicationViewModel.sharedPreApplications.value.size
+        val motivosBefore = PreApplicationViewModel.sharedPreApplications.value.map { it.motivoCorreccion }
+
+        PreApplicationViewModel.setMotivoCorreccion("FOLIO-INEXISTENTE-999", "texto")
+
+        assertEquals(sizeBefore, PreApplicationViewModel.sharedPreApplications.value.size)
+        val motivosAfter = PreApplicationViewModel.sharedPreApplications.value.map { it.motivoCorreccion }
+        assertEquals(motivosBefore, motivosAfter)
+    }
+
+    /** Submit a pre-application and return the stored ENVIADA result. */
+    private fun submitAndGetRaw(buildPreApp: () -> PreApplication): PreApplication {
+        val result = PreApplicationViewModel.submitFamilyPreApplication(buildPreApp())
+        val stored = assertIs<FamilySubmissionResult.Success>(result).preApplication
+        return PreApplicationViewModel.sharedPreApplications.value.first { it.folio == stored.folio }
+    }
 }
