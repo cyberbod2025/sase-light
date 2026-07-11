@@ -12,6 +12,22 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.random.Random
 
+private const val FAMILY_LOOKUP_ERROR =
+    "No fue posible consultar la pre-solicitud con los datos proporcionados."
+
+sealed class FamilyPreApplicationLookupResult {
+    data class Success(
+        val folio: String,
+        val status: PreApplicationStatus,
+        val correctionReason: String,
+        val secretariaObservations: String
+    ) : FamilyPreApplicationLookupResult()
+
+    data class Error(
+        val message: String = FAMILY_LOOKUP_ERROR
+    ) : FamilyPreApplicationLookupResult()
+}
+
 sealed class FamilySubmissionResult {
     abstract val message: String
 
@@ -256,6 +272,32 @@ class PreApplicationViewModel {
         }
 
         private fun normalizeCurp(curp: String): String = curp.trim().uppercase()
+
+        private fun normalizeFamilyLookupValue(value: String): String =
+            value.filterNot { it.isWhitespace() }.uppercase()
+
+        fun lookupFamilyPreApplication(
+            folio: String,
+            curp: String
+        ): FamilyPreApplicationLookupResult {
+            val normalizedFolio = normalizeFamilyLookupValue(folio)
+            val normalizedCurp = normalizeFamilyLookupValue(curp)
+            if (normalizedFolio.isBlank() || normalizedCurp.isBlank()) {
+                return FamilyPreApplicationLookupResult.Error()
+            }
+
+            val preApplication = _sharedPreApplications.value.firstOrNull { preApplication ->
+                normalizeFamilyLookupValue(preApplication.folio) == normalizedFolio &&
+                    normalizeFamilyLookupValue(preApplication.alumnoCurp) == normalizedCurp
+            } ?: return FamilyPreApplicationLookupResult.Error()
+
+            return FamilyPreApplicationLookupResult.Success(
+                folio = preApplication.folio,
+                status = preApplication.status,
+                correctionReason = preApplication.motivoCorreccion,
+                secretariaObservations = preApplication.observacionesSecretaria
+            )
+        }
 
         private fun normalizeMatricula(matricula: String): String = matricula.trim().uppercase()
 

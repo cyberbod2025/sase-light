@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.viewmodel.FamilyPreApplicationLookupResult
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.PreApplicationViewModel
 
@@ -70,6 +71,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
     val submittedFolio by familyViewModel.submittedFolio.collectAsState()
     val errors by familyViewModel.errors.collectAsState()
     val isSubmitting by familyViewModel.isSubmitting.collectAsState()
+    var showLookupDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -124,6 +126,17 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 4.dp)
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = { showLookupDialog = true },
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, PortalCyan.copy(alpha = 0.45f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = PortalCyan)
+            ) {
+                Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Consultar solicitud", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
             Spacer(modifier = Modifier.height(20.dp))
 
             // Step indicator
@@ -339,6 +352,138 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                 }
             }
         }
+    }
+
+    if (showLookupDialog) {
+        FamilyPreApplicationLookupDialog(onDismiss = { showLookupDialog = false })
+    }
+}
+
+@Composable
+private fun FamilyPreApplicationLookupDialog(onDismiss: () -> Unit) {
+    var folio by remember { mutableStateOf("") }
+    var curp by remember { mutableStateOf("") }
+    var lookupResult by remember { mutableStateOf<FamilyPreApplicationLookupResult?>(null) }
+
+    fun clearResult() {
+        lookupResult = null
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        GlassCard(
+            containerColor = PortalCardBg.copy(alpha = 0.98f),
+            borderColor = PortalBorder
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 620.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    "Consultar pre-solicitud",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PortalText
+                )
+                Text(
+                    "Ingresa el folio y la CURP usados en la solicitud.",
+                    fontSize = 12.sp,
+                    color = PortalMuted
+                )
+
+                OutlinedTextField(
+                    value = folio,
+                    onValueChange = {
+                        folio = it
+                        clearResult()
+                    },
+                    label = { Text("Folio") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    textStyle = TextStyle(fontSize = 14.sp, color = PortalText),
+                    colors = portalTextFieldColors()
+                )
+                OutlinedTextField(
+                    value = curp,
+                    onValueChange = {
+                        curp = it
+                        clearResult()
+                    },
+                    label = { Text("CURP") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    textStyle = TextStyle(fontSize = 14.sp, color = PortalText),
+                    colors = portalTextFieldColors()
+                )
+
+                Button(
+                    onClick = {
+                        lookupResult = PreApplicationViewModel.lookupFamilyPreApplication(folio, curp)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = PortalAccent),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Consultar", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+
+                when (val result = lookupResult) {
+                    is FamilyPreApplicationLookupResult.Success -> Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(PortalCardRaised, RoundedCornerShape(12.dp))
+                            .border(1.dp, PortalCyan.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        FamilyLookupDetail("Folio", result.folio)
+                        FamilyLookupDetail("Estado", result.status.label)
+                        FamilyLookupDetail(
+                            "Motivo de corrección",
+                            result.correctionReason.ifBlank { "Sin motivo de corrección." }
+                        )
+                        FamilyLookupDetail(
+                            "Observaciones de Secretaría",
+                            result.secretariaObservations.ifBlank { "Sin observaciones de Secretaría." }
+                        )
+                    }
+                    is FamilyPreApplicationLookupResult.Error -> Text(
+                        result.message,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF2A1824), RoundedCornerShape(10.dp))
+                            .padding(12.dp),
+                        color = Color(0xFFFCA5A5),
+                        fontSize = 12.sp
+                    )
+                    null -> Unit
+                }
+
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    border = BorderStroke(1.dp, PortalBorder),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Cerrar", color = PortalText, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FamilyLookupDetail(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, color = PortalMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text(value, color = PortalText, fontSize = 13.sp)
     }
 }
 

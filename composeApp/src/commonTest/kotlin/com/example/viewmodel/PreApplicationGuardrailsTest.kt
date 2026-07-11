@@ -1142,6 +1142,65 @@ class PreApplicationGuardrailsTest {
         assertEquals(afterFirstAttempt, PreApplicationViewModel.sharedPreApplications.value)
     }
 
+    @Test
+    fun familyLookupNormalizesCredentialsAndReturnsAuthorizedFields() {
+        val submitted = submitAndGetRaw { preApplication(curp = uniqueCurp("LOOKUP")) }
+        PreApplicationViewModel.markForCorrection(submitted.folio)
+        PreApplicationViewModel.setMotivoCorreccion(submitted.folio, "Corregir acta de nacimiento")
+        PreApplicationViewModel.setObservaciones(submitted.folio, "Presentar documento legible")
+        val spacedFolio = submitted.folio.lowercase().toList().joinToString(" ", prefix = "  ", postfix = "  ")
+        val spacedCurp = submitted.alumnoCurp.lowercase().chunked(3).joinToString(" ", prefix = "  ", postfix = "  ")
+
+        val result = PreApplicationViewModel.lookupFamilyPreApplication(spacedFolio, spacedCurp)
+
+        val success = assertIs<FamilyPreApplicationLookupResult.Success>(result)
+        assertEquals(submitted.folio, success.folio)
+        assertEquals(PreApplicationStatus.PENDIENTE_CORRECCION, success.status)
+        assertEquals("Corregir acta de nacimiento", success.correctionReason)
+        assertEquals("Presentar documento legible", success.secretariaObservations)
+    }
+
+    @Test
+    fun familyLookupReturnsGenericErrorForWrongCurp() {
+        val first = PreApplicationViewModel.sharedPreApplications.value[0]
+        val second = PreApplicationViewModel.sharedPreApplications.value[1]
+
+        val error = assertIs<FamilyPreApplicationLookupResult.Error>(
+            PreApplicationViewModel.lookupFamilyPreApplication(first.folio, second.alumnoCurp)
+        )
+
+        assertEquals(
+            "No fue posible consultar la pre-solicitud con los datos proporcionados.",
+            error.message
+        )
+    }
+
+    @Test
+    fun familyLookupReturnsGenericErrorForUnknownFolio() {
+        val stored = PreApplicationViewModel.sharedPreApplications.value.first()
+
+        val error = assertIs<FamilyPreApplicationLookupResult.Error>(
+            PreApplicationViewModel.lookupFamilyPreApplication("FOLIO-INEXISTENTE", stored.alumnoCurp)
+        )
+
+        assertEquals(
+            "No fue posible consultar la pre-solicitud con los datos proporcionados.",
+            error.message
+        )
+    }
+
+    @Test
+    fun familyLookupDoesNotModifySharedPreApplications() {
+        val stored = PreApplicationViewModel.sharedPreApplications.value.first()
+        val before = PreApplicationViewModel.sharedPreApplications.value.toList()
+
+        assertIs<FamilyPreApplicationLookupResult.Success>(
+            PreApplicationViewModel.lookupFamilyPreApplication(stored.folio, stored.alumnoCurp)
+        )
+
+        assertEquals(before, PreApplicationViewModel.sharedPreApplications.value)
+    }
+
     private fun submitCorrectablePreApplication(curp: String): PreApplication {
         val submitted = submitAndGetRaw { preApplication(curp = curp) }
         PreApplicationViewModel.markForCorrection(submitted.folio)
