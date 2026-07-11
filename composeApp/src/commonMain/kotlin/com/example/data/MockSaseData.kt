@@ -1,5 +1,6 @@
 package com.example.data
 
+import com.example.data.enrollment.AnnualEnrollmentRecord
 import com.example.formatTimestamp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,9 +13,17 @@ object MockSaseData {
     private val _audits = MutableStateFlow<List<SaseAudit>>(createInitialAudits())
     val audits: StateFlow<List<SaseAudit>> = _audits.asStateFlow()
 
+    private val _annualEnrollments = MutableStateFlow<List<AnnualEnrollmentRecord>>(emptyList())
+    val annualEnrollments: StateFlow<List<AnnualEnrollmentRecord>> = _annualEnrollments.asStateFlow()
+
     fun resetForTests() {
         _students.value = createInitialStudents()
         _audits.value = createInitialAudits()
+        _annualEnrollments.value = emptyList()
+    }
+
+    fun addAnnualEnrollment(record: AnnualEnrollmentRecord) {
+        _annualEnrollments.value = _annualEnrollments.value + record
     }
 
     private fun createInitialStudents(): List<Student> = listOf(

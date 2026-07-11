@@ -5,6 +5,9 @@ import com.example.data.SaseAudit
 import com.example.data.SaseDocument
 import com.example.data.Student
 import com.example.data.StudentAddResult
+import com.example.data.enrollment.AnnualEnrollmentPersistenceAdapter
+import com.example.data.enrollment.AnnualEnrollmentPersistenceResult
+import com.example.data.enrollment.AnnualEnrollmentPlanningResult
 import com.example.data.presolicitud.*
 import com.example.formatTimestamp
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -860,6 +863,20 @@ class PreApplicationViewModel {
                 documentationStatus = "Pendiente"
             )
         }
+
+        fun commitAnnualEnrollment(
+            planningResult: AnnualEnrollmentPlanningResult,
+            newStudentId: String?,
+            studentFullName: String,
+            actor: String = "Secretaría",
+            occurredAt: String = "HOY ${com.example.formatTimestamp("hh:mm a")}"
+        ): AnnualEnrollmentPersistenceResult = AnnualEnrollmentPersistenceAdapter.commit(
+            planningResult = planningResult,
+            newStudentId = newStudentId,
+            studentFullName = studentFullName,
+            actor = actor,
+            occurredAt = occurredAt
+        )
     }
 
     private val _currentStep = MutableStateFlow(0)
