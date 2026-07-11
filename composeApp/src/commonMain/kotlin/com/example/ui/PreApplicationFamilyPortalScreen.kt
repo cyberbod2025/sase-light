@@ -1253,7 +1253,7 @@ private fun StepDocumentos(vm: PreApplicationViewModel) {
     val consentimientos by vm.consentimientos.collectAsState()
     val errors by vm.errors.collectAsState()
 
-    Text("Documentos", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
+    Text("Documentos que deberá presentar en Secretaría.", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PortalText)
     Text("Indica los documentos que presentaras en Secretaria para cotejo.", fontSize = 12.sp, color = PortalMuted)
 
     documentos.forEach { doc ->
@@ -1272,7 +1272,7 @@ private fun StepDocumentos(vm: PreApplicationViewModel) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(doc.label, fontSize = 12.sp, color = PortalText, fontWeight = FontWeight.Medium)
                 if (isInstitutionalPlaceholder) {
-                    Text("Ver documento / Descargar PDF placeholder", fontSize = 10.sp, color = SaseBlue, fontWeight = FontWeight.Bold)
+                    Text("Presentación física para revisión y cotejo en Secretaría.", fontSize = 10.sp, color = SaseBlue, fontWeight = FontWeight.Bold)
                 }
             }
         }
