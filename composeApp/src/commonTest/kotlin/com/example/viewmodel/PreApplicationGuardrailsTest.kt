@@ -1410,6 +1410,6 @@ class PreApplicationGuardrailsTest {
     @Test
     fun v2LegacyFlowStillAvailable() {
         MockSaseData.resetForTests()
-        assertEquals(com.example.data.enrollment.EnrollmentFlowMode.LEGACY, PreApplicationViewModel.enrollmentFlowMode.value)
+        assertEquals(com.example.data.enrollment.EnrollmentFlowMode.ANNUAL_V2, PreApplicationViewModel.enrollmentFlowMode.value)
     }
 }

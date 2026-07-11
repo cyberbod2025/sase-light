@@ -220,7 +220,7 @@ class PreApplicationViewModel {
         private val _officialStudents = MutableStateFlow(MockOfficialStudentData.officialStudents)
         val officialStudents: StateFlow<List<OfficialStudent>> = _officialStudents.asStateFlow()
 
-        private val _enrollmentFlowMode = MutableStateFlow(EnrollmentFlowMode.LEGACY)
+        private val _enrollmentFlowMode = MutableStateFlow(EnrollmentFlowMode.ANNUAL_V2)
         val enrollmentFlowMode: StateFlow<EnrollmentFlowMode> = _enrollmentFlowMode.asStateFlow()
 
         fun setEnrollmentFlowMode(mode: EnrollmentFlowMode) {
@@ -242,7 +242,7 @@ class PreApplicationViewModel {
             _photos.value = demoPhotoStates()
             _reviewObservations.value = emptyMap()
             _officialStudents.value = MockOfficialStudentData.officialStudents
-            _enrollmentFlowMode.value = EnrollmentFlowMode.LEGACY
+            _enrollmentFlowMode.value = EnrollmentFlowMode.ANNUAL_V2
             _v2Result.value = null
             _isProcessingAnnualEnrollmentV2.value = false
             MockSaseData.resetForTests()
