@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.data.enrollment.AnnualEnrollmentFlowResult
 import com.example.data.presolicitud.*
 import com.example.ui.*
 import com.example.util.LocalToast
@@ -1092,6 +1093,46 @@ private fun OfficialEnrollmentContextualPanel(
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                val requestedGrade = preApp.gradoSolicitado
+                val suggestedGrp = PreApplicationViewModel.suggestInitialGroup(requestedGrade)
+                val v2Result = PreApplicationViewModel.processAnnualEnrollmentV2(
+                    declaredMovement = preApp.tramite,
+                    normalizedCurp = preApp.alumnoCurp,
+                    folio = preApp.folio,
+                    requestedGrade = requestedGrade,
+                    previousGroup = selectedGroup,
+                    schoolYear = preApp.cicloEscolar,
+                    studentFullName = preApp.alumnoNombreCompleto
+                )
+                resultMessage = when (v2Result) {
+                    is AnnualEnrollmentFlowResult.Completed -> "V2: ${v2Result.message} Matrícula: ${v2Result.enrollmentId}"
+                    is AnnualEnrollmentFlowResult.AlreadyCompleted -> "V2: ${v2Result.message}"
+                    is AnnualEnrollmentFlowResult.NeedsDecision -> "V2: ${v2Result.reason}"
+                    is AnnualEnrollmentFlowResult.Conflict -> "V2: ${v2Result.message} (${v2Result.stage})"
+                }
+                resultColor = when (v2Result) {
+                    is AnnualEnrollmentFlowResult.Completed,
+                    is AnnualEnrollmentFlowResult.AlreadyCompleted -> SaseGreen
+                    is AnnualEnrollmentFlowResult.NeedsDecision -> SaseBlue
+                    is AnnualEnrollmentFlowResult.Conflict -> SaseOrange
+                }
+            },
+            enabled = preApp.personaTramite.nombreCompleto.isNotBlank(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SaseBlue.copy(alpha = 0.15f),
+                contentColor = SaseBlue
+            ),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Procesar con flujo anual nuevo (V2)", fontWeight = FontWeight.Bold, fontSize = 11.sp)
         }
 
         if (resultMessage != null) {

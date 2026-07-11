@@ -5,6 +5,10 @@ import com.example.data.SaseAudit
 import com.example.data.SaseDocument
 import com.example.data.Student
 import com.example.data.StudentAddResult
+import com.example.data.enrollment.AnnualEnrollmentFlowCoordinator
+import com.example.data.enrollment.EnrollmentFlowMode
+import com.example.data.enrollment.AnnualEnrollmentFlowRequest
+import com.example.data.enrollment.AnnualEnrollmentFlowResult
 import com.example.data.enrollment.AnnualEnrollmentPersistenceAdapter
 import com.example.data.enrollment.AnnualEnrollmentPersistenceResult
 import com.example.data.enrollment.AnnualEnrollmentPlanningResult
@@ -216,11 +220,23 @@ class PreApplicationViewModel {
         private val _officialStudents = MutableStateFlow(MockOfficialStudentData.officialStudents)
         val officialStudents: StateFlow<List<OfficialStudent>> = _officialStudents.asStateFlow()
 
+        private val _enrollmentFlowMode = MutableStateFlow(EnrollmentFlowMode.LEGACY)
+        val enrollmentFlowMode: StateFlow<EnrollmentFlowMode> = _enrollmentFlowMode.asStateFlow()
+
+        fun setEnrollmentFlowMode(mode: EnrollmentFlowMode) {
+            _enrollmentFlowMode.value = mode
+        }
+
+        private val _v2Result = MutableStateFlow<AnnualEnrollmentFlowResult?>(null)
+        val v2Result: StateFlow<AnnualEnrollmentFlowResult?> = _v2Result.asStateFlow()
+
         fun resetSharedStateForTests() {
             _sharedPreApplications.value = MockPreApplicationData.preApplications
             _photos.value = demoPhotoStates()
             _reviewObservations.value = emptyMap()
             _officialStudents.value = MockOfficialStudentData.officialStudents
+            _enrollmentFlowMode.value = EnrollmentFlowMode.LEGACY
+            _v2Result.value = null
             MockSaseData.resetForTests()
         }
 
@@ -877,6 +893,35 @@ class PreApplicationViewModel {
             actor = actor,
             occurredAt = occurredAt
         )
+
+        fun processAnnualEnrollmentV2(
+            declaredMovement: String,
+            normalizedCurp: String,
+            folio: String,
+            requestedGrade: Int,
+            previousGroup: String?,
+            schoolYear: String,
+            studentFullName: String
+        ): AnnualEnrollmentFlowResult {
+            val newStudentId = if (declaredMovement.uppercase().replace('Ó', 'O') == "NUEVO INGRESO") {
+                "MASTER-V2-${folio.takeLast(4)}-${Random.nextInt(100, 999)}"
+            } else null
+            val request = AnnualEnrollmentFlowRequest(
+                declaredMovement = declaredMovement,
+                normalizedCurp = normalizedCurp,
+                sourcePreApplicationFolio = folio,
+                requestedGrade = requestedGrade,
+                previousGroup = previousGroup,
+                schoolYear = schoolYear,
+                newStudentId = newStudentId,
+                studentFullName = studentFullName,
+                actor = "Secretaría",
+                occurredAt = "HOY ${com.example.formatTimestamp("hh:mm a")}"
+            )
+            val result = AnnualEnrollmentFlowCoordinator.process(request)
+            _v2Result.value = result
+            return result
+        }
     }
 
     private val _currentStep = MutableStateFlow(0)

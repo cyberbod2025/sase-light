@@ -12,7 +12,9 @@ sealed class AnnualEnrollmentPersistenceResult {
         val addedAuditEntries: List<EnrollmentAuditEntry>
     ) : AnnualEnrollmentPersistenceResult()
 
-    data object AlreadyApplied : AnnualEnrollmentPersistenceResult()
+    data class AlreadyApplied(
+        val annualEnrollment: AnnualEnrollmentRecord
+    ) : AnnualEnrollmentPersistenceResult()
 
     data class Conflict(
         val cause: PersistenceConflictCause,
@@ -53,7 +55,9 @@ object AnnualEnrollmentPersistenceAdapter {
         )
         return when (commitResult) {
             is AnnualEnrollmentCommitResult.Applied -> persistApplied(commitResult, studentFullName)
-            is AnnualEnrollmentCommitResult.AlreadyApplied -> AnnualEnrollmentPersistenceResult.AlreadyApplied
+            is AnnualEnrollmentCommitResult.AlreadyApplied -> AnnualEnrollmentPersistenceResult.AlreadyApplied(
+                annualEnrollment = commitResult.annualEnrollment
+            )
             is AnnualEnrollmentCommitResult.Conflict -> AnnualEnrollmentPersistenceResult.Conflict(
                 cause = PersistenceConflictCause.PLANNING_CONFLICT,
                 message = commitResult.message
