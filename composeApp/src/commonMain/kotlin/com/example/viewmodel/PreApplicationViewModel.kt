@@ -230,6 +230,13 @@ class PreApplicationViewModel {
         private val _v2Result = MutableStateFlow<AnnualEnrollmentFlowResult?>(null)
         val v2Result: StateFlow<AnnualEnrollmentFlowResult?> = _v2Result.asStateFlow()
 
+        private val _isProcessingAnnualEnrollmentV2 = MutableStateFlow(false)
+        val isProcessingAnnualEnrollmentV2: StateFlow<Boolean> = _isProcessingAnnualEnrollmentV2.asStateFlow()
+
+        fun setProcessingAnnualEnrollmentV2(processing: Boolean) {
+            _isProcessingAnnualEnrollmentV2.value = processing
+        }
+
         fun resetSharedStateForTests() {
             _sharedPreApplications.value = MockPreApplicationData.preApplications
             _photos.value = demoPhotoStates()
@@ -237,6 +244,7 @@ class PreApplicationViewModel {
             _officialStudents.value = MockOfficialStudentData.officialStudents
             _enrollmentFlowMode.value = EnrollmentFlowMode.LEGACY
             _v2Result.value = null
+            _isProcessingAnnualEnrollmentV2.value = false
             MockSaseData.resetForTests()
         }
 

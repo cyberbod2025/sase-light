@@ -35,6 +35,7 @@ import com.example.viewmodel.OfficialEnrollmentResult
 import com.example.viewmodel.PreApplicationViewModel
 import com.example.viewmodel.ReadinessResult
 import com.example.viewmodel.Screen
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 @Composable
@@ -96,7 +97,8 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                         PreApplicationViewModel.markForCorrection(folio)
                         toast("Pre-solicitud $folio marcada para corrección — se notificará a la familia")
                     },
-                    onProvisionalCreated = { msg -> provisionalResult = msg; showProvisionalDialog = true }
+                    onProvisionalCreated = { msg -> provisionalResult = msg; showProvisionalDialog = true },
+                    scope = scope
                 )
             } else {
                 Column(
@@ -219,7 +221,8 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                                     toast("Pre-solicitud $folio marcada para corrección — se notificará a la familia")
                                 },
                                 onProvisionalCreated = { msg -> provisionalResult = msg; showProvisionalDialog = true },
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                scope = scope
                             )
                         }
                     }
@@ -376,7 +379,8 @@ private fun PreApplicationDetailTabs(
     onApprove: (String) -> Unit,
     onMarkCorrection: (String) -> Unit,
     onProvisionalCreated: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    scope: CoroutineScope
 ) {
     val photos by PreApplicationViewModel.photos.collectAsState()
     val reviewObservations by PreApplicationViewModel.reviewObservations.collectAsState()
@@ -453,7 +457,8 @@ private fun PreApplicationDetailTabs(
             OfficialEnrollmentContextualPanel(
                 preApp = preApp,
                 officialStudent = officialStudent,
-                onClose = { showOfficialEnrollmentPanel = false }
+                onClose = { showOfficialEnrollmentPanel = false },
+                scope = scope
             )
         }
 
@@ -933,7 +938,8 @@ private fun OfficialEnrollmentReadinessCard(
 private fun OfficialEnrollmentContextualPanel(
     preApp: PreApplication,
     officialStudent: OfficialStudent?,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    scope: CoroutineScope
 ) {
     val grade = preApp.gradoSolicitado
     val groupOptions = PreApplicationViewModel.groupOptionsForGrade(grade)
@@ -1095,50 +1101,88 @@ private fun OfficialEnrollmentContextualPanel(
             }
         }
 
+        val isProcessingV2 by PreApplicationViewModel.isProcessingAnnualEnrollmentV2.collectAsState()
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = {
-                val requestedGrade = preApp.gradoSolicitado
-                val suggestedGrp = PreApplicationViewModel.suggestInitialGroup(requestedGrade)
-                val v2Result = PreApplicationViewModel.processAnnualEnrollmentV2(
-                    declaredMovement = preApp.tramite,
-                    normalizedCurp = preApp.alumnoCurp,
-                    folio = preApp.folio,
-                    requestedGrade = requestedGrade,
-                    previousGroup = selectedGroup,
-                    schoolYear = preApp.cicloEscolar,
-                    studentFullName = preApp.alumnoNombreCompleto
-                )
-                resultMessage = when (v2Result) {
-                    is AnnualEnrollmentFlowResult.Completed -> "V2: ${v2Result.message} Matrícula: ${v2Result.enrollmentId}"
-                    is AnnualEnrollmentFlowResult.AlreadyCompleted -> "V2: ${v2Result.message}"
-                    is AnnualEnrollmentFlowResult.NeedsDecision -> "V2: ${v2Result.reason}"
-                    is AnnualEnrollmentFlowResult.Conflict -> "V2: ${v2Result.message} (${v2Result.stage})"
-                }
-                resultColor = when (v2Result) {
-                    is AnnualEnrollmentFlowResult.Completed,
-                    is AnnualEnrollmentFlowResult.AlreadyCompleted -> SaseGreen
-                    is AnnualEnrollmentFlowResult.NeedsDecision -> SaseBlue
-                    is AnnualEnrollmentFlowResult.Conflict -> SaseOrange
+                scope.launch {
+                    PreApplicationViewModel.setProcessingAnnualEnrollmentV2(true)
+                    try {
+                        val requestedGrade = preApp.gradoSolicitado
+                        val v2Result = PreApplicationViewModel.processAnnualEnrollmentV2(
+                            declaredMovement = preApp.tramite,
+                            normalizedCurp = preApp.alumnoCurp,
+                            folio = preApp.folio,
+                            requestedGrade = requestedGrade,
+                            previousGroup = selectedGroup,
+                            schoolYear = preApp.cicloEscolar,
+                            studentFullName = preApp.alumnoNombreCompleto
+                        )
+                        resultMessage = buildV2Message(v2Result)
+                        resultColor = when (v2Result) {
+                            is AnnualEnrollmentFlowResult.Completed,
+                            is AnnualEnrollmentFlowResult.AlreadyCompleted -> SaseGreen
+                            is AnnualEnrollmentFlowResult.NeedsDecision -> SaseBlue
+                            is AnnualEnrollmentFlowResult.Conflict -> SaseOrange
+                        }
+                    } finally {
+                        PreApplicationViewModel.setProcessingAnnualEnrollmentV2(false)
+                    }
                 }
             },
-            enabled = preApp.personaTramite.nombreCompleto.isNotBlank(),
+            enabled = !isProcessingV2 && preApp.personaTramite.nombreCompleto.isNotBlank(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = SaseBlue.copy(alpha = 0.15f),
-                contentColor = SaseBlue
+                containerColor = if (isProcessingV2) SaseMuted.copy(alpha = 0.15f) else SaseBlue.copy(alpha = 0.15f),
+                contentColor = if (isProcessingV2) SaseMuted else SaseBlue
             ),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
+            Icon(
+                if (isProcessingV2) Icons.Default.HourglassEmpty else Icons.Default.AutoAwesome,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp)
+            )
             Spacer(modifier = Modifier.width(6.dp))
-            Text("Procesar con flujo anual nuevo (V2)", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            Text(
+                if (isProcessingV2) "Procesando..." else "Procesar con flujo anual nuevo (V2)",
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp
+            )
         }
 
         if (resultMessage != null) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(resultMessage ?: "", color = resultColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
+    }
+}
+
+private fun buildV2Message(result: AnnualEnrollmentFlowResult): String = when (result) {
+    is AnnualEnrollmentFlowResult.Completed -> buildString {
+        appendLine("Inscripción anual registrada.")
+        append("Matrícula: ${result.enrollmentId}")
+        appendLine()
+        append("Grupo: pendiente de asignación.")
+    }
+    is AnnualEnrollmentFlowResult.AlreadyCompleted -> buildString {
+        appendLine("Esta inscripción anual ya había sido registrada.")
+        append("No se generaron duplicados.")
+    }
+    is AnnualEnrollmentFlowResult.NeedsDecision -> buildString {
+        appendLine("Inscripción registrada.")
+        if (result.previousGroup != null) {
+            appendLine("Grupo anterior: ${result.previousGroup}.")
+        }
+        if (result.suggestedGroup != null) {
+            appendLine("Sugerencia: ${result.suggestedGroup}.")
+        }
+        append("Decisión pendiente de Secretaría.")
+    }
+    is AnnualEnrollmentFlowResult.Conflict -> buildString {
+        appendLine("No fue posible completar la inscripción.")
+        appendLine("Etapa: ${result.stage}.")
+        append("Motivo: ${result.message}")
     }
 }
 
@@ -1586,7 +1630,8 @@ private fun MobilePreApplicationDetail(
     onBack: () -> Unit,
     onApprove: (String) -> Unit,
     onMarkCorrection: (String) -> Unit,
-    onProvisionalCreated: (String) -> Unit
+    onProvisionalCreated: (String) -> Unit,
+    scope: CoroutineScope
 ) {
     Column(
         modifier = Modifier
@@ -1615,7 +1660,8 @@ private fun MobilePreApplicationDetail(
             onApprove = onApprove,
             onMarkCorrection = onMarkCorrection,
             onProvisionalCreated = onProvisionalCreated,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            scope = scope
         )
     }
 }

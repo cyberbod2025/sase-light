@@ -12,6 +12,7 @@ import com.example.data.presolicitud.DocumentoDeclarado
 import com.example.data.presolicitud.FichaMedicaFamiliar
 import com.example.data.presolicitud.PersonaTramite
 import com.example.data.presolicitud.OfficialStudentStatus
+import com.example.data.enrollment.AnnualEnrollmentFlowResult
 import com.example.data.presolicitud.PreApplication
 import com.example.data.presolicitud.PreApplicationStatus
 import com.example.data.presolicitud.ReadinessStatus
@@ -1235,5 +1236,180 @@ class PreApplicationGuardrailsTest {
         val result = PreApplicationViewModel.submitFamilyPreApplication(buildPreApp())
         val stored = assertIs<FamilySubmissionResult.Success>(result).preApplication
         return PreApplicationViewModel.sharedPreApplications.value.first { it.folio == stored.folio }
+    }
+
+    // ── V2 Annual Enrollment Flow (Macroloop 6H) ───────────────────────
+
+    @Test
+    fun v2IsProcessingStartsFalse() {
+        assertFalse(PreApplicationViewModel.isProcessingAnnualEnrollmentV2.value)
+    }
+
+    @Test
+    fun v2IsProcessingSetAndResetDuringExecution() {
+        PreApplicationViewModel.setProcessingAnnualEnrollmentV2(true)
+        assertTrue(PreApplicationViewModel.isProcessingAnnualEnrollmentV2.value)
+        PreApplicationViewModel.setProcessingAnnualEnrollmentV2(false)
+        assertFalse(PreApplicationViewModel.isProcessingAnnualEnrollmentV2.value)
+    }
+
+    @Test
+    fun v2NewEntryReturnsCompletedWithV2EnrollmentId() {
+        MockSaseData.resetForTests()
+        val preApp = submitReadyCandidate(curp = uniqueCurp("V2NENT"))
+        val result = PreApplicationViewModel.processAnnualEnrollmentV2(
+            declaredMovement = preApp.tramite,
+            normalizedCurp = preApp.alumnoCurp,
+            folio = preApp.folio,
+            requestedGrade = preApp.gradoSolicitado,
+            previousGroup = null,
+            schoolYear = preApp.cicloEscolar,
+            studentFullName = preApp.alumnoNombreCompleto
+        )
+        val completed = assertIs<AnnualEnrollmentFlowResult.Completed>(result)
+        assertTrue(completed.enrollmentId.startsWith("S310-"), "V2 debe usar formato S310-*")
+        assertTrue(completed.enrollmentId.matches(Regex("S310-\\d{6}-\\d$")), "Formato consecutivo")
+        assertTrue(MockSaseData.annualEnrollments.value.any { it.studentId?.contains("V2") == true })
+    }
+
+    @Test
+    fun v2NewEntryDoesNotAssignGroup() {
+        MockSaseData.resetForTests()
+        val preApp = submitReadyCandidate(curp = uniqueCurp("V2NOGRP"))
+        PreApplicationViewModel.processAnnualEnrollmentV2(
+            declaredMovement = preApp.tramite,
+            normalizedCurp = preApp.alumnoCurp,
+            folio = preApp.folio,
+            requestedGrade = preApp.gradoSolicitado,
+            previousGroup = null,
+            schoolYear = preApp.cicloEscolar,
+            studentFullName = preApp.alumnoNombreCompleto
+        )
+        val master = MockSaseData.students.value.firstOrNull { it.curp == preApp.alumnoCurp }
+        assertNotNull(master)
+        assertEquals("", master.group, "V2 no debe asignar grupo")
+    }
+
+    @Test
+    fun v2ReEnrollmentPreservesEnrollmentId() {
+        MockSaseData.resetForTests()
+        val curp = "RENR100101HDFABC01"
+        MockSaseData.addStudent(
+            com.example.data.Student(
+                id = "RE-V2-001", fullName = "ALUMNO RE V2",
+                group = "1A", enrollmentId = "S310-000001-1",
+                curp = curp, preApplicationFolio = "PRE-RE-V2-001"
+            )
+        )
+        val result = PreApplicationViewModel.processAnnualEnrollmentV2(
+            declaredMovement = "REINSCRIPCION",
+            normalizedCurp = curp,
+            folio = "PRE-V2REN-${uniqueSuffix()}",
+            requestedGrade = 2,
+            previousGroup = null,
+            schoolYear = "2026-2027",
+            studentFullName = "ALUMNO RE V2"
+        )
+        val completed = assertIs<AnnualEnrollmentFlowResult.Completed>(result)
+        assertEquals("S310-000001-1", completed.enrollmentId)
+    }
+
+    @Test
+    fun v2ReEnrollmentReturnsNeedsDecisionWithContinuity() {
+        MockSaseData.resetForTests()
+        val curp = "REND100101HDFABC02"
+        MockSaseData.addStudent(
+            com.example.data.Student(
+                id = "RE-V2-002", fullName = "ALUMNO RE V2 ND",
+                group = "1A", enrollmentId = "S310-000010-2",
+                curp = curp, preApplicationFolio = "PRE-RE-V2-002"
+            )
+        )
+        val result = PreApplicationViewModel.processAnnualEnrollmentV2(
+            declaredMovement = "REINSCRIPCION",
+            normalizedCurp = curp,
+            folio = "PRE-V2ND-${uniqueSuffix()}",
+            requestedGrade = 2,
+            previousGroup = "1A",
+            schoolYear = "2026-2027",
+            studentFullName = "ALUMNO RE V2 ND"
+        )
+        val needsDecision = assertIs<AnnualEnrollmentFlowResult.NeedsDecision>(result)
+        assertEquals("1A", needsDecision.previousGroup)
+        assertEquals("2A", needsDecision.suggestedGroup)
+    }
+
+    @Test
+    fun v2AlreadyCompletedOnDuplicateRequest() {
+        MockSaseData.resetForTests()
+        val preApp = submitReadyCandidate(curp = uniqueCurp("V2DUP"))
+        val folio = "PRE-V2DUP-${uniqueSuffix()}"
+        val first = PreApplicationViewModel.processAnnualEnrollmentV2(
+            declaredMovement = preApp.tramite,
+            normalizedCurp = preApp.alumnoCurp,
+            folio = folio,
+            requestedGrade = preApp.gradoSolicitado,
+            previousGroup = null,
+            schoolYear = preApp.cicloEscolar,
+            studentFullName = preApp.alumnoNombreCompleto
+        )
+        assertIs<AnnualEnrollmentFlowResult.Completed>(first)
+        val enrollmentCount = MockSaseData.annualEnrollments.value.size
+        val second = PreApplicationViewModel.processAnnualEnrollmentV2(
+            declaredMovement = preApp.tramite,
+            normalizedCurp = preApp.alumnoCurp,
+            folio = folio,
+            requestedGrade = preApp.gradoSolicitado,
+            previousGroup = null,
+            schoolYear = preApp.cicloEscolar,
+            studentFullName = preApp.alumnoNombreCompleto
+        )
+        assertIs<AnnualEnrollmentFlowResult.AlreadyCompleted>(second)
+        assertEquals(enrollmentCount, MockSaseData.annualEnrollments.value.size)
+    }
+
+    @Test
+    fun v2ConflictReturnsStageAndNoMutation() {
+        MockSaseData.resetForTests()
+        val studentCount = MockSaseData.students.value.size
+        val enrollmentCount = MockSaseData.annualEnrollments.value.size
+        val preApp = submitReadyCandidate(curp = uniqueCurp("V2CONF"))
+        val result = PreApplicationViewModel.processAnnualEnrollmentV2(
+            declaredMovement = preApp.tramite,
+            normalizedCurp = "",
+            folio = preApp.folio,
+            requestedGrade = preApp.gradoSolicitado,
+            previousGroup = null,
+            schoolYear = preApp.cicloEscolar,
+            studentFullName = preApp.alumnoNombreCompleto
+        )
+        val conflict = assertIs<AnnualEnrollmentFlowResult.Conflict>(result)
+        assertTrue(conflict.stage.isNotBlank(), "Conflicto debe indicar etapa")
+        assertEquals(studentCount, MockSaseData.students.value.size)
+        assertEquals(enrollmentCount, MockSaseData.annualEnrollments.value.size)
+    }
+
+    @Test
+    fun v2ResultStoredInViewModel() {
+        MockSaseData.resetForTests()
+        PreApplicationViewModel.resetSharedStateForTests()
+        assertNull(PreApplicationViewModel.v2Result.value)
+        val preApp = submitReadyCandidate(curp = uniqueCurp("V2STORE"))
+        PreApplicationViewModel.processAnnualEnrollmentV2(
+            declaredMovement = preApp.tramite,
+            normalizedCurp = preApp.alumnoCurp,
+            folio = "PRE-V2STO-${uniqueSuffix()}",
+            requestedGrade = preApp.gradoSolicitado,
+            previousGroup = null,
+            schoolYear = preApp.cicloEscolar,
+            studentFullName = preApp.alumnoNombreCompleto
+        )
+        assertNotNull(PreApplicationViewModel.v2Result.value)
+    }
+
+    @Test
+    fun v2LegacyFlowStillAvailable() {
+        MockSaseData.resetForTests()
+        assertEquals(com.example.data.enrollment.EnrollmentFlowMode.LEGACY, PreApplicationViewModel.enrollmentFlowMode.value)
     }
 }
