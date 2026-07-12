@@ -31,6 +31,7 @@ import com.example.data.presolicitud.*
 import com.example.ui.*
 import com.example.util.LocalToast
 import com.example.viewmodel.LabViewModel
+import com.example.viewmodel.CorrectionRequestResult
 import com.example.viewmodel.OfficialEnrollmentResult
 import com.example.viewmodel.PreApplicationViewModel
 import com.example.viewmodel.ReadinessResult
@@ -92,10 +93,6 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                     onApprove = { folio ->
                         PreApplicationViewModel.approvePreApplication(folio)
                         toast("Pre-solicitud $folio aceptada — pendiente alta oficial")
-                    },
-                    onMarkCorrection = { folio ->
-                        PreApplicationViewModel.markForCorrection(folio)
-                        toast("Pre-solicitud $folio marcada para corrección — se notificará a la familia")
                     },
                     onProvisionalCreated = { msg -> provisionalResult = msg; showProvisionalDialog = true },
                     scope = scope
@@ -215,10 +212,6 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                                 onApprove = { folio ->
                                     PreApplicationViewModel.approvePreApplication(folio)
                                     toast("Pre-solicitud $folio aceptada — pendiente alta oficial")
-                                },
-                                onMarkCorrection = { folio ->
-                                    PreApplicationViewModel.markForCorrection(folio)
-                                    toast("Pre-solicitud $folio marcada para corrección — se notificará a la familia")
                                 },
                                 onProvisionalCreated = { msg -> provisionalResult = msg; showProvisionalDialog = true },
                                 modifier = Modifier.weight(1f),
@@ -382,7 +375,6 @@ private fun PreApplicationDetailTabs(
     preApp: PreApplication?,
     viewModel: LabViewModel,
     onApprove: (String) -> Unit,
-    onMarkCorrection: (String) -> Unit,
     onProvisionalCreated: (String) -> Unit,
     modifier: Modifier = Modifier,
     scope: CoroutineScope
@@ -541,19 +533,6 @@ private fun PreApplicationDetailTabs(
                         Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Editar datos", fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    }
-                    if (preApp.status != PreApplicationStatus.PENDIENTE_CORRECCION) {
-                        OutlinedButton(
-                            onClick = { onMarkCorrection(preApp.folio) },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SaseOrange),
-                            border = BorderStroke(1.dp, SaseOrange.copy(alpha = 0.5f)),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Requiere corrección", fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1499,6 +1478,7 @@ private fun RevisionTab(
     preApp: PreApplication,
     reviewObservations: List<PreApplicationViewModel.Companion.SecretariaReviewObservation>
 ) {
+    val toast = LocalToast.current
     val categories = listOf("Documentos", "Fotos", "Corrección solicitada")
     var selectedCategory by remember(preApp.folio) { mutableStateOf(categories.first()) }
     var observationDraft by remember(preApp.folio) { mutableStateOf(preApp.observacionesSecretaria) }
@@ -1507,6 +1487,11 @@ private fun RevisionTab(
     }
     var motivoCorreccion by remember(preApp.folio) { mutableStateOf(preApp.motivoCorreccion) }
     var notificationResult by remember { mutableStateOf<String?>(null) }
+    val correctionEditable = preApp.status in setOf(
+        PreApplicationStatus.ENVIADA,
+        PreApplicationStatus.ACEPTADA,
+        PreApplicationStatus.PENDIENTE_CORRECCION
+    ) && preApp.readinessStatus != ReadinessStatus.CONVERTED
 
     SectionHeader("Observaciones para Familia")
     Text(
@@ -1600,13 +1585,14 @@ private fun RevisionTab(
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(if (requiresCorrection) SaseOrange.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.35f))
-            .clickable { requiresCorrection = !requiresCorrection }
+            .clickable(enabled = correctionEditable) { requiresCorrection = !requiresCorrection }
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(
             checked = requiresCorrection,
             onCheckedChange = { requiresCorrection = it },
+            enabled = correctionEditable,
             colors = CheckboxDefaults.colors(checkedColor = SaseOrange)
         )
         Column(modifier = Modifier.weight(1f)) {
@@ -1631,11 +1617,24 @@ private fun RevisionTab(
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(
             onClick = {
-                PreApplicationViewModel.setMotivoCorreccion(preApp.folio, motivoCorreccion)
-                PreApplicationViewModel.markForCorrection(preApp.folio)
-                PreApplicationViewModel.addReviewObservation(preApp.folio, "Corrección solicitada", motivoCorreccion)
+                when (val result = PreApplicationViewModel.requestCorrection(preApp.folio, motivoCorreccion)) {
+                    is CorrectionRequestResult.Success -> {
+                        PreApplicationViewModel.addReviewObservation(
+                            preApp.folio,
+                            "Corrección solicitada",
+                            result.preApplication.motivoCorreccion
+                        )
+                        toast(result.message)
+                    }
+                    is CorrectionRequestResult.AlreadyRequested -> toast(result.message)
+                    CorrectionRequestResult.InvalidReason -> toast(result.message)
+                    is CorrectionRequestResult.NotFound -> toast(result.message)
+                    CorrectionRequestResult.AmbiguousFolio -> toast(result.message)
+                    is CorrectionRequestResult.NotEditable -> toast(result.message)
+                    CorrectionRequestResult.AlreadyConverted -> toast(result.message)
+                }
             },
-            enabled = motivoCorreccion.isNotBlank(),
+            enabled = correctionEditable && motivoCorreccion.isNotBlank(),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = SaseOrange),
             border = BorderStroke(1.dp, SaseOrange.copy(alpha = 0.5f)),
             shape = RoundedCornerShape(12.dp),
@@ -1684,7 +1683,6 @@ private fun MobilePreApplicationDetail(
     viewModel: LabViewModel,
     onBack: () -> Unit,
     onApprove: (String) -> Unit,
-    onMarkCorrection: (String) -> Unit,
     onProvisionalCreated: (String) -> Unit,
     scope: CoroutineScope
 ) {
@@ -1713,7 +1711,6 @@ private fun MobilePreApplicationDetail(
             preApp = preApp,
             viewModel = viewModel,
             onApprove = onApprove,
-            onMarkCorrection = onMarkCorrection,
             onProvisionalCreated = onProvisionalCreated,
             modifier = Modifier.fillMaxWidth(),
             scope = scope

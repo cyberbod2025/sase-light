@@ -158,6 +158,42 @@ sealed class ReadinessResult {
     ) : ReadinessResult()
 }
 
+sealed class CorrectionRequestResult {
+    abstract val message: String
+
+    data class Success(
+        val preApplication: PreApplication,
+        override val message: String = "Corrección solicitada a la familia."
+    ) : CorrectionRequestResult()
+
+    data class AlreadyRequested(
+        val preApplication: PreApplication,
+        override val message: String = "La corrección ya estaba solicitada con el mismo motivo."
+    ) : CorrectionRequestResult()
+
+    data object InvalidReason : CorrectionRequestResult() {
+        override val message: String = "El motivo de corrección es obligatorio."
+    }
+
+    data class NotFound(
+        val folio: String,
+        override val message: String = "Pre-solicitud no encontrada."
+    ) : CorrectionRequestResult()
+
+    data object AmbiguousFolio : CorrectionRequestResult() {
+        override val message: String = "No se puede solicitar la corrección: el folio está duplicado."
+    }
+
+    data class NotEditable(
+        val status: PreApplicationStatus,
+        override val message: String = "La pre-solicitud ya no permite solicitar correcciones."
+    ) : CorrectionRequestResult()
+
+    data object AlreadyConverted : CorrectionRequestResult() {
+        override val message: String = "La pre-solicitud ya fue convertida a alta oficial."
+    }
+}
+
 class PreApplicationViewModel {
     companion object {
         private val _sharedPreApplications = MutableStateFlow(MockPreApplicationData.preApplications)
@@ -170,16 +206,65 @@ class PreApplicationViewModel {
             updatePreApp(folio) { it.copy(status = PreApplicationStatus.ACEPTADA) }
         }
 
-        fun markForCorrection(folio: String) {
-            updatePreApp(folio) { it.copy(status = PreApplicationStatus.PENDIENTE_CORRECCION) }
-        }
-
         fun setObservaciones(folio: String, text: String) {
             updatePreApp(folio) { it.copy(observacionesSecretaria = text) }
         }
 
-        fun setMotivoCorreccion(folio: String, text: String) {
-            updatePreApp(folio) { it.copy(motivoCorreccion = text) }
+        fun requestCorrection(folio: String, reason: String): CorrectionRequestResult {
+            val normalizedFolio = folio.trim().uppercase()
+            val normalizedReason = reason.trim()
+            if (normalizedReason.isBlank()) {
+                return CorrectionRequestResult.InvalidReason
+            }
+
+            while (true) {
+                val currentPreApplications = _sharedPreApplications.value
+                val matchingIndexes = currentPreApplications.indices.filter { index ->
+                    currentPreApplications[index].folio.trim().uppercase() == normalizedFolio
+                }
+                if (matchingIndexes.isEmpty()) {
+                    return CorrectionRequestResult.NotFound(normalizedFolio)
+                }
+                if (matchingIndexes.size > 1) {
+                    return CorrectionRequestResult.AmbiguousFolio
+                }
+
+                val index = matchingIndexes.single()
+                val current = currentPreApplications[index]
+                if (current.readinessStatus == ReadinessStatus.CONVERTED ||
+                    _officialStudents.value.any { it.preApplicationFolio == current.folio }
+                ) {
+                    return CorrectionRequestResult.AlreadyConverted
+                }
+                if (current.status !in setOf(
+                        PreApplicationStatus.ENVIADA,
+                        PreApplicationStatus.ACEPTADA,
+                        PreApplicationStatus.PENDIENTE_CORRECCION
+                    )
+                ) {
+                    return CorrectionRequestResult.NotEditable(current.status)
+                }
+                if (current.status == PreApplicationStatus.PENDIENTE_CORRECCION &&
+                    current.motivoCorreccion.trim() == normalizedReason &&
+                    current.readinessStatus == ReadinessStatus.PENDING
+                ) {
+                    return CorrectionRequestResult.AlreadyRequested(current)
+                }
+
+                val updated = current.copy(
+                    status = PreApplicationStatus.PENDIENTE_CORRECCION,
+                    motivoCorreccion = normalizedReason,
+                    readinessStatus = ReadinessStatus.PENDING,
+                    readyAt = null,
+                    readinessNotes = ""
+                )
+                val updatedPreApplications = currentPreApplications.toMutableList().apply {
+                    this[index] = updated
+                }
+                if (_sharedPreApplications.compareAndSet(currentPreApplications, updatedPreApplications)) {
+                    return CorrectionRequestResult.Success(updated)
+                }
+            }
         }
 
         fun notifyFamily(folio: String): String {

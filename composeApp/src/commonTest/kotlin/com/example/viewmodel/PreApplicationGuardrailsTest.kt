@@ -848,24 +848,28 @@ class PreApplicationGuardrailsTest {
     // ── Correction flow characterization (Microloop 2) ──────────────────
 
     @Test
-    fun markForCorrectionChangesStatusToPENDIENTE_CORRECCION() {
+    fun requestCorrectionStoresStatusAndTrimmedReasonAtomically() {
         val preApp = submitAndGetRaw { preApplication(curp = uniqueCurp("CORR1")) }
         val folio = preApp.folio
         assertEquals(PreApplicationStatus.ENVIADA, preApp.status)
 
-        PreApplicationViewModel.markForCorrection(folio)
+        val result = PreApplicationViewModel.requestCorrection(folio, "  Documento incompleto  ")
 
+        assertIs<CorrectionRequestResult.Success>(result)
         val updated = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == folio }
         assertEquals(PreApplicationStatus.PENDIENTE_CORRECCION, updated.status)
+        assertEquals("Documento incompleto", updated.motivoCorreccion)
     }
 
     @Test
-    fun markForCorrectionPreservesFolioAndCollectionSize() {
+    fun requestCorrectionPreservesFolioAndCollectionSize() {
         val preApp = submitAndGetRaw { preApplication(curp = uniqueCurp("CORR2")) }
         val folio = preApp.folio
         val sizeBefore = PreApplicationViewModel.sharedPreApplications.value.size
 
-        PreApplicationViewModel.markForCorrection(folio)
+        assertIs<CorrectionRequestResult.Success>(
+            PreApplicationViewModel.requestCorrection(folio, "Falta firma")
+        )
 
         val updated = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == folio }
         assertNotNull(updated)
@@ -874,37 +878,25 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun setMotivoCorreccionStoresTextOnCorrectPreApplication() {
-        val preApp1 = submitAndGetRaw { preApplication(curp = uniqueCurp("MOT1")) }
-        val preApp2 = submitAndGetRaw { preApplication(curp = uniqueCurp("MOT2")) }
+    fun blankCorrectionReasonIsRejectedWithoutMutation() {
+        val preApp = submitAndGetRaw { preApplication(curp = uniqueCurp("MOT1")) }
+        val before = PreApplicationViewModel.sharedPreApplications.value.toList()
 
-        PreApplicationViewModel.setMotivoCorreccion(preApp1.folio, "Documento incompleto")
+        assertIs<CorrectionRequestResult.InvalidReason>(
+            PreApplicationViewModel.requestCorrection(preApp.folio, "   ")
+        )
 
-        val updated1 = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == preApp1.folio }
-        val updated2 = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == preApp2.folio }
-
-        assertEquals("Documento incompleto", updated1.motivoCorreccion)
-        assertEquals("", updated2.motivoCorreccion)
+        assertEquals(before, PreApplicationViewModel.sharedPreApplications.value)
     }
 
     @Test
-    fun correctionStatusAndMotivoAreBothPersisted() {
-        val preApp = submitAndGetRaw { preApplication(curp = uniqueCurp("BOTH")) }
-
-        PreApplicationViewModel.markForCorrection(preApp.folio)
-        PreApplicationViewModel.setMotivoCorreccion(preApp.folio, "Falta firma")
-
-        val updated = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == preApp.folio }
-        assertEquals(PreApplicationStatus.PENDIENTE_CORRECCION, updated.status)
-        assertEquals("Falta firma", updated.motivoCorreccion)
-    }
-
-    @Test
-    fun markForCorrectionOnUnknownFolioDoesNothing() {
+    fun requestCorrectionOnUnknownFolioReturnsNotFoundWithoutMutation() {
         val sizeBefore = PreApplicationViewModel.sharedPreApplications.value.size
         val statusesBefore = PreApplicationViewModel.sharedPreApplications.value.map { it.status to it.motivoCorreccion }
 
-        PreApplicationViewModel.markForCorrection("FOLIO-INEXISTENTE-999")
+        assertIs<CorrectionRequestResult.NotFound>(
+            PreApplicationViewModel.requestCorrection("FOLIO-INEXISTENTE-999", "Falta documento")
+        )
 
         assertEquals(sizeBefore, PreApplicationViewModel.sharedPreApplications.value.size)
         val statusesAfter = PreApplicationViewModel.sharedPreApplications.value.map { it.status to it.motivoCorreccion }
@@ -912,15 +904,52 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun setMotivoCorreccionOnUnknownFolioDoesNothing() {
-        val sizeBefore = PreApplicationViewModel.sharedPreApplications.value.size
-        val motivosBefore = PreApplicationViewModel.sharedPreApplications.value.map { it.motivoCorreccion }
+    fun requestCorrectionInvalidatesReadyState() {
+        val candidate = submitReadyCandidate(uniqueCurp("MOT2"))
+        assertIs<ReadinessResult.Success>(
+            PreApplicationViewModel.markReadyForOfficialEnrollment(candidate.folio)
+        )
+        val preApp = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == candidate.folio }
+        assertEquals(ReadinessStatus.READY, preApp.readinessStatus)
 
-        PreApplicationViewModel.setMotivoCorreccion("FOLIO-INEXISTENTE-999", "texto")
+        assertIs<CorrectionRequestResult.Success>(
+            PreApplicationViewModel.requestCorrection(preApp.folio, "Corregir domicilio")
+        )
 
-        assertEquals(sizeBefore, PreApplicationViewModel.sharedPreApplications.value.size)
-        val motivosAfter = PreApplicationViewModel.sharedPreApplications.value.map { it.motivoCorreccion }
-        assertEquals(motivosBefore, motivosAfter)
+        val updated = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == preApp.folio }
+        assertEquals(PreApplicationStatus.PENDIENTE_CORRECCION, updated.status)
+        assertEquals(ReadinessStatus.PENDING, updated.readinessStatus)
+        assertNull(updated.readyAt)
+        assertEquals("", updated.readinessNotes)
+    }
+
+    @Test
+    fun repeatedCorrectionWithSameReasonIsIdempotent() {
+        val preApp = submitAndGetRaw { preApplication(curp = uniqueCurp("MOT3")) }
+        assertIs<CorrectionRequestResult.Success>(
+            PreApplicationViewModel.requestCorrection(preApp.folio, "Corregir teléfono")
+        )
+        val afterFirst = PreApplicationViewModel.sharedPreApplications.value.toList()
+
+        assertIs<CorrectionRequestResult.AlreadyRequested>(
+            PreApplicationViewModel.requestCorrection(preApp.folio, "  Corregir teléfono  ")
+        )
+
+        assertEquals(afterFirst, PreApplicationViewModel.sharedPreApplications.value)
+    }
+
+    @Test
+    fun convertedPreApplicationRejectsCorrectionWithoutMutation() {
+        val converted = PreApplicationViewModel.sharedPreApplications.value.first {
+            it.readinessStatus == ReadinessStatus.CONVERTED
+        }
+        val before = PreApplicationViewModel.sharedPreApplications.value.toList()
+
+        assertIs<CorrectionRequestResult.AlreadyConverted>(
+            PreApplicationViewModel.requestCorrection(converted.folio, "Corrección tardía")
+        )
+
+        assertEquals(before, PreApplicationViewModel.sharedPreApplications.value)
     }
 
     // -- Family correction resubmission contract (Microloop 4C) ----------
@@ -1061,9 +1090,9 @@ class PreApplicationGuardrailsTest {
         assertNotNull(photosBefore.studentPhotoMockUrl)
         assertNotNull(photosBefore.responsablePhotoMockUrl)
         assertTrue(observationsBefore.isNotEmpty())
-        assertEquals(ReadinessStatus.READY, original.readinessStatus)
-        assertNotNull(original.readyAt)
-        assertTrue(original.readinessNotes.isNotBlank())
+        assertEquals(ReadinessStatus.PENDING, original.readinessStatus)
+        assertNull(original.readyAt)
+        assertEquals("", original.readinessNotes)
         val corrected = original.copy(
             alumnoDomicilio = correctedAddress,
             observacionesSecretaria = "No debe aceptar este cambio familiar",
@@ -1089,10 +1118,10 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun resubmitCorrectionInvalidatesPreviousReadiness() {
+    fun resubmitCorrectionKeepsCorrectionReadinessPending() {
         val original = submitReadyCorrectionCandidate(uniqueCurp("RESRDY"))
-        assertEquals(ReadinessStatus.READY, original.readinessStatus)
-        assertNotNull(original.readyAt)
+        assertEquals(ReadinessStatus.PENDING, original.readinessStatus)
+        assertNull(original.readyAt)
 
         val result = PreApplicationViewModel.resubmitCorrectedPreApplication(
             original.copy(alumnoDomicilio = "Domicilio corregido para revalidar")
@@ -1146,8 +1175,9 @@ class PreApplicationGuardrailsTest {
     @Test
     fun familyLookupNormalizesCredentialsAndReturnsAuthorizedFields() {
         val submitted = submitAndGetRaw { preApplication(curp = uniqueCurp("LOOKUP")) }
-        PreApplicationViewModel.markForCorrection(submitted.folio)
-        PreApplicationViewModel.setMotivoCorreccion(submitted.folio, "Corregir acta de nacimiento")
+        assertIs<CorrectionRequestResult.Success>(
+            PreApplicationViewModel.requestCorrection(submitted.folio, "Corregir acta de nacimiento")
+        )
         PreApplicationViewModel.setObservaciones(submitted.folio, "Presentar documento legible")
         val spacedFolio = submitted.folio.lowercase().toList().joinToString(" ", prefix = "  ", postfix = "  ")
         val spacedCurp = submitted.alumnoCurp.lowercase().chunked(3).joinToString(" ", prefix = "  ", postfix = "  ")
@@ -1204,7 +1234,9 @@ class PreApplicationGuardrailsTest {
 
     private fun submitCorrectablePreApplication(curp: String): PreApplication {
         val submitted = submitAndGetRaw { preApplication(curp = curp) }
-        PreApplicationViewModel.markForCorrection(submitted.folio)
+        assertIs<CorrectionRequestResult.Success>(
+            PreApplicationViewModel.requestCorrection(submitted.folio, "Corregir información")
+        )
         return PreApplicationViewModel.sharedPreApplications.value.single { it.folio == submitted.folio }
     }
 
@@ -1214,7 +1246,6 @@ class PreApplicationGuardrailsTest {
             preApplication(curp = curp, documents = listOf(document))
         }
         PreApplicationViewModel.setObservaciones(submitted.folio, "Observacion institucional")
-        PreApplicationViewModel.setMotivoCorreccion(submitted.folio, "Corregir domicilio")
         PreApplicationViewModel.addReviewObservation(
             submitted.folio,
             "Correccion solicitada",
@@ -1227,7 +1258,9 @@ class PreApplicationGuardrailsTest {
         assertIs<ReadinessResult.Success>(
             PreApplicationViewModel.markReadyForOfficialEnrollment(submitted.folio)
         )
-        PreApplicationViewModel.markForCorrection(submitted.folio)
+        assertIs<CorrectionRequestResult.Success>(
+            PreApplicationViewModel.requestCorrection(submitted.folio, "Corregir domicilio")
+        )
         return PreApplicationViewModel.sharedPreApplications.value.single { it.folio == submitted.folio }
     }
 
