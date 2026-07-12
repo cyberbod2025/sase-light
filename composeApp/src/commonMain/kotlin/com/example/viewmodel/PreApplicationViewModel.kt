@@ -333,6 +333,108 @@ class PreApplicationViewModel {
         private fun ingresoAnioCorto(cicloEscolar: String): Int? =
             Regex("\\d{4}").find(cicloEscolar)?.value?.takeLast(2)?.toIntOrNull()
 
+        fun updatePreApplicationAdministrativeData(
+            request: UpdatePreApplicationAdministrativeDataRequest
+        ): UpdatePreApplicationAdministrativeDataResult {
+            val normalizedFolio = request.folio.trim().uppercase()
+            while (true) {
+                val currentPreApplications = _sharedPreApplications.value
+                val matchingIndexes = currentPreApplications.indices.filter { index ->
+                    currentPreApplications[index].folio.trim().uppercase() == normalizedFolio
+                }
+                if (matchingIndexes.isEmpty()) {
+                    return UpdatePreApplicationAdministrativeDataResult.NotFound
+                }
+                if (matchingIndexes.size > 1) {
+                    return UpdatePreApplicationAdministrativeDataResult.Conflict(
+                        PreApplicationAdministrativeConflictReason.AMBIGUOUS_FOLIO
+                    )
+                }
+
+                val targetIndex = matchingIndexes.single()
+                val current = currentPreApplications[targetIndex]
+                if (current.status != PreApplicationStatus.ENVIADA &&
+                    current.status != PreApplicationStatus.PENDIENTE_CORRECCION
+                ) {
+                    return UpdatePreApplicationAdministrativeDataResult.Conflict(
+                        PreApplicationAdministrativeConflictReason.NOT_EDITABLE
+                    )
+                }
+                if (current.readinessStatus == ReadinessStatus.CONVERTED ||
+                    _officialStudents.value.any { it.preApplicationFolio == current.folio }
+                ) {
+                    return UpdatePreApplicationAdministrativeDataResult.Conflict(
+                        PreApplicationAdministrativeConflictReason.OFFICIAL_ENROLLMENT_EXISTS
+                    )
+                }
+
+                val phone = when (val change = request.changes.phone) {
+                    PreApplicationAdministrativeFieldChange.Omitted -> null
+                    is PreApplicationAdministrativeFieldChange.Replace -> change.value.trim()
+                }
+                val address = when (val change = request.changes.address) {
+                    PreApplicationAdministrativeFieldChange.Omitted -> null
+                    is PreApplicationAdministrativeFieldChange.Replace -> change.value.trim()
+                }
+                val errors = buildMap {
+                    if (phone != null) {
+                        when {
+                            phone.isBlank() -> put(
+                                PreApplicationAdministrativeField.PHONE,
+                                PreApplicationAdministrativeValidationError.REQUIRED
+                            )
+                            !phone.matches(Regex("\\d{10}")) -> put(
+                                PreApplicationAdministrativeField.PHONE,
+                                PreApplicationAdministrativeValidationError.INVALID_FORMAT
+                            )
+                        }
+                    }
+                    if (address != null && address.isBlank()) {
+                        put(
+                            PreApplicationAdministrativeField.ADDRESS,
+                            PreApplicationAdministrativeValidationError.REQUIRED
+                        )
+                    }
+                }
+                if (errors.isNotEmpty()) {
+                    return UpdatePreApplicationAdministrativeDataResult.Invalid(errors)
+                }
+
+                val changedFields = buildSet {
+                    if (phone != null && phone != current.alumnoTelefonoCasa.trim()) {
+                        add(PreApplicationAdministrativeField.PHONE)
+                    }
+                    if (address != null && address != current.alumnoDomicilio.trim()) {
+                        add(PreApplicationAdministrativeField.ADDRESS)
+                    }
+                }
+                if (changedFields.isEmpty()) {
+                    return UpdatePreApplicationAdministrativeDataResult.NoChanges
+                }
+
+                val stalePhone = PreApplicationAdministrativeField.PHONE in changedFields &&
+                    current.alumnoTelefonoCasa.trim() != request.expected.phone.trim()
+                val staleAddress = PreApplicationAdministrativeField.ADDRESS in changedFields &&
+                    current.alumnoDomicilio.trim() != request.expected.address.trim()
+                if (stalePhone || staleAddress) {
+                    return UpdatePreApplicationAdministrativeDataResult.Conflict(
+                        PreApplicationAdministrativeConflictReason.STALE_DATA
+                    )
+                }
+
+                val updated = current.copy(
+                    alumnoTelefonoCasa = phone ?: current.alumnoTelefonoCasa,
+                    alumnoDomicilio = address ?: current.alumnoDomicilio
+                )
+                val updatedPreApplications = currentPreApplications.toMutableList().apply {
+                    this[targetIndex] = updated
+                }
+                if (_sharedPreApplications.compareAndSet(currentPreApplications, updatedPreApplications)) {
+                    return UpdatePreApplicationAdministrativeDataResult.Updated(changedFields)
+                }
+            }
+        }
+
         private fun updatePreApp(
             folio: String,
             transform: (PreApplication) -> PreApplication
