@@ -48,6 +48,34 @@ class AnnualEnrollmentFlowCoordinatorTest {
         return student
     }
 
+    private fun assertContradictoryReplay(
+        changeRequest: (AnnualEnrollmentFlowRequest) -> AnnualEnrollmentFlowRequest
+    ): AnnualEnrollmentFlowResult.Conflict {
+        MockSaseData.resetForTests()
+        val original = request(
+            curp = "COOR950101HDFABC14",
+            folio = "PRE-COOR-CONFLICT-001",
+            newStudentId = "MASTER-CONFLICT"
+        )
+        assertIs<AnnualEnrollmentFlowResult.Completed>(AnnualEnrollmentFlowCoordinator.process(original))
+        val studentsBefore = MockSaseData.students.value.toList()
+        val enrollmentsBefore = MockSaseData.annualEnrollments.value.toList()
+        val auditsBefore = MockSaseData.audits.value.toList()
+
+        val conflict = assertIs<AnnualEnrollmentFlowResult.Conflict>(
+            AnnualEnrollmentFlowCoordinator.process(changeRequest(original))
+        )
+
+        assertEquals("PRE_APPLICATION_FOLIO_REUSED_WITH_DIFFERENT_DATA", conflict.cause)
+        assertEquals("IDEMPOTENCY", conflict.stage)
+        assertEquals("El folio ya existe con datos incompatibles.", conflict.message)
+        assertTrue(!conflict.message.contains(original.normalizedCurp))
+        assertEquals(studentsBefore, MockSaseData.students.value)
+        assertEquals(enrollmentsBefore, MockSaseData.annualEnrollments.value)
+        assertEquals(auditsBefore, MockSaseData.audits.value)
+        return conflict
+    }
+
     @Test
     fun newEntryProcessCompleted() {
         MockSaseData.resetForTests()
@@ -187,6 +215,101 @@ class AnnualEnrollmentFlowCoordinatorTest {
         val second = AnnualEnrollmentFlowCoordinator.process(req)
         assertIs<AnnualEnrollmentFlowResult.AlreadyCompleted>(second)
         assertEquals(enrollmentsAfterFirst, MockSaseData.annualEnrollments.value.size)
+    }
+
+    @Test
+    fun normalizedExactReplayReturnsAlreadyCompletedWithoutAdditionalMutations() {
+        MockSaseData.resetForTests()
+        val original = request(
+            curp = "COOR960101HDFABC15",
+            folio = "PRE-COOR-NORMALIZED-001",
+            newStudentId = "MASTER-NORMALIZED"
+        )
+        assertIs<AnnualEnrollmentFlowResult.Completed>(AnnualEnrollmentFlowCoordinator.process(original))
+        val studentsBefore = MockSaseData.students.value.toList()
+        val enrollmentsBefore = MockSaseData.annualEnrollments.value.toList()
+        val auditsBefore = MockSaseData.audits.value.toList()
+
+        val replay = original.copy(
+            declaredMovement = " nuevo ingreso ",
+            normalizedCurp = " coor960101hdfabc15 ",
+            sourcePreApplicationFolio = " pre-coor-normalized-001 ",
+            schoolYear = " 2026-2027 ",
+            newStudentId = "ANOTHER-GENERATED-ID",
+            studentFullName = "NOMBRE CORREGIDO",
+            actor = "OTRO ACTOR",
+            occurredAt = "OTRA FECHA"
+        )
+        assertIs<AnnualEnrollmentFlowResult.AlreadyCompleted>(
+            AnnualEnrollmentFlowCoordinator.process(replay)
+        )
+        assertEquals(studentsBefore, MockSaseData.students.value)
+        assertEquals(enrollmentsBefore, MockSaseData.annualEnrollments.value)
+        assertEquals(auditsBefore, MockSaseData.audits.value)
+    }
+
+    @Test
+    fun reEnrollmentDeclarationMatchesReEnrollmentAndInitialMigrationRecords() {
+        MockSaseData.resetForTests()
+        addMasterStudentWithValidS310Id()
+        val reEnrollment = request(
+            movement = "REINSCRIPCION",
+            curp = "REAL100101HDFABC01",
+            folio = "PRE-COOR-REPLAY-RE",
+            grade = 2
+        )
+        assertIs<AnnualEnrollmentFlowResult.Completed>(
+            AnnualEnrollmentFlowCoordinator.process(reEnrollment)
+        )
+        assertIs<AnnualEnrollmentFlowResult.AlreadyCompleted>(
+            AnnualEnrollmentFlowCoordinator.process(reEnrollment.copy(declaredMovement = " reinscripción "))
+        )
+
+        MockSaseData.resetForTests()
+        val migration = request(
+            movement = "REINSCRIPCION",
+            curp = "DEMB110202MDFABC02",
+            folio = "PRE-COOR-REPLAY-MIGRATION",
+            grade = 2
+        )
+        assertIs<AnnualEnrollmentFlowResult.Completed>(
+            AnnualEnrollmentFlowCoordinator.process(migration)
+        )
+        assertIs<AnnualEnrollmentFlowResult.AlreadyCompleted>(
+            AnnualEnrollmentFlowCoordinator.process(migration.copy(declaredMovement = "reinscripción"))
+        )
+    }
+
+    @Test
+    fun sameFolioWithDifferentCurpReturnsConflictWithoutMutation() {
+        assertContradictoryReplay { it.copy(normalizedCurp = "OTRA100101HDFABC99") }
+    }
+
+    @Test
+    fun sameFolioWithDifferentSchoolYearReturnsConflictWithoutMutation() {
+        assertContradictoryReplay { it.copy(schoolYear = "2027-2028") }
+    }
+
+    @Test
+    fun sameFolioWithDifferentGradeReturnsConflictWithoutMutation() {
+        assertContradictoryReplay { it.copy(requestedGrade = 2) }
+    }
+
+    @Test
+    fun sameFolioWithIncompatibleMovementReturnsConflictWithoutMutation() {
+        assertContradictoryReplay { it.copy(declaredMovement = "REINSCRIPCIÓN") }
+    }
+
+    @Test
+    fun sameFolioWithMultipleContradictionsReturnsSingleSafeConflict() {
+        assertContradictoryReplay {
+            it.copy(
+                declaredMovement = "REINSCRIPCION",
+                normalizedCurp = "OTRA200202MDFABC98",
+                requestedGrade = 3,
+                schoolYear = "2028-2029"
+            )
+        }
     }
 
     @Test

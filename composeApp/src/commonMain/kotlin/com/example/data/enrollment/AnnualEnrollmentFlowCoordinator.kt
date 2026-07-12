@@ -60,9 +60,17 @@ object AnnualEnrollmentFlowCoordinator {
             it.sourcePreApplicationFolio.trim().uppercase() == request.sourcePreApplicationFolio.trim().uppercase()
         }
         if (existingByFolio != null) {
-            return AnnualEnrollmentFlowResult.AlreadyCompleted(
-                enrollmentRecord = existingByFolio
-            )
+            return if (matchesOriginalRequest(existingByFolio, request)) {
+                AnnualEnrollmentFlowResult.AlreadyCompleted(
+                    enrollmentRecord = existingByFolio
+                )
+            } else {
+                AnnualEnrollmentFlowResult.Conflict(
+                    cause = "PRE_APPLICATION_FOLIO_REUSED_WITH_DIFFERENT_DATA",
+                    message = "El folio ya existe con datos incompatibles.",
+                    stage = "IDEMPOTENCY"
+                )
+            }
         }
         val masterStudents = MockSaseData.students.value
 
@@ -187,4 +195,24 @@ object AnnualEnrollmentFlowCoordinator {
             )
         }
     }
+
+    private fun matchesOriginalRequest(
+        existing: AnnualEnrollmentRecord,
+        request: AnnualEnrollmentFlowRequest
+    ): Boolean =
+        existing.sourcePreApplicationFolio.normalized() == request.sourcePreApplicationFolio.normalized() &&
+            existing.normalizedCurp.normalized() == request.normalizedCurp.normalized() &&
+            existing.schoolYear.trim() == request.schoolYear.trim() &&
+            existing.requestedGrade == request.requestedGrade &&
+            existing.movement.matchesDeclared(request.declaredMovement)
+
+    private fun AnnualEnrollmentMovement.matchesDeclared(declaredMovement: String): Boolean =
+        when (declaredMovement.normalized().replace('Ó', 'O')) {
+            "NUEVO INGRESO" -> this == AnnualEnrollmentMovement.NEW_ENTRY
+            "REINSCRIPCION" -> this == AnnualEnrollmentMovement.RE_ENROLLMENT ||
+                this == AnnualEnrollmentMovement.INITIAL_MIGRATION
+            else -> false
+        }
+
+    private fun String.normalized(): String = trim().uppercase()
 }
