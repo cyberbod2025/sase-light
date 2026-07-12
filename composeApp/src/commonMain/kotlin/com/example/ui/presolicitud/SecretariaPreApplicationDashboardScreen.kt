@@ -813,26 +813,27 @@ private fun OfficialEnrollmentReadinessCard(
 ) {
     val isReadyByChecklist = pendingItems.isEmpty()
     val isPersistedReady = preApp.readinessStatus == ReadinessStatus.READY
+    val isConverted = preApp.readinessStatus == ReadinessStatus.CONVERTED
     val officialStarted = officialStudent != null
     var readinessMessage by remember(preApp.folio, preApp.readinessStatus) { mutableStateOf<String?>(null) }
     var readinessColor by remember(preApp.folio, preApp.readinessStatus) { mutableStateOf(SaseMuted) }
     val readerIsReadyForOfficial = isPersistedReady && pendingItems.isEmpty()
     val officialCompleted = officialStarted && pendingItems.isEmpty()
-    val officialWithPending = officialStarted && pendingItems.isNotEmpty()
+    val officialWithPending = officialStarted && pendingItems.isNotEmpty() && !isConverted
     val headerColor = when {
-        officialCompleted || preApp.readinessStatus == ReadinessStatus.CONVERTED -> SaseGreen
+        officialCompleted || isConverted -> SaseGreen
         officialStarted -> SaseNavy
         readerIsReadyForOfficial -> SaseGreen
         pendingItems.isNotEmpty() || preApp.readinessStatus == ReadinessStatus.BLOCKED -> SaseOrange
         else -> SaseMuted
     }
     val headerText = when {
+        officialCompleted || isConverted -> "Alta oficial completada"
         officialWithPending -> "Alta oficial iniciada con pendientes"
         pendingItems.isNotEmpty() -> "Con pendientes bloqueantes"
-        officialCompleted || preApp.readinessStatus == ReadinessStatus.CONVERTED -> "Alta oficial completada"
         officialStarted -> "Aceptada"
         readerIsReadyForOfficial -> "Lista para alta oficial"
-        preApp.readinessStatus == ReadinessStatus.BLOCKED -> "Con pendientes"
+        preApp.readinessStatus == ReadinessStatus.BLOCKED -> "Pendientes resueltos; falta declarar READY"
         else -> "Pendiente"
     }
     Column(
@@ -860,6 +861,8 @@ private fun OfficialEnrollmentReadinessCard(
                 )
                 Text(
                     when {
+                        preApp.readinessStatus == ReadinessStatus.BLOCKED && pendingItems.isEmpty() ->
+                            "Los requisitos están completos; Secretaría debe declarar READY explícitamente."
                         officialWithPending -> "La alta existe, pero conserva requisitos por cerrar."
                         officialStarted -> "Alta oficial iniciada desde esta pre-solicitud."
                         preApp.readyAt != null -> "Declarada lista: ${preApp.readyAt}"
@@ -871,7 +874,7 @@ private fun OfficialEnrollmentReadinessCard(
             }
         }
 
-        if (pendingItems.isNotEmpty()) {
+        if (pendingItems.isNotEmpty() && !isConverted) {
             Spacer(modifier = Modifier.height(8.dp))
             Text("Pendientes institucionales:", color = SaseOrange, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(4.dp))

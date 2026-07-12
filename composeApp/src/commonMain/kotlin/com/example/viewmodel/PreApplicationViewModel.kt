@@ -204,6 +204,7 @@ class PreApplicationViewModel {
 
         fun approvePreApplication(folio: String) {
             updatePreApp(folio) { it.copy(status = PreApplicationStatus.ACEPTADA) }
+            reconcileReadinessAfterRequirementChange(folio)
         }
 
         fun setObservaciones(folio: String, text: String) {
@@ -340,18 +341,21 @@ class PreApplicationViewModel {
                     else doc.copy(cotejadoSecretaria = !doc.cotejadoSecretaria)
                 })
             }
+            reconcileReadinessAfterRequirementChange(folio)
         }
 
         fun simulateCaptureStudentPhoto(folio: String) {
             val current = _photos.value.toMutableMap()
             current[folio] = (current[folio] ?: PreApplicationPhotoState()).copy(studentPhotoMockUrl = "mock://photo/student/$folio.jpg")
             _photos.value = current
+            reconcileReadinessAfterRequirementChange(folio)
         }
 
         fun simulateCaptureResponsablePhoto(folio: String) {
             val current = _photos.value.toMutableMap()
             current[folio] = (current[folio] ?: PreApplicationPhotoState()).copy(responsablePhotoMockUrl = "mock://photo/responsable/$folio.jpg")
             _photos.value = current
+            reconcileReadinessAfterRequirementChange(folio)
         }
 
         fun addReviewObservation(folio: String, category: String, note: String) {
@@ -676,6 +680,38 @@ class PreApplicationViewModel {
         fun isReadyForOfficialEnrollment(preApp: PreApplication): Boolean =
             officialEnrollmentPendingItems(preApp).isEmpty()
 
+        private fun reconcileReadinessAfterRequirementChange(folio: String) {
+            while (true) {
+                val currentPreApplications = _sharedPreApplications.value
+                val index = currentPreApplications.indexOfFirst { it.folio == folio }
+                if (index < 0) return
+                val current = currentPreApplications[index]
+                if (current.readinessStatus == ReadinessStatus.CONVERTED) return
+
+                val pendingItems = officialEnrollmentPendingItems(current)
+                val updated = when {
+                    pendingItems.isNotEmpty() && current.readinessStatus in setOf(
+                        ReadinessStatus.BLOCKED,
+                        ReadinessStatus.READY
+                    ) -> current.copy(
+                        readinessStatus = ReadinessStatus.BLOCKED,
+                        readyAt = null,
+                        readinessNotes = pendingItems.joinToString("; ")
+                    )
+                    pendingItems.isEmpty() && current.readinessStatus == ReadinessStatus.BLOCKED ->
+                        current.copy(
+                            readyAt = null,
+                            readinessNotes = "Pendientes resueltos; requiere declaración institucional READY."
+                        )
+                    else -> return
+                }
+                val updatedPreApplications = currentPreApplications.toMutableList().apply {
+                    this[index] = updated
+                }
+                if (_sharedPreApplications.compareAndSet(currentPreApplications, updatedPreApplications)) return
+            }
+        }
+
         fun markReadyForOfficialEnrollment(folio: String): ReadinessResult {
             val preApp = _sharedPreApplications.value.firstOrNull { it.folio == folio }
                 ?: return ReadinessResult.NotFound(folio)
@@ -844,7 +880,7 @@ class PreApplicationViewModel {
 
             val sourcePreApplication = _sharedPreApplications.value.firstOrNull { it.folio == preApp.folio }
                 ?: return OfficialEnrollmentResult.PreApplicationNotFound(preApp.folio)
-            val pendingItems = officialEnrollmentPendingItems(preApp)
+            val pendingItems = officialEnrollmentPendingItems(sourcePreApplication)
             if (pendingItems.isNotEmpty()) {
                 return OfficialEnrollmentResult.NotReady(pendingItems)
             }

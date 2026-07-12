@@ -181,6 +181,75 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
+    fun resolvingBlockedRequirementsKeepsBlockedUntilExplicitReadyDeclaration() {
+        val stored = submitAcceptedPreApplication(curp = uniqueCurp("RECON1"))
+        assertIs<ReadinessResult.NotReady>(
+            PreApplicationViewModel.markReadyForOfficialEnrollment(stored.folio)
+        )
+
+        PreApplicationViewModel.simulateCaptureStudentPhoto(stored.folio)
+        PreApplicationViewModel.simulateCaptureResponsablePhoto(stored.folio)
+
+        val resolved = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == stored.folio }
+        assertTrue(PreApplicationViewModel.officialEnrollmentPendingItems(resolved).isEmpty())
+        assertEquals(ReadinessStatus.BLOCKED, resolved.readinessStatus)
+        assertNull(resolved.readyAt)
+        assertEquals(
+            "Pendientes resueltos; requiere declaración institucional READY.",
+            resolved.readinessNotes
+        )
+
+        assertIs<ReadinessResult.Success>(
+            PreApplicationViewModel.markReadyForOfficialEnrollment(stored.folio)
+        )
+        val ready = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == stored.folio }
+        assertEquals(ReadinessStatus.READY, ready.readinessStatus)
+        assertNotNull(ready.readyAt)
+    }
+
+    @Test
+    fun newPendingRequirementDemotesReadyToBlocked() {
+        val document = DocumentoDeclarado("CURP", declarado = true)
+        val submitted = submitAndGetRaw {
+            preApplication(curp = uniqueCurp("RECON2"), documents = listOf(document))
+        }
+        PreApplicationViewModel.toggleDocumentCotejado(submitted.folio, document.nombre)
+        PreApplicationViewModel.simulateCaptureStudentPhoto(submitted.folio)
+        PreApplicationViewModel.simulateCaptureResponsablePhoto(submitted.folio)
+        PreApplicationViewModel.approvePreApplication(submitted.folio)
+        assertIs<ReadinessResult.Success>(
+            PreApplicationViewModel.markReadyForOfficialEnrollment(submitted.folio)
+        )
+
+        PreApplicationViewModel.toggleDocumentCotejado(submitted.folio, document.nombre)
+
+        val blocked = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == submitted.folio }
+        assertEquals(ReadinessStatus.BLOCKED, blocked.readinessStatus)
+        assertNull(blocked.readyAt)
+        assertTrue(blocked.readinessNotes.contains("Documentos requeridos cotejados"))
+    }
+
+    @Test
+    fun requirementMutationsNeverDemoteConvertedReadiness() {
+        val converted = PreApplicationViewModel.sharedPreApplications.value.first {
+            it.readinessStatus == ReadinessStatus.CONVERTED
+        }
+        val document = converted.documentosDeclarados.firstOrNull()
+
+        PreApplicationViewModel.approvePreApplication(converted.folio)
+        if (document != null) {
+            PreApplicationViewModel.toggleDocumentCotejado(converted.folio, document.nombre)
+        }
+        PreApplicationViewModel.simulateCaptureStudentPhoto(converted.folio)
+        PreApplicationViewModel.simulateCaptureResponsablePhoto(converted.folio)
+
+        val stored = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == converted.folio }
+        assertEquals(ReadinessStatus.CONVERTED, stored.readinessStatus)
+        assertEquals(converted.readyAt, stored.readyAt)
+        assertEquals(converted.readinessNotes, stored.readinessNotes)
+    }
+
+    @Test
     fun readyPreApplicationCanBeQueriedAfterMarkingReady() {
         val readyCandidate = submitReadyCandidate(curp = uniqueCurp("QUERYR"))
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
