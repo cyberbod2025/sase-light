@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.SaseIncident
 import com.example.data.SaseObservation
+import com.example.data.Student
 import com.example.ui.DataRow
 import com.example.ui.GlassCard
 import com.example.ui.PillStat
@@ -99,13 +100,28 @@ import com.example.viewmodel.Screen
 import kotlinx.coroutines.launch
 
 private val officialEnrollmentPattern = Regex("^S310-[A-Z0-9]{10}-\\d{2}$")
+private val annualV2EnrollmentPattern = Regex("^S310-\\d{6}-\\d$")
 private val curpPattern = Regex("^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z0-9]\\d$")
 
 private fun hasOfficialEnrollment(enrollmentId: String, curp: String): Boolean =
-    enrollmentId.matches(officialEnrollmentPattern) && curp.matches(curpPattern)
+    annualV2EnrollmentPattern.matches(enrollmentId) ||
+        (enrollmentId.matches(officialEnrollmentPattern) && curp.matches(curpPattern))
 
 private fun visibleEnrollmentId(enrollmentId: String, curp: String): String =
-    if (hasOfficialEnrollment(enrollmentId, curp)) enrollmentId else "Por asignar"
+    if (hasOfficialEnrollment(enrollmentId, curp)) enrollmentId else "Pendiente de asignación"
+
+private fun visibleGroup(group: String): String = group.trim().ifBlank { "Pendiente de asignación" }
+
+private fun visibleGrade(group: String): String = group.trim().firstOrNull()?.digitToIntOrNull()
+    ?.let { "${it}°" }
+    ?: "Pendiente de confirmar"
+
+private fun visibleEnrollmentStatus(enrollmentId: String, status: String): String =
+    if (annualV2EnrollmentPattern.matches(enrollmentId)) {
+        "Inscripción anual V2 registrada"
+    } else {
+        status
+    }
 
 private fun enrollmentPendingReason(curp: String): String =
     if (!curp.matches(curpPattern)) {
@@ -113,6 +129,59 @@ private fun enrollmentPendingReason(curp: String): String =
     } else {
         "Pendiente de alta oficial."
     }
+
+@Composable
+private fun RecordHeaderFacts(student: Student) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            RecordHeaderFact(
+                label = "Matrícula",
+                value = visibleEnrollmentId(student.enrollmentId, student.curp),
+                modifier = Modifier.weight(1.4f)
+            )
+            RecordHeaderFact(
+                label = "Grupo",
+                value = visibleGroup(student.group),
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            RecordHeaderFact(
+                label = "Grado",
+                value = visibleGrade(student.group),
+                modifier = Modifier.weight(0.75f)
+            )
+            RecordHeaderFact(
+                label = "Ciclo escolar",
+                value = student.schoolYear,
+                modifier = Modifier.weight(1.25f)
+            )
+            RecordHeaderFact(
+                label = "Turno",
+                value = student.shift,
+                modifier = Modifier.weight(0.75f)
+            )
+        }
+        RecordHeaderFact(label = "CURP", value = student.curp)
+    }
+}
+
+@Composable
+private fun RecordHeaderFact(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(label, color = SaseMuted, fontSize = 10.sp)
+        Text(value, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
+    }
+}
 
 @Composable
 fun StudentRecordScreen(
@@ -125,7 +194,15 @@ fun StudentRecordScreen(
     val student = remember(students, studentId) { students.find { it.id == studentId } }
 
     var activeTab by remember { mutableStateOf("Resumen") }
-    val tabs = listOf("Resumen", "Datos generales", "Tutores / Contacto", "Asistencia", "Incidencias", "Salud", "Orientación", "Documentos", "Observaciones")
+    val tabs = listOf(
+        "Resumen",
+        "Datos personales",
+        "Responsables",
+        "Contexto",
+        "Documentos",
+        "Observaciones",
+        "Historial"
+    )
 
     // Modals states
     var showIncidentDialog by remember { mutableStateOf(false) }
@@ -158,12 +235,15 @@ fun StudentRecordScreen(
     }
 
     BoxWithConstraints(modifier = SaseBackgroundModifier()) {
-        val isMobile = maxWidth < 850.dp
+        val isMobile = maxWidth < 1080.dp
+        val isWide = maxWidth >= 1180.dp
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         val scope = rememberCoroutineScope()
+        var sidebarCollapsed by remember { mutableStateOf(true) }
+
         val navigateFromSidebar: (String) -> Unit = { item ->
             when (item) {
-                "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
+                "Inicio", "Expedientes" -> viewModel.navigateTo(Screen.SecretaryDashboard)
                 "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
                 "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                 "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
@@ -267,7 +347,7 @@ fun StudentRecordScreen(
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Person, contentDescription = "Foto Alumno", tint = SaseNavy, modifier = Modifier.size(34.dp))
+                                    Icon(Icons.Default.Person, contentDescription = "Avatar del alumno", tint = SaseNavy, modifier = Modifier.size(34.dp))
                                 }
                             }
                             Spacer(modifier = Modifier.height(12.dp))
@@ -279,36 +359,10 @@ fun StudentRecordScreen(
                                     .background(SaseGreen.copy(alpha = 0.15f))
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
-                                Text(student.status, color = SaseGreenDark, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                Text(visibleEnrollmentStatus(student.enrollmentId, student.status), color = SaseGreenDark, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                             }
                             Spacer(modifier = Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Grupo", color = SaseMuted, fontSize = 10.sp)
-                                    Text(student.group, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 11.sp)
-                                }
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Matrícula", color = SaseMuted, fontSize = 10.sp)
-                                    Text(visibleEnrollmentId(student.enrollmentId, student.curp), fontWeight = FontWeight.Bold, color = SaseText, fontSize = 11.sp)
-                                }
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("CURP", color = SaseMuted, fontSize = 10.sp)
-                                    Text(student.curp, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 11.sp)
-                                }
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Turno", color = SaseMuted, fontSize = 10.sp)
-                                    Text(student.shift, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 11.sp)
-                                }
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Ciclo escolar", color = SaseMuted, fontSize = 10.sp)
-                                    Text(student.schoolYear, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 11.sp)
-                                }
-                            }
+                            RecordHeaderFacts(student)
                         }
                     } else {
                         Row(
@@ -335,7 +389,7 @@ fun StudentRecordScreen(
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Person, contentDescription = "Foto Alumno", tint = SaseNavy, modifier = Modifier.size(40.dp))
+                                    Icon(Icons.Default.Person, contentDescription = "Avatar del alumno", tint = SaseNavy, modifier = Modifier.size(40.dp))
                                 }
                             }
                             Spacer(modifier = Modifier.width(20.dp))
@@ -348,35 +402,11 @@ fun StudentRecordScreen(
                                             .background(SaseGreen.copy(alpha = 0.15f))
                                             .padding(horizontal = 8.dp, vertical = 2.dp)
                                     ) {
-                                        Text(student.status, color = SaseGreenDark, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                        Text(visibleEnrollmentStatus(student.enrollmentId, student.status), color = SaseGreenDark, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(20.dp)
-                                ) {
-                                    Column {
-                                        Text("Grupo", color = SaseMuted, fontSize = 10.sp)
-                                        Text(student.group, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
-                                    }
-                                    Column {
-                                        Text("Matrícula", color = SaseMuted, fontSize = 10.sp)
-                                        Text(visibleEnrollmentId(student.enrollmentId, student.curp), fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
-                                    }
-                                    Column {
-                                        Text("CURP", color = SaseMuted, fontSize = 10.sp)
-                                        Text(student.curp, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
-                                    }
-                                    Column {
-                                        Text("Turno", color = SaseMuted, fontSize = 10.sp)
-                                        Text(student.shift, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
-                                    }
-                                    Column {
-                                        Text("Ciclo escolar", color = SaseMuted, fontSize = 10.sp)
-                                        Text(student.schoolYear, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
-                                    }
-                                }
+                                RecordHeaderFacts(student)
                             }
                         }
                     }
@@ -461,7 +491,7 @@ fun StudentRecordScreen(
                     when (currentTab) {
                         "Resumen" -> {
                             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                if (isMobile) {
+                                if (!isWide) {
                                     // General data block
                                     GlassCard(modifier = Modifier.fillMaxWidth()) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -541,7 +571,7 @@ fun StudentRecordScreen(
 }
                                         Spacer(modifier = Modifier.height(10.dp))
                                         DataRow(label = "Alergias", value = student.healthAlergies)
-                                        DataRow(label = "Obs. Médicas", value = student.healthNotes)
+                                        DataRow(label = "Observaciones médicas", value = student.healthNotes)
                                         DataRow(label = "Medicamentos", value = student.healthMeds)
                                         DataRow(label = "Pases de salud", value = student.healthPasses)
                                     }
@@ -558,7 +588,7 @@ fun StudentRecordScreen(
                                                 Spacer(Modifier.width(8.dp))
                                                 Text("Historial de incidencias", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
                                             }
-                                            Text("Ver todas", color = SaseBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { activeTab = "Incidencias" })
+                                            Text("Ver historial", color = SaseBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { activeTab = "Historial" })
                                         }
                                         Spacer(modifier = Modifier.height(10.dp))
                                         if (student.schoolIncidents.isEmpty()) {
@@ -595,10 +625,10 @@ fun StudentRecordScreen(
                                         Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseViolet))
     Spacer(Modifier.width(8.dp))
-    Text("Orientación / Trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+    Text("Orientación y trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        DataRow(label = "Estatus de seguimiento", value = student.orientationStatus)
+                                        DataRow(label = "Estado de seguimiento", value = student.orientationStatus)
                                         DataRow(label = "Última cita", value = student.orientationLastAppointment)
                                         DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan)
                                         DataRow(label = "Responsable", value = student.orientationResponsible)
@@ -645,7 +675,7 @@ fun StudentRecordScreen(
                                         Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseOrange))
     Spacer(Modifier.width(8.dp))
-    Text("Observaciones y Bitácora", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+    Text("Observaciones y bitácora", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                         Spacer(modifier = Modifier.height(10.dp))
                                         if (student.observations.isEmpty()) {
@@ -751,7 +781,7 @@ fun StudentRecordScreen(
 }
                                             Spacer(modifier = Modifier.height(10.dp))
                                             DataRow(label = "Alergias", value = student.healthAlergies)
-                                            DataRow(label = "Obs. Médicas", value = student.healthNotes)
+                                            DataRow(label = "Observaciones médicas", value = student.healthNotes)
                                             DataRow(label = "Medicamentos", value = student.healthMeds)
                                             DataRow(label = "Pases de salud", value = student.healthPasses)
                                         }
@@ -769,7 +799,7 @@ fun StudentRecordScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text("Historial de incidencias", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
-                                                Text("Ver todas", color = SaseBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { activeTab = "Incidencias" })
+                                                Text("Ver historial", color = SaseBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { activeTab = "Historial" })
                                             }
                                             Spacer(modifier = Modifier.height(10.dp))
                                             if (student.schoolIncidents.isEmpty()) {
@@ -806,10 +836,10 @@ fun StudentRecordScreen(
                                             Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseViolet))
     Spacer(Modifier.width(8.dp))
-    Text("Orientación / Trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+    Text("Orientación y trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                             Spacer(modifier = Modifier.height(10.dp))
-                                            DataRow(label = "Estatus de seguimiento", value = student.orientationStatus)
+                                        DataRow(label = "Estado de seguimiento", value = student.orientationStatus)
                                             DataRow(label = "Última cita", value = student.orientationLastAppointment)
                                             DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan)
                                             DataRow(label = "Responsable", value = student.orientationResponsible)
@@ -857,7 +887,7 @@ fun StudentRecordScreen(
                                             Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseOrange))
     Spacer(Modifier.width(8.dp))
-    Text("Observaciones y Bitácora", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
+    Text("Observaciones y bitácora", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                             Spacer(modifier = Modifier.height(10.dp))
                                             if (student.observations.isEmpty()) {
@@ -878,13 +908,17 @@ fun StudentRecordScreen(
                             }
                         }
 
-                        "Datos generales" -> {
+                        "Datos personales" -> {
                             GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                Text("Datos generales del Alumno", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
+                                Text("Datos personales del alumno", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
                                 DataRow(label = "Nombre completo", value = student.fullName)
                                 DataRow(label = "CURP", value = student.curp)
                                 DataRow(label = "Matrícula escolar", value = visibleEnrollmentId(student.enrollmentId, student.curp))
+                                DataRow(label = "Grupo", value = visibleGroup(student.group))
+                                DataRow(label = "Grado", value = visibleGrade(student.group))
+                                DataRow(label = "Ciclo escolar", value = student.schoolYear)
+                                DataRow(label = "Estado de inscripción", value = visibleEnrollmentStatus(student.enrollmentId, student.status))
                                 if (!hasOfficialEnrollment(student.enrollmentId, student.curp)) {
                                     DataRow(label = "Estado de matrícula", value = enrollmentPendingReason(student.curp))
                                 }
@@ -892,15 +926,15 @@ fun StudentRecordScreen(
                                 DataRow(label = "Edad", value = "${student.age} años")
                                 DataRow(label = "Lugar de nacimiento", value = student.birthPlace)
                                 DataRow(label = "Domicilio familiar", value = student.address)
-                                DataRow(label = "Código postal (CP)", value = student.zipCode)
-                                DataRow(label = "Estatus de seguro escolar", value = student.schoolInsurance)
+                                DataRow(label = "Código postal", value = student.zipCode)
+                                DataRow(label = "Estado del seguro escolar", value = student.schoolInsurance)
                                 DataRow(label = "Expediente auditado", value = "Sí, por Secretaría")
                             }
                         }
 
-                        "Tutores / Contacto" -> {
+                        "Responsables" -> {
                             GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                Text("Información familiar de contacto", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
+                                Text("Responsables y contactos", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
                                 TutorItem(
                                     name = student.tutorName,
@@ -910,7 +944,7 @@ fun StudentRecordScreen(
                                     onCall = { phoneDialogName = student.tutorName; phoneDialogNumber = student.tutorPhone; showPhoneDialog = true }
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
-                                Text("Contacto alterno / Emergencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 13.sp)
+                                Text("Contacto alterno o de emergencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 13.sp)
                                 Spacer(modifier = Modifier.height(6.dp))
                                 if (student.emergencyContactName.isNotBlank()) {
                                     TutorItem(
@@ -926,40 +960,26 @@ fun StudentRecordScreen(
                             }
                         }
 
-                        "Asistencia" -> {
+                        "Contexto" -> {
                             GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                Text("Bitácora detallada de asistencia", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
+                                Text("Contexto y seguimiento del alumno", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(30.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier.size(100.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CircularProgressIndicator(
-                                            progress = { student.attendancePercent / 100f },
-                                            color = SaseGreen,
-                                            trackColor = SaseBgSoft,
-                                            strokeWidth = 8.dp,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                        Text("${student.attendancePercent}%", fontWeight = FontWeight.ExtraBold, color = SaseNavy, fontSize = 18.sp)
-                                    }
-
-                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text("Días escolares laborados: 180", color = SaseText, fontSize = 13.sp)
-                                        Text("Asistencias registradas: ${student.attendances}", color = SaseGreenDark, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                        Text("Faltas justificadas: ${student.excusedAbsences}", color = SaseOrange, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                        Text("Faltas injustificadas: ${student.unexcusedAbsences}", color = SaseRed, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    }
-                                }
+                                DataRow(label = "Asistencia acumulada", value = "${student.attendancePercent}%")
+                                DataRow(label = "Asistencias registradas", value = student.attendances.toString())
+                                DataRow(label = "Faltas justificadas", value = student.excusedAbsences.toString())
+                                DataRow(label = "Faltas injustificadas", value = student.unexcusedAbsences.toString())
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = SaseBorder.copy(alpha = 0.12f))
+                                DataRow(label = "Alergias", value = student.healthAlergies)
+                                DataRow(label = "Medicamentos", value = student.healthMeds)
+                                DataRow(label = "Observaciones médicas", value = student.healthNotes)
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = SaseBorder.copy(alpha = 0.12f))
+                                DataRow(label = "Estado de seguimiento", value = student.orientationStatus)
+                                DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan)
+                                DataRow(label = "Responsable de orientación", value = student.orientationResponsible)
                             }
                         }
 
-                        "Incidencias" -> {
+                        "Historial" -> {
                             GlassCard(modifier = Modifier.fillMaxWidth()) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -1129,7 +1149,7 @@ fun StudentRecordScreen(
                         }
                     }
 
-                    if (isMobile) {
+                    if (!isWide) {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1477,6 +1497,7 @@ fun StudentRecordScreen(
                         SaseSidebar(
                             activeItem = "Expedientes",
                             modifier = Modifier.fillMaxHeight(),
+                            collapsed = false,
                             onItemClick = navigateFromSidebar
                         )
                     }
@@ -1488,7 +1509,9 @@ fun StudentRecordScreen(
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
                     activeItem = "Expedientes",
-                    modifier = Modifier.width(260.dp),
+                    collapsed = sidebarCollapsed,
+                    onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
+                    modifier = Modifier.fillMaxHeight(),
                     onItemClick = navigateFromSidebar
                 )
                 Box(modifier = Modifier.weight(1f)) {

@@ -86,13 +86,16 @@ fun StudentCredentialDashboardScreen(viewModel: LabViewModel) {
                 Box(modifier = Modifier.weight(1f)) { content() }
             }
         } else {
+            var sidebarCollapsed by remember { mutableStateOf(false) }
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
                     activeItem = "Credenciales",
-                    modifier = Modifier.width(260.dp).fillMaxHeight(),
+                    collapsed = sidebarCollapsed,
+                    onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
+                    modifier = Modifier.fillMaxHeight(),
                     onItemClick = { item ->
                         when (item) {
-                            "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
+                            "Inicio", "Expedientes" -> viewModel.navigateTo(Screen.SecretaryDashboard)
                             "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
                             "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                             "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)

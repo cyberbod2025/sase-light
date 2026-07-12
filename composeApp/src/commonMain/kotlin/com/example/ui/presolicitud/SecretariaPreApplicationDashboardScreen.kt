@@ -74,7 +74,7 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
 
         val navigateFromSidebar: (String) -> Unit = { item ->
             when (item) {
-                "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
+                "Inicio", "Expedientes" -> viewModel.navigateTo(Screen.SecretaryDashboard)
                 "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
                 "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                 "Pre-Solicitudes" -> {}
@@ -230,6 +230,8 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
             }
         }
 
+        var sidebarCollapsed by remember { mutableStateOf(false) }
+
         if (isMobile) {
             ModalNavigationDrawer(
                 drawerState = drawerState,
@@ -241,6 +243,7 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                         SaseSidebar(
                             activeItem = "Pre-Solicitudes",
                             modifier = Modifier.fillMaxHeight(),
+                            collapsed = false,
                             onItemClick = { item ->
                                 navigateFromSidebar(item)
                                 scope.launch { drawerState.close() }
@@ -255,7 +258,9 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
                     activeItem = "Pre-Solicitudes",
-                    modifier = Modifier.width(260.dp),
+                    collapsed = sidebarCollapsed,
+                    onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
+                    modifier = Modifier.fillMaxHeight(),
                     onItemClick = navigateFromSidebar
                 )
                 Box(modifier = Modifier.weight(1f)) {

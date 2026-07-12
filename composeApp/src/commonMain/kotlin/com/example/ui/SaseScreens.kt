@@ -210,140 +210,168 @@ fun ReturnToDashboardButton(
 
 
 
-// Side bar component
+// Side bar component — collapsible rail (72dp collapsed, 260dp expanded)
 @Composable
 fun SaseSidebar(
     activeItem: String,
     modifier: Modifier = Modifier,
-    onItemClick: (String) -> Unit = {}
+    collapsed: Boolean = false,
+    onItemClick: (String) -> Unit = {},
+    onToggleCollapse: () -> Unit = {}
 ) {
     val items = listOf(
         "Inicio" to Icons.Default.Home,
+        "Expedientes" to Icons.Default.Folder,
         "Inscripciones" to Icons.Default.School,
         "Portal Familia" to Icons.Default.Groups,
         "Pre-Solicitudes" to Icons.AutoMirrored.Filled.Assignment,
         "Altas Oficiales" to Icons.Default.AssignmentTurnedIn,
         "Credenciales" to Icons.Default.Badge
     )
+    val railWidth = 72.dp
+    val fullWidth = 260.dp
+    val width = if (collapsed) railWidth else fullWidth
 
     Column(
         modifier = modifier
+            .width(width)
             .fillMaxHeight()
             .background(
                 Brush.verticalGradient(
                     colors = listOf(SaseNavy, SaseNavy2)
                 )
             )
-            .padding(16.dp)
+            .padding(horizontal = if (collapsed) 0.dp else 16.dp)
     ) {
-        // App Header
+        // Toggle + Header
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(vertical = 12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = if (collapsed) 0.dp else 0.dp,
+                    end = if (collapsed) 0.dp else 0.dp,
+                    top = 12.dp,
+                    bottom = 12.dp
+                ),
+            horizontalArrangement = if (collapsed) Arrangement.Center else Arrangement.Start
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
+            IconButton(onClick = onToggleCollapse, modifier = Modifier.size(40.dp)) {
                 Icon(
-                    imageVector = Icons.Default.School,
-                    contentDescription = "Logo SASE",
-                    tint = SaseGreen,
-                    modifier = Modifier.size(24.dp)
+                    imageVector = if (collapsed) Icons.Default.ChevronRight else Icons.Default.ChevronLeft,
+                    contentDescription = if (collapsed) "Expandir menú" else "Colapsar menú",
+                    tint = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.size(20.dp)
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = "SASE-310",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    fontSize = 18.sp
-                )
-                Text(
-                    text = "Sistema Escolar",
-                    color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 11.sp
-                )
+            if (!collapsed) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Column {
+                    Text(
+                        text = "SASE-310",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 18.sp
+                    )
+                    Text(
+                        text = "Sistema Escolar",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 11.sp
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(if (collapsed) 8.dp else 20.dp))
 
         // Menu items
+        val contentPadding = if (collapsed) 0.dp else 14.dp
         LazyColumn(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalAlignment = if (collapsed) Alignment.CenterHorizontally else Alignment.Start
         ) {
             items(items) { (name, icon) ->
                 val isActive = name == activeItem
-                Row(
+                val borderRadius = if (collapsed) 12.dp else 14.dp
+                val itemWidth = if (collapsed) railWidth else Dp.Unspecified
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .then(if (collapsed) Modifier.width(railWidth) else Modifier.fillMaxWidth())
+                        .clip(RoundedCornerShape(borderRadius))
                         .background(if (isActive) Color.White.copy(alpha = 0.12f) else Color.Transparent)
                         .clickable { onItemClick(name) }
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(if (collapsed) PaddingValues(vertical = 10.dp) else PaddingValues(horizontal = contentPadding, vertical = 10.dp)),
+                    contentAlignment = if (collapsed) Alignment.Center else Alignment.CenterStart
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = name,
-                        tint = if (isActive) SaseGreen else Color.White.copy(alpha = 0.65f),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = name,
-                        color = if (isActive) Color.White else Color.White.copy(alpha = 0.8f),
-                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                        fontSize = 13.sp
-                    )
+                    if (collapsed) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = name,
+                            tint = if (isActive) SaseGreen else Color.White.copy(alpha = 0.65f),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = name,
+                                tint = if (isActive) SaseGreen else Color.White.copy(alpha = 0.65f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = name,
+                                color = if (isActive) Color.White else Color.White.copy(alpha = 0.8f),
+                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
                 }
             }
         }
 
         // Bottom profile
-        HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
+        if (!collapsed) {
+            HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Default.Person, contentDescription = "Profile Pic", tint = Color.White, modifier = Modifier.size(20.dp))
-            }
-            Spacer(modifier = Modifier.width(10.dp))
-            Column {
-                Text(
-                    text = "Secretaría",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SaseGreen))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("En línea", color = Color.White.copy(alpha = 0.6f), fontSize = 10.sp)
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Person, contentDescription = "Profile Pic", tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "Secretaría",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SaseGreen))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("En línea", color = Color.White.copy(alpha = 0.6f), fontSize = 10.sp)
+                    }
                 }
             }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "SASE-310 v3.10.0",
+                fontSize = 9.sp,
+                color = Color.White.copy(alpha = 0.4f),
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
         }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = "SASE-310 v3.10.0",
-            fontSize = 9.sp,
-            color = Color.White.copy(alpha = 0.4f),
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center
-        )
     }
 }
 
@@ -732,6 +760,19 @@ fun SecretaryDashboardScreen(
             }
         }
 
+        var sidebarCollapsed by remember { mutableStateOf(false) }
+
+        val navigateFromSidebarDash: (String) -> Unit = { item ->
+            when (item) {
+                "Inicio", "Expedientes" -> viewModel.navigateTo(Screen.SecretaryDashboard)
+                "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
+                "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
+                "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
+                "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
+                "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
+            }
+        }
+
         if (isMobile) {
             ModalNavigationDrawer(
                 drawerState = drawerState,
@@ -743,15 +784,9 @@ fun SecretaryDashboardScreen(
                         SaseSidebar(
                             activeItem = "Inicio",
                             modifier = Modifier.fillMaxHeight(),
-                    onItemClick = { item ->
-                                when (item) {
-                                    "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
-                                    "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
-                                    "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
-                                    "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
-                                    "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
-                                    "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
-                                }
+                            collapsed = false,
+                            onItemClick = { item ->
+                                navigateFromSidebarDash(item)
                                 scope.launch { drawerState.close() }
                             }
                         )
@@ -764,17 +799,10 @@ fun SecretaryDashboardScreen(
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
                     activeItem = "Inicio",
-                    modifier = Modifier.width(260.dp),
-                    onItemClick = { item ->
-                        when (item) {
-                            "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
-                            "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
-                            "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
-                            "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
-                            "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
-                            "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
-                        }
-                    }
+                    collapsed = sidebarCollapsed,
+                    onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
+                    modifier = Modifier.fillMaxHeight(),
+                    onItemClick = navigateFromSidebarDash
                 )
                 Box(modifier = Modifier.weight(1f)) {
                     dashboardContent()
@@ -1151,7 +1179,7 @@ fun EnrollmentDashboardScreen(
 
         val navigateFromSidebar: (String) -> Unit = { item ->
             when (item) {
-                "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
+                "Inicio", "Expedientes" -> viewModel.navigateTo(Screen.SecretaryDashboard)
                 "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
                 "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                 "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
@@ -1207,6 +1235,8 @@ fun EnrollmentDashboardScreen(
             }
         }
 
+        var sidebarCollapsed by remember { mutableStateOf(false) }
+
         if (isMobile) {
             ModalNavigationDrawer(
                 drawerState = drawerState,
@@ -1218,6 +1248,7 @@ fun EnrollmentDashboardScreen(
                         SaseSidebar(
                             activeItem = "Inscripciones",
                             modifier = Modifier.fillMaxHeight(),
+                            collapsed = false,
                             onItemClick = { item ->
                                 navigateFromSidebar(item)
                                 scope.launch { drawerState.close() }
@@ -1232,7 +1263,9 @@ fun EnrollmentDashboardScreen(
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
                     activeItem = "Inscripciones",
-                    modifier = Modifier.width(260.dp),
+                    collapsed = sidebarCollapsed,
+                    onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
+                    modifier = Modifier.fillMaxHeight(),
                     onItemClick = navigateFromSidebar
                 )
                 Box(modifier = Modifier.weight(1f)) {
@@ -1365,7 +1398,7 @@ fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
 
         val navigateFromSidebar: (String) -> Unit = { item ->
             when (item) {
-                "Inicio" -> viewModel.navigateTo(Screen.SecretaryDashboard)
+                "Inicio", "Expedientes" -> viewModel.navigateTo(Screen.SecretaryDashboard)
                 "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
                 "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
                 "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
@@ -1528,6 +1561,8 @@ fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
             }
         }
 
+        var sidebarCollapsed by remember { mutableStateOf(false) }
+
         if (isMobile) {
             ModalNavigationDrawer(
                 drawerState = drawerState,
@@ -1539,6 +1574,7 @@ fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
                         SaseSidebar(
                             activeItem = "Altas Oficiales",
                             modifier = Modifier.fillMaxHeight(),
+                            collapsed = false,
                             onItemClick = { item ->
                                 navigateFromSidebar(item)
                                 scope.launch { drawerState.close() }
@@ -1553,7 +1589,9 @@ fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
                     activeItem = "Altas Oficiales",
-                    modifier = Modifier.width(260.dp),
+                    collapsed = sidebarCollapsed,
+                    onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
+                    modifier = Modifier.fillMaxHeight(),
                     onItemClick = navigateFromSidebar
                 )
                 Box(modifier = Modifier.weight(1f)) {
