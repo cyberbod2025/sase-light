@@ -1134,18 +1134,59 @@ class PreApplicationViewModel {
             schoolYear: String,
             studentFullName: String
         ): AnnualEnrollmentFlowResult {
-            val newStudentId = if (declaredMovement.uppercase().replace('Ó', 'O') == "NUEVO INGRESO") {
-                "MASTER-V2-${folio.takeLast(4)}-${Random.nextInt(100, 999)}"
+            fun reject(cause: String, message: String, stage: String): AnnualEnrollmentFlowResult {
+                val conflict = AnnualEnrollmentFlowResult.Conflict(cause, message, stage)
+                _v2Result.value = conflict
+                return conflict
+            }
+
+            val normalizedFolio = folio.trim().uppercase()
+            val matchingPreApplications = _sharedPreApplications.value.filter {
+                it.folio.trim().uppercase() == normalizedFolio
+            }
+            if (matchingPreApplications.isEmpty()) {
+                return reject("PRE_APPLICATION_NOT_FOUND", "La pre-solicitud no existe en la bandeja institucional.", "READINESS")
+            }
+            if (matchingPreApplications.size > 1) {
+                return reject("AMBIGUOUS_FOLIO", "El folio está duplicado en la bandeja institucional.", "READINESS")
+            }
+
+            val source = matchingPreApplications.single()
+            if (source.status != PreApplicationStatus.ACEPTADA) {
+                return reject("NOT_ACCEPTED", "La pre-solicitud debe estar aceptada antes de procesar V2.", "READINESS")
+            }
+            if (source.readinessStatus != ReadinessStatus.READY) {
+                return reject("NOT_READY", "La pre-solicitud debe estar declarada READY antes de procesar V2.", "READINESS")
+            }
+            val pendingItems = officialEnrollmentPendingItems(source)
+            if (pendingItems.isNotEmpty()) {
+                return reject("PENDING_REQUIREMENTS", pendingItems.joinToString("; "), "READINESS")
+            }
+
+            val sourceMovement = source.tramite.trim().uppercase().replace('Ó', 'O')
+            val requestedMovement = declaredMovement.trim().uppercase().replace('Ó', 'O')
+            if (requestedMovement != sourceMovement ||
+                normalizeCurp(normalizedCurp) != normalizeCurp(source.alumnoCurp) ||
+                requestedGrade != source.gradoSolicitado ||
+                schoolYear.trim() != source.cicloEscolar.trim() ||
+                studentFullName.trim() != source.alumnoNombreCompleto.trim()
+            ) {
+                return reject("SOURCE_MISMATCH", "Los datos solicitados no coinciden con la pre-solicitud institucional.", "SOURCE")
+            }
+
+            val canonicalPreviousGroup = masterStudentByCurp(source.alumnoCurp)?.group?.takeIf { it.isNotBlank() }
+            val newStudentId = if (sourceMovement == "NUEVO INGRESO") {
+                "MASTER-V2-${source.folio.trim().uppercase()}"
             } else null
             val request = AnnualEnrollmentFlowRequest(
-                declaredMovement = declaredMovement,
-                normalizedCurp = normalizedCurp,
-                sourcePreApplicationFolio = folio,
-                requestedGrade = requestedGrade,
-                previousGroup = previousGroup,
-                schoolYear = schoolYear,
+                declaredMovement = source.tramite,
+                normalizedCurp = source.alumnoCurp,
+                sourcePreApplicationFolio = source.folio,
+                requestedGrade = source.gradoSolicitado,
+                previousGroup = canonicalPreviousGroup,
+                schoolYear = source.cicloEscolar,
                 newStudentId = newStudentId,
-                studentFullName = studentFullName,
+                studentFullName = source.alumnoNombreCompleto,
                 actor = "Secretaría",
                 occurredAt = "HOY ${com.example.formatTimestamp("hh:mm a")}"
             )
