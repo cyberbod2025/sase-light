@@ -586,7 +586,8 @@ private fun EditPreApplicationDialog(
     preApp: PreApplication,
     onDismiss: () -> Unit
 ) {
-    var nombreEdit by remember(preApp.folio) { mutableStateOf(preApp.alumnoNombreCompleto) }
+    val toast = LocalToast.current
+    val expectedSnapshot = remember(preApp.folio) { preApp.administrativeDataSnapshot() }
     var telefonoEdit by remember(preApp.folio) { mutableStateOf(preApp.alumnoTelefonoCasa) }
     var domicilioEdit by remember(preApp.folio) { mutableStateOf(preApp.alumnoDomicilio) }
 
@@ -604,12 +605,6 @@ private fun EditPreApplicationDialog(
                 Text("Editar datos capturados", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 18.sp)
                 Text("Ajuste interno de Secretaría antes de aceptar para alta oficial. Folio: ${preApp.folio}", color = SaseMuted, fontSize = 11.sp)
 
-                OutlinedTextField(
-                    value = nombreEdit,
-                    onValueChange = { nombreEdit = it.uppercase() },
-                    label = { Text("Nombre completo") },
-                    modifier = Modifier.fillMaxWidth()
-                )
                 OutlinedTextField(
                     value = telefonoEdit,
                     onValueChange = { telefonoEdit = it.filter { char -> char.isDigit() }.take(10) },
@@ -635,13 +630,68 @@ private fun EditPreApplicationDialog(
                     }
                     Button(
                         onClick = {
-                            onDismiss()
+                            val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
+                                UpdatePreApplicationAdministrativeDataRequest(
+                                    folio = preApp.folio,
+                                    expected = expectedSnapshot,
+                                    changes = PreApplicationAdministrativeChanges(
+                                        phone = PreApplicationAdministrativeFieldChange.Replace(telefonoEdit),
+                                        address = PreApplicationAdministrativeFieldChange.Replace(domicilioEdit)
+                                    )
+                                )
+                            )
+                            when (result) {
+                                is UpdatePreApplicationAdministrativeDataResult.Updated -> {
+                                    val fields = result.changedFields.map { field ->
+                                        when (field) {
+                                            PreApplicationAdministrativeField.PHONE -> "teléfono"
+                                            PreApplicationAdministrativeField.ADDRESS -> "domicilio"
+                                        }
+                                    }.joinToString(" y ")
+                                    toast("Corrección guardada: $fields")
+                                    onDismiss()
+                                }
+                                UpdatePreApplicationAdministrativeDataResult.NoChanges -> {
+                                    toast("No hay cambios para guardar")
+                                    onDismiss()
+                                }
+                                is UpdatePreApplicationAdministrativeDataResult.Invalid -> {
+                                    val errors = result.errors.map { (field, error) ->
+                                        val fieldLabel = when (field) {
+                                            PreApplicationAdministrativeField.PHONE -> "Teléfono"
+                                            PreApplicationAdministrativeField.ADDRESS -> "Domicilio"
+                                        }
+                                        val errorLabel = when (error) {
+                                            PreApplicationAdministrativeValidationError.REQUIRED -> "es obligatorio"
+                                            PreApplicationAdministrativeValidationError.INVALID_FORMAT -> "tiene formato inválido"
+                                        }
+                                        "$fieldLabel $errorLabel"
+                                    }.joinToString(". ")
+                                    toast(errors)
+                                }
+                                UpdatePreApplicationAdministrativeDataResult.NotFound -> {
+                                    toast("No se encontró la pre-solicitud")
+                                }
+                                is UpdatePreApplicationAdministrativeDataResult.Conflict -> {
+                                    val message = when (result.reason) {
+                                        PreApplicationAdministrativeConflictReason.STALE_DATA ->
+                                            "Los datos cambiaron. Cierra y vuelve a abrir para reintentar"
+                                        PreApplicationAdministrativeConflictReason.NOT_EDITABLE ->
+                                            "La pre-solicitud ya no permite correcciones"
+                                        PreApplicationAdministrativeConflictReason.OFFICIAL_ENROLLMENT_EXISTS ->
+                                            "No se puede corregir: el alta oficial ya existe"
+                                        PreApplicationAdministrativeConflictReason.AMBIGUOUS_FOLIO ->
+                                            "No se puede corregir: el folio está duplicado"
+                                    }
+                                    toast(message)
+                                }
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = SaseNavy, contentColor = Color.White),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Guardar ajustes (mock)", fontWeight = FontWeight.Bold)
+                        Text("Guardar corrección", fontWeight = FontWeight.Bold)
                     }
                 }
             }

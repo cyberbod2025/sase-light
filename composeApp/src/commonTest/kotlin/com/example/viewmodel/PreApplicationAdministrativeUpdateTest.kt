@@ -165,6 +165,36 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
+    fun reopeningFromSharedStoreUsesUpdatedAdministrativeDataAndFreshSnapshot() {
+        val original = editablePreApplication()
+        assertIs<UpdatePreApplicationAdministrativeDataResult.Updated>(
+            PreApplicationViewModel.updatePreApplicationAdministrativeData(
+                request(
+                    original,
+                    phone = PreApplicationAdministrativeFieldChange.Replace("5511112233"),
+                    address = PreApplicationAdministrativeFieldChange.Replace("Domicilio al reabrir")
+                )
+            )
+        )
+
+        val reopened = stored(original.folio)
+        assertEquals("5511112233", reopened.alumnoTelefonoCasa)
+        assertEquals("Domicilio al reabrir", reopened.alumnoDomicilio)
+        val reopenedSnapshot = reopened.administrativeDataSnapshot()
+        assertEquals("5511112233", reopenedSnapshot.phone)
+        assertEquals("Domicilio al reabrir", reopenedSnapshot.address)
+        assertIs<UpdatePreApplicationAdministrativeDataResult.NoChanges>(
+            PreApplicationViewModel.updatePreApplicationAdministrativeData(
+                request(
+                    reopened,
+                    phone = PreApplicationAdministrativeFieldChange.Replace(reopenedSnapshot.phone),
+                    address = PreApplicationAdministrativeFieldChange.Replace(reopenedSnapshot.address)
+                )
+            )
+        )
+    }
+
+    @Test
     fun invalidPhonePreventsValidAddressFromBeingApplied() {
         val original = editablePreApplication()
         val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
