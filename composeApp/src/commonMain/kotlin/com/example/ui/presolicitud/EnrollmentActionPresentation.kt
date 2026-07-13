@@ -1,5 +1,7 @@
 package com.example.ui.presolicitud
 
+import com.example.data.InstitutionalStudentRecordKey
+import com.example.data.toInstitutionalStudentRecordKey
 import com.example.data.enrollment.EnrollmentFlowMode
 import com.example.viewmodel.InstitutionalAnnualEnrollmentResult
 
@@ -56,3 +58,32 @@ internal fun institutionalEnrollmentMessage(result: InstitutionalAnnualEnrollmen
         is InstitutionalAnnualEnrollmentResult.SynchronizationIncomplete ->
             "La anualidad existe, pero la sincronización institucional está incompleta y requiere revisión."
     }
+
+internal data class InstitutionalEnrollmentRecordAction(
+    val label: String,
+    val key: InstitutionalStudentRecordKey
+)
+
+internal fun institutionalEnrollmentRecordAction(
+    result: InstitutionalAnnualEnrollmentResult
+): InstitutionalEnrollmentRecordAction? {
+    val key = when (result) {
+        is InstitutionalAnnualEnrollmentResult.Completed ->
+            result.annualResult.toInstitutionalStudentRecordKey()
+        is InstitutionalAnnualEnrollmentResult.NeedsDecision ->
+            result.annualResult.toInstitutionalStudentRecordKey()
+        is InstitutionalAnnualEnrollmentResult.AlreadyCompleted ->
+            result.annualResult.toInstitutionalStudentRecordKey()
+        is InstitutionalAnnualEnrollmentResult.GuardRejected,
+        is InstitutionalAnnualEnrollmentResult.AnnualConflict,
+        is InstitutionalAnnualEnrollmentResult.SynchronizationIncomplete -> null
+    }
+    return key
+        ?.takeIf {
+            it.studentId.isNotBlank() &&
+                !it.schoolYear.isNullOrBlank() &&
+                !it.sourcePreApplicationFolio.isNullOrBlank() &&
+                !it.enrollmentId.isNullOrBlank()
+        }
+        ?.let { InstitutionalEnrollmentRecordAction("Abrir expediente", it) }
+}

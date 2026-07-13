@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.data.InstitutionalStudentRecordKey
 import com.example.data.presolicitud.*
 import com.example.ui.*
 import com.example.util.LocalToast
@@ -454,6 +455,15 @@ private fun PreApplicationDetailTabs(
             OfficialEnrollmentContextualPanel(
                 preApp = preApp,
                 officialStudent = officialStudent,
+                onOpenStudentRecord = { key ->
+                    viewModel.navigateTo(
+                        Screen.StudentRecord(
+                            studentId = key.studentId,
+                            institutionalKey = key,
+                            returnTo = Screen.SecretariaPreApplicationDashboard
+                        )
+                    )
+                },
                 onClose = { showOfficialEnrollmentPanel = false },
                 scope = scope
             )
@@ -975,6 +985,7 @@ private fun OfficialEnrollmentReadinessCard(
 private fun OfficialEnrollmentContextualPanel(
     preApp: PreApplication,
     officialStudent: OfficialStudent?,
+    onOpenStudentRecord: (InstitutionalStudentRecordKey) -> Unit,
     onClose: () -> Unit,
     scope: CoroutineScope
 ) {
@@ -991,6 +1002,9 @@ private fun OfficialEnrollmentContextualPanel(
     var groupConfirmed by remember(preApp.folio) { mutableStateOf(false) }
     var resultMessage by remember(preApp.folio) { mutableStateOf<String?>(null) }
     var resultColor by remember(preApp.folio) { mutableStateOf(SaseGreen) }
+    var institutionalResult by remember(preApp.folio) {
+        mutableStateOf<InstitutionalAnnualEnrollmentResult?>(null)
+    }
 
     Column(
         modifier = Modifier
@@ -1158,6 +1172,7 @@ private fun OfficialEnrollmentContextualPanel(
                             schoolYear = preApp.cicloEscolar,
                             studentFullName = preApp.alumnoNombreCompleto
                         )
+                        institutionalResult = v2Result
                         resultMessage = institutionalEnrollmentMessage(v2Result)
                         resultColor = when (v2Result) {
                             is InstitutionalAnnualEnrollmentResult.Completed,
@@ -1197,6 +1212,23 @@ private fun OfficialEnrollmentContextualPanel(
         if (resultMessage != null) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(resultMessage ?: "", color = resultColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            val recordAction = institutionalResult?.let(::institutionalEnrollmentRecordAction)
+            if (recordAction != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { onOpenStudentRecord(recordAction.key) },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SaseNavy,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(recordAction.label, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                }
+            }
         }
     }
 }

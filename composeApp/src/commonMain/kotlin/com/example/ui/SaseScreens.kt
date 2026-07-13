@@ -1310,6 +1310,8 @@ fun SaseAppContent(viewModel: LabViewModel) {
                         )
                         is Screen.StudentRecord -> StudentRecordScreen(
                             studentId = screen.studentId,
+                            institutionalKey = screen.institutionalKey,
+                            returnTo = screen.returnTo,
                             viewModel = viewModel,
                             userRole = currentRole
                         )

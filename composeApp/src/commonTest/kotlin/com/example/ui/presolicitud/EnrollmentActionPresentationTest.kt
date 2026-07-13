@@ -10,8 +10,11 @@ import com.example.viewmodel.InstitutionalAnnualEnrollmentResult
 import com.example.viewmodel.InstitutionalEnrollmentGuardCause
 import com.example.viewmodel.PreApplicationSynchronizationCause
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class EnrollmentActionPresentationTest {
@@ -139,6 +142,99 @@ class EnrollmentActionPresentationTest {
         assertFalse(message.contains("registrada correctamente"))
         assertFalse(message.contains("rollback", ignoreCase = true))
         assertFalse(message.contains("V2"))
+    }
+
+    @Test
+    fun completedActionPreservesStudentIdentityAndFullRecordKey() {
+        val action = assertNotNull(institutionalEnrollmentRecordAction(completedResult()))
+
+        assertEquals("Abrir expediente", action.label)
+        assertEquals("MASTER-V2-PRE-TEST", action.key.studentId)
+        assertEquals("S310-000001-1", action.key.enrollmentId)
+        assertEquals("2026-2027", action.key.schoolYear)
+        assertEquals("PRE-TEST", action.key.sourcePreApplicationFolio)
+    }
+
+    @Test
+    fun needsDecisionActionNavigatesWithStudentIdRatherThanVisibleIdentifiers() {
+        val result = InstitutionalAnnualEnrollmentResult.NeedsDecision(
+            AnnualEnrollmentFlowResult.NeedsDecision(
+                studentId = "MASTER-V2-PRE-TEST",
+                enrollmentId = "S310-000001-1",
+                schoolYear = "2026-2027",
+                folio = "PRE-TEST",
+                previousGroup = "1A",
+                suggestedGroup = "2A",
+                reason = "Pendiente"
+            )
+        )
+
+        val action = assertNotNull(institutionalEnrollmentRecordAction(result))
+
+        assertEquals("MASTER-V2-PRE-TEST", action.key.studentId)
+        assertEquals("S310-000001-1", action.key.enrollmentId)
+        assertEquals("2026-2027", action.key.schoolYear)
+        assertEquals("PRE-TEST", action.key.sourcePreApplicationFolio)
+        assertNotEquals(action.key.enrollmentId, action.key.studentId)
+        assertNotEquals(action.key.sourcePreApplicationFolio, action.key.studentId)
+    }
+
+    @Test
+    fun alreadyCompletedActionUsesPersistedStudentIdentity() {
+        val action = assertNotNull(
+            institutionalEnrollmentRecordAction(
+                InstitutionalAnnualEnrollmentResult.AlreadyCompleted(
+                    AnnualEnrollmentFlowResult.AlreadyCompleted(annualEnrollmentRecord())
+                )
+            )
+        )
+
+        assertEquals(annualEnrollmentRecord().studentId, action.key.studentId)
+        assertEquals(annualEnrollmentRecord().permanentEnrollmentId, action.key.enrollmentId)
+        assertEquals(annualEnrollmentRecord().schoolYear, action.key.schoolYear)
+        assertEquals(annualEnrollmentRecord().sourcePreApplicationFolio, action.key.sourcePreApplicationFolio)
+    }
+
+    @Test
+    fun rejectedConflictAndIncompleteResultsDoNotExposeRecordAction() {
+        val rejected = InstitutionalAnnualEnrollmentResult.GuardRejected(
+            InstitutionalEnrollmentGuardCause.NOT_READY,
+            "No disponible"
+        )
+
+        assertNull(institutionalEnrollmentRecordAction(rejected))
+        assertNull(institutionalEnrollmentRecordAction(annualConflictResult()))
+        assertNull(institutionalEnrollmentRecordAction(synchronizationIncompleteResult()))
+    }
+
+    @Test
+    fun blankStudentIdDoesNotExposeRecordAction() {
+        val malformed = completedResult().copy(
+            annualResult = completedResult().annualResult.copy(studentId = "")
+        )
+
+        assertNull(institutionalEnrollmentRecordAction(malformed))
+    }
+
+    @Test
+    fun incompleteResolutionContextDoesNotExposeRecordAction() {
+        val annualResult = completedResult().annualResult
+
+        assertNull(
+            institutionalEnrollmentRecordAction(
+                completedResult().copy(annualResult = annualResult.copy(schoolYear = ""))
+            )
+        )
+        assertNull(
+            institutionalEnrollmentRecordAction(
+                completedResult().copy(annualResult = annualResult.copy(folio = ""))
+            )
+        )
+        assertNull(
+            institutionalEnrollmentRecordAction(
+                completedResult().copy(annualResult = annualResult.copy(enrollmentId = ""))
+            )
+        )
     }
 
     private fun completedResult() = InstitutionalAnnualEnrollmentResult.Completed(

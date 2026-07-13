@@ -72,9 +72,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.data.InstitutionalRecordDataQuality
+import com.example.data.InstitutionalStudentRecordKey
+import com.example.data.MockSaseData
 import com.example.data.SaseIncident
 import com.example.data.SaseObservation
 import com.example.data.Student
+import com.example.data.enrollment.AnnualEnrollmentRecord
 import com.example.ui.DataRow
 import com.example.ui.GlassCard
 import com.example.ui.PillStat
@@ -96,6 +100,7 @@ import com.example.ui.TutorItem
 import com.example.util.LocalToast
 import com.example.viewmodel.AppRole
 import com.example.viewmodel.LabViewModel
+import com.example.viewmodel.PreApplicationViewModel
 import com.example.viewmodel.Screen
 import kotlinx.coroutines.launch
 
@@ -184,11 +189,181 @@ private fun RecordHeaderFact(label: String, value: String, modifier: Modifier = 
 }
 
 @Composable
+private fun InstitutionalStudentRecordRoute(
+    studentId: String,
+    institutionalKey: InstitutionalStudentRecordKey?,
+    annualEnrollments: List<AnnualEnrollmentRecord>,
+    returnTo: Screen,
+    viewModel: LabViewModel
+) {
+    val students by viewModel.saseStudents.collectAsState()
+    val preApplications by PreApplicationViewModel.sharedPreApplications.collectAsState()
+    val resolution = remember(studentId, institutionalKey, students, annualEnrollments, preApplications) {
+        resolveInstitutionalStudentRecordForRoute(
+            studentId = studentId,
+            institutionalKey = institutionalKey,
+            students = students,
+            annualEnrollments = annualEnrollments,
+            preApplications = preApplications
+        )
+    }
+    val presentation = remember(resolution) {
+        institutionalStudentRecordPresentation(resolution)
+    }
+
+    InstitutionalStudentRecordContent(
+        presentation = presentation,
+        onBack = { viewModel.navigateTo(returnTo) }
+    )
+}
+
+@Composable
+private fun InstitutionalStudentRecordContent(
+    presentation: InstitutionalStudentRecordPresentation,
+    onBack: () -> Unit
+) {
+    BoxWithConstraints(modifier = SaseBackgroundModifier()) {
+        val compact = maxWidth < 600.dp
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(if (compact) 16.dp else 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Regresar",
+                        tint = SaseNavy
+                    )
+                }
+                Spacer(modifier = Modifier.width(6.dp))
+                Column {
+                    Text("Expediente institucional", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = SaseNavy)
+                    Text("Información reconciliada por fuentes", fontSize = 11.sp, color = SaseMuted)
+                }
+            }
+
+            when (presentation) {
+                is InstitutionalStudentRecordPresentation.Terminal -> GlassCard {
+                    Text(presentation.title, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = SaseRed)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(presentation.message, color = SaseText, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = SaseNavy)) {
+                        Text("Volver", fontWeight = FontWeight.Bold)
+                    }
+                }
+                is InstitutionalStudentRecordPresentation.Content -> {
+                    GlassCard {
+                        Text(presentation.fullName, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = SaseNavy)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        RecordHeaderFact("CURP", presentation.curp)
+                    }
+                    GlassCard {
+                        Text("Datos institucionales", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = SaseNavy)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        presentation.fields.forEach { field ->
+                            InstitutionalPresentationRow(field, compact)
+                            HorizontalDivider(color = SaseBorder.copy(alpha = 0.55f))
+                        }
+                    }
+                    if (presentation.warnings.isNotEmpty()) {
+                        GlassCard {
+                            Text("Advertencias institucionales", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = SaseOrange)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            presentation.warnings.forEach { warning ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Icon(Icons.Default.Warning, contentDescription = null, tint = SaseOrange, modifier = Modifier.size(16.dp))
+                                    Text(warning, color = SaseText, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InstitutionalPresentationRow(
+    field: InstitutionalRecordPresentationField,
+    compact: Boolean
+) {
+    val qualityColor = when (field.quality) {
+        InstitutionalRecordDataQuality.CONFIRMED -> SaseGreen
+        InstitutionalRecordDataQuality.PENDING -> SaseOrange
+        InstitutionalRecordDataQuality.UNAVAILABLE -> SaseMuted
+        InstitutionalRecordDataQuality.INCONSISTENT -> SaseRed
+    }
+    val qualityLabel = when (field.quality) {
+        InstitutionalRecordDataQuality.CONFIRMED -> "Confirmado"
+        InstitutionalRecordDataQuality.PENDING -> "Pendiente"
+        InstitutionalRecordDataQuality.UNAVAILABLE -> "No disponible"
+        InstitutionalRecordDataQuality.INCONSISTENT -> "Inconsistente"
+    }
+    val valueContent: @Composable () -> Unit = {
+        Column {
+            Text(field.label, color = SaseMuted, fontSize = 10.sp)
+            Text(field.value, color = SaseText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+    val qualityBadge: @Composable () -> Unit = {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(qualityColor.copy(alpha = 0.12f))
+                .border(1.dp, qualityColor.copy(alpha = 0.28f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text(qualityLabel, color = qualityColor, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+    if (compact) {
+        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp)) {
+            valueContent()
+            Spacer(modifier = Modifier.height(6.dp))
+            qualityBadge()
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.weight(1f)) { valueContent() }
+            qualityBadge()
+        }
+    }
+}
+
+@Composable
 fun StudentRecordScreen(
     studentId: String,
+    institutionalKey: InstitutionalStudentRecordKey? = null,
+    returnTo: Screen = Screen.SecretaryDashboard,
     viewModel: LabViewModel,
     userRole: AppRole = AppRole.SECRETARIA
 ) {
+    val annualEnrollments by MockSaseData.annualEnrollments.collectAsState()
+    if (institutionalKey != null || annualEnrollments.any { it.studentId == studentId }) {
+        InstitutionalStudentRecordRoute(
+            studentId = studentId,
+            institutionalKey = institutionalKey,
+            annualEnrollments = annualEnrollments,
+            returnTo = returnTo,
+            viewModel = viewModel
+        )
+        return
+    }
+
     val toast = LocalToast.current
     val students by viewModel.saseStudents.collectAsState()
     val student = remember(students, studentId) { students.find { it.id == studentId } }

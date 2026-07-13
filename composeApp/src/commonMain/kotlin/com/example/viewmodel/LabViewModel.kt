@@ -1,6 +1,7 @@
 package com.example.viewmodel
 
 import com.example.data.SaseAudit
+import com.example.data.InstitutionalStudentRecordKey
 import com.example.data.Student
 import com.example.data.StudentAddResult
 import com.example.data.repository.AuditRepository
@@ -15,7 +16,17 @@ import kotlinx.coroutines.flow.asStateFlow
 sealed class Screen {
     data object SecretaryDashboard : Screen()
     data object EnrollmentDashboard : Screen()
-    data class StudentRecord(val studentId: String) : Screen()
+    data class StudentRecord(
+        val studentId: String,
+        val institutionalKey: InstitutionalStudentRecordKey? = null,
+        val returnTo: Screen = SecretaryDashboard
+    ) : Screen() {
+        init {
+            require(institutionalKey == null || institutionalKey.studentId == studentId) {
+                "La clave institucional debe conservar el mismo studentId de la ruta."
+            }
+        }
+    }
     // Nuevas rutas FASE 1
     data object PreApplicationFamilyPortal : Screen()
     data object SecretariaPreApplicationDashboard : Screen()

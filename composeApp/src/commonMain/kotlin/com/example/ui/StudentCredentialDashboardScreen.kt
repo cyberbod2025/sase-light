@@ -69,7 +69,11 @@ fun StudentCredentialDashboardScreen(viewModel: LabViewModel) {
                         masterStudents = masterStudents,
                         selectedId = selectedId,
                         onSelect = { selectedId = it },
-                        onViewStudent = { id -> viewModel.navigateTo(Screen.StudentRecord(id)) }
+                        onViewStudent = { id ->
+                            viewModel.navigateTo(
+                                Screen.StudentRecord(id, returnTo = Screen.StudentCredentialDashboard)
+                            )
+                        }
                     )
                 }
             }
