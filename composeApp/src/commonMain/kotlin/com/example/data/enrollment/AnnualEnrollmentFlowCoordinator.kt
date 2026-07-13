@@ -56,13 +56,20 @@ sealed class AnnualEnrollmentFlowResult {
 
 object AnnualEnrollmentFlowCoordinator {
     fun process(request: AnnualEnrollmentFlowRequest): AnnualEnrollmentFlowResult {
-        val existingByFolio = MockSaseData.annualEnrollments.value.firstOrNull {
+        val existingByFolio = MockSaseData.annualEnrollments.value.filter {
             it.sourcePreApplicationFolio.trim().uppercase() == request.sourcePreApplicationFolio.trim().uppercase()
         }
-        if (existingByFolio != null) {
-            return if (matchesOriginalRequest(existingByFolio, request)) {
+        if (existingByFolio.size > 1) {
+            return AnnualEnrollmentFlowResult.Conflict(
+                cause = "AMBIGUOUS_PRE_APPLICATION_FOLIO",
+                message = "Existen varias anualidades asociadas al mismo folio.",
+                stage = "IDEMPOTENCY"
+            )
+        }
+        existingByFolio.singleOrNull()?.let { existing ->
+            return if (matchesOriginalRequest(existing, request)) {
                 AnnualEnrollmentFlowResult.AlreadyCompleted(
-                    enrollmentRecord = existingByFolio
+                    enrollmentRecord = existing
                 )
             } else {
                 AnnualEnrollmentFlowResult.Conflict(

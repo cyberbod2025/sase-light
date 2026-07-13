@@ -26,12 +26,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.data.enrollment.AnnualEnrollmentFlowResult
 import com.example.data.presolicitud.*
 import com.example.ui.*
 import com.example.util.LocalToast
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.CorrectionRequestResult
+import com.example.viewmodel.InstitutionalAnnualEnrollmentResult
 import com.example.viewmodel.OfficialEnrollmentResult
 import com.example.viewmodel.PreApplicationViewModel
 import com.example.viewmodel.ReadinessResult
@@ -985,6 +985,8 @@ private fun OfficialEnrollmentContextualPanel(
         PreApplicationViewModel.suggestInitialGroup(grade, preApp.alumnoSexo, age, preApp.promedioGradoAnterior)
     }
     val officialStudents by PreApplicationViewModel.officialStudents.collectAsState()
+    val enrollmentFlowMode by PreApplicationViewModel.enrollmentFlowMode.collectAsState()
+    val actionPresentation = enrollmentActionPresentation(enrollmentFlowMode)
     var selectedGroup by remember(preApp.folio) { mutableStateOf(officialStudent?.grupoAsignado ?: officialStudent?.grupoSugerido ?: suggestedGroup ?: groupOptions.firstOrNull().orEmpty()) }
     var groupConfirmed by remember(preApp.folio) { mutableStateOf(false) }
     var resultMessage by remember(preApp.folio) { mutableStateOf<String?>(null) }
@@ -1040,7 +1042,7 @@ private fun OfficialEnrollmentContextualPanel(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        if (grade in 1..3) {
+        if (actionPresentation.showLegacyGroupControls && grade in 1..3) {
             SectionHeader("Asignación inicial de grupo")
             DetailRow("Grupo sugerido por balance", suggestedGroup ?: "Sin sugerencia disponible")
             Text("Criterios: sexo, edad y ${PreApplicationViewModel.promedioLabelForGrade(grade).lowercase()}.", color = SaseMuted, fontSize = 9.sp)
@@ -1093,7 +1095,7 @@ private fun OfficialEnrollmentContextualPanel(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (officialStudent == null) {
+        if (actionPresentation.showLegacyStartAction && officialStudent == null) {
             Button(
                 onClick = {
                     val enrollmentResult = PreApplicationViewModel.startOfficialEnrollment(preApp, selectedGroup)
@@ -1109,7 +1111,7 @@ private fun OfficialEnrollmentContextualPanel(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Iniciar alta oficial", fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
-        } else {
+        } else if (actionPresentation.showLegacyConfirmationAction && officialStudent != null) {
             OfficialEnrollmentConfirmation(preApp, officialStudent)
 
             if (officialStudent.status == OfficialStudentStatus.PENDIENTE_ASIGNACION_GRUPO) {
@@ -1139,8 +1141,9 @@ private fun OfficialEnrollmentContextualPanel(
         }
 
         val isProcessingV2 by PreApplicationViewModel.isProcessingAnnualEnrollmentV2.collectAsState()
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
+        if (actionPresentation.showAnnualV2Action) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
             onClick = {
                 scope.launch {
                     PreApplicationViewModel.setProcessingAnnualEnrollmentV2(true)
@@ -1155,12 +1158,14 @@ private fun OfficialEnrollmentContextualPanel(
                             schoolYear = preApp.cicloEscolar,
                             studentFullName = preApp.alumnoNombreCompleto
                         )
-                        resultMessage = buildV2Message(v2Result)
+                        resultMessage = institutionalEnrollmentMessage(v2Result)
                         resultColor = when (v2Result) {
-                            is AnnualEnrollmentFlowResult.Completed,
-                            is AnnualEnrollmentFlowResult.AlreadyCompleted -> SaseGreen
-                            is AnnualEnrollmentFlowResult.NeedsDecision -> SaseBlue
-                            is AnnualEnrollmentFlowResult.Conflict -> SaseOrange
+                            is InstitutionalAnnualEnrollmentResult.Completed,
+                            is InstitutionalAnnualEnrollmentResult.AlreadyCompleted -> SaseGreen
+                            is InstitutionalAnnualEnrollmentResult.NeedsDecision -> SaseBlue
+                            is InstitutionalAnnualEnrollmentResult.GuardRejected,
+                            is InstitutionalAnnualEnrollmentResult.AnnualConflict,
+                            is InstitutionalAnnualEnrollmentResult.SynchronizationIncomplete -> SaseOrange
                         }
                     } finally {
                         PreApplicationViewModel.setProcessingAnnualEnrollmentV2(false)
@@ -1174,7 +1179,7 @@ private fun OfficialEnrollmentContextualPanel(
             ),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
-        ) {
+            ) {
             Icon(
                 if (isProcessingV2) Icons.Default.HourglassEmpty else Icons.Default.AutoAwesome,
                 contentDescription = null,
@@ -1182,44 +1187,17 @@ private fun OfficialEnrollmentContextualPanel(
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                if (isProcessingV2) "Procesando..." else "Procesar con flujo anual nuevo (V2)",
+                if (isProcessingV2) "Procesando..." else actionPresentation.annualV2ActionLabel,
                 fontWeight = FontWeight.Bold,
                 fontSize = 11.sp
             )
+            }
         }
 
         if (resultMessage != null) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(resultMessage ?: "", color = resultColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
-    }
-}
-
-private fun buildV2Message(result: AnnualEnrollmentFlowResult): String = when (result) {
-    is AnnualEnrollmentFlowResult.Completed -> buildString {
-        appendLine("Inscripción anual registrada.")
-        append("Matrícula: ${result.enrollmentId}")
-        appendLine()
-        append("Grupo: pendiente de asignación.")
-    }
-    is AnnualEnrollmentFlowResult.AlreadyCompleted -> buildString {
-        appendLine("Esta inscripción anual ya había sido registrada.")
-        append("No se generaron duplicados.")
-    }
-    is AnnualEnrollmentFlowResult.NeedsDecision -> buildString {
-        appendLine("Inscripción registrada.")
-        if (result.previousGroup != null) {
-            appendLine("Grupo anterior: ${result.previousGroup}.")
-        }
-        if (result.suggestedGroup != null) {
-            appendLine("Sugerencia: ${result.suggestedGroup}.")
-        }
-        append("Decisión pendiente de Secretaría.")
-    }
-    is AnnualEnrollmentFlowResult.Conflict -> buildString {
-        appendLine("No fue posible completar la inscripción.")
-        appendLine("Etapa: ${result.stage}.")
-        append("Motivo: ${result.message}")
     }
 }
 

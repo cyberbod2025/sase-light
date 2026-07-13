@@ -77,6 +77,34 @@ class AnnualEnrollmentFlowCoordinatorTest {
     }
 
     @Test
+    fun multipleAnnualEnrollmentsForCanonicalFolioReturnIntegrityConflict() {
+        MockSaseData.resetForTests()
+        val original = request(
+            curp = "COOR950101HDFABC15",
+            folio = "PRE-COOR-AMBIGUOUS",
+            newStudentId = "MASTER-AMBIGUOUS"
+        )
+        val completed = assertIs<AnnualEnrollmentFlowResult.Completed>(
+            AnnualEnrollmentFlowCoordinator.process(original)
+        )
+        val record = MockSaseData.annualEnrollments.value.single {
+            it.studentId == completed.studentId
+        }
+        MockSaseData.addAnnualEnrollment(record.copy())
+        val studentsBefore = MockSaseData.students.value.toList()
+        val enrollmentsBefore = MockSaseData.annualEnrollments.value.toList()
+
+        val conflict = assertIs<AnnualEnrollmentFlowResult.Conflict>(
+            AnnualEnrollmentFlowCoordinator.process(original.copy(sourcePreApplicationFolio = " pre-coor-ambiguous "))
+        )
+
+        assertEquals("AMBIGUOUS_PRE_APPLICATION_FOLIO", conflict.cause)
+        assertEquals("IDEMPOTENCY", conflict.stage)
+        assertEquals(studentsBefore, MockSaseData.students.value)
+        assertEquals(enrollmentsBefore, MockSaseData.annualEnrollments.value)
+    }
+
+    @Test
     fun newEntryProcessCompleted() {
         MockSaseData.resetForTests()
         val req = request(curp = "COOR100101HDFABC01", folio = "PRE-COOR-NE-001",

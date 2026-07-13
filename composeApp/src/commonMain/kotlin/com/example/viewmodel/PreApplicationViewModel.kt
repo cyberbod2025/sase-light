@@ -9,6 +9,7 @@ import com.example.data.enrollment.AnnualEnrollmentFlowCoordinator
 import com.example.data.enrollment.EnrollmentFlowMode
 import com.example.data.enrollment.AnnualEnrollmentFlowRequest
 import com.example.data.enrollment.AnnualEnrollmentFlowResult
+import com.example.data.enrollment.AnnualEnrollmentRecord
 import com.example.data.enrollment.AnnualEnrollmentPersistenceAdapter
 import com.example.data.enrollment.AnnualEnrollmentPersistenceResult
 import com.example.data.enrollment.AnnualEnrollmentPlanningResult
@@ -21,6 +22,14 @@ import kotlin.random.Random
 
 private const val FAMILY_LOOKUP_ERROR =
     "No fue posible consultar la pre-solicitud con los datos proporcionados."
+
+internal fun interface InstitutionalPreApplicationSynchronizer {
+    fun synchronize(
+        source: PreApplication,
+        readState: () -> List<PreApplication>,
+        compareAndSet: (List<PreApplication>, List<PreApplication>) -> Boolean
+    ): PreApplicationConversionResult
+}
 
 sealed class FamilyPreApplicationLookupResult {
     data class Success(
@@ -313,8 +322,8 @@ class PreApplicationViewModel {
             _enrollmentFlowMode.value = mode
         }
 
-        private val _v2Result = MutableStateFlow<AnnualEnrollmentFlowResult?>(null)
-        val v2Result: StateFlow<AnnualEnrollmentFlowResult?> = _v2Result.asStateFlow()
+        private val _v2Result = MutableStateFlow<InstitutionalAnnualEnrollmentResult?>(null)
+        val v2Result: StateFlow<InstitutionalAnnualEnrollmentResult?> = _v2Result.asStateFlow()
 
         private val _isProcessingAnnualEnrollmentV2 = MutableStateFlow(false)
         val isProcessingAnnualEnrollmentV2: StateFlow<Boolean> = _isProcessingAnnualEnrollmentV2.asStateFlow()
@@ -880,6 +889,18 @@ class PreApplicationViewModel {
 
             val sourcePreApplication = _sharedPreApplications.value.firstOrNull { it.folio == preApp.folio }
                 ?: return OfficialEnrollmentResult.PreApplicationNotFound(preApp.folio)
+            val annualV2Matches = MockSaseData.annualEnrollments.value.filter {
+                it.sourcePreApplicationFolio.trim().uppercase() == sourcePreApplication.folio.trim().uppercase() &&
+                    it.schoolYear.trim() == sourcePreApplication.cicloEscolar.trim()
+            }
+            if (annualV2Matches.size > 1) {
+                return OfficialEnrollmentResult.Error(
+                    "Existen varias anualidades V2 para el mismo folio y ciclo escolar."
+                )
+            }
+            if (annualV2Matches.size == 1) {
+                return OfficialEnrollmentResult.DuplicateFolio(sourcePreApplication.folio)
+            }
             val pendingItems = officialEnrollmentPendingItems(sourcePreApplication)
             if (pendingItems.isNotEmpty()) {
                 return OfficialEnrollmentResult.NotReady(pendingItems)
@@ -1133,11 +1154,34 @@ class PreApplicationViewModel {
             previousGroup: String?,
             schoolYear: String,
             studentFullName: String
-        ): AnnualEnrollmentFlowResult {
-            fun reject(cause: String, message: String, stage: String): AnnualEnrollmentFlowResult {
-                val conflict = AnnualEnrollmentFlowResult.Conflict(cause, message, stage)
-                _v2Result.value = conflict
-                return conflict
+        ): InstitutionalAnnualEnrollmentResult = processAnnualEnrollmentV2WithSynchronizer(
+            declaredMovement = declaredMovement,
+            normalizedCurp = normalizedCurp,
+            folio = folio,
+            requestedGrade = requestedGrade,
+            previousGroup = previousGroup,
+            schoolYear = schoolYear,
+            studentFullName = studentFullName,
+            conversionSynchronizer = InstitutionalPreApplicationSynchronizer(::synchronizePreApplicationConversion)
+        )
+
+        internal fun processAnnualEnrollmentV2WithSynchronizer(
+            declaredMovement: String,
+            normalizedCurp: String,
+            folio: String,
+            requestedGrade: Int,
+            previousGroup: String?,
+            schoolYear: String,
+            studentFullName: String,
+            conversionSynchronizer: InstitutionalPreApplicationSynchronizer
+        ): InstitutionalAnnualEnrollmentResult {
+            fun reject(
+                cause: InstitutionalEnrollmentGuardCause,
+                message: String
+            ): InstitutionalAnnualEnrollmentResult {
+                val rejected = InstitutionalAnnualEnrollmentResult.GuardRejected(cause, message)
+                _v2Result.value = rejected
+                return rejected
             }
 
             val normalizedFolio = folio.trim().uppercase()
@@ -1145,22 +1189,24 @@ class PreApplicationViewModel {
                 it.folio.trim().uppercase() == normalizedFolio
             }
             if (matchingPreApplications.isEmpty()) {
-                return reject("PRE_APPLICATION_NOT_FOUND", "La pre-solicitud no existe en la bandeja institucional.", "READINESS")
+                return reject(
+                    InstitutionalEnrollmentGuardCause.PRE_APPLICATION_NOT_FOUND,
+                    "La pre-solicitud no existe en la bandeja institucional."
+                )
             }
             if (matchingPreApplications.size > 1) {
-                return reject("AMBIGUOUS_FOLIO", "El folio está duplicado en la bandeja institucional.", "READINESS")
+                return reject(
+                    InstitutionalEnrollmentGuardCause.AMBIGUOUS_FOLIO,
+                    "El folio está duplicado en la bandeja institucional."
+                )
             }
 
             val source = matchingPreApplications.single()
             if (source.status != PreApplicationStatus.ACEPTADA) {
-                return reject("NOT_ACCEPTED", "La pre-solicitud debe estar aceptada antes de procesar V2.", "READINESS")
-            }
-            if (source.readinessStatus != ReadinessStatus.READY) {
-                return reject("NOT_READY", "La pre-solicitud debe estar declarada READY antes de procesar V2.", "READINESS")
-            }
-            val pendingItems = officialEnrollmentPendingItems(source)
-            if (pendingItems.isNotEmpty()) {
-                return reject("PENDING_REQUIREMENTS", pendingItems.joinToString("; "), "READINESS")
+                return reject(
+                    InstitutionalEnrollmentGuardCause.NOT_ACCEPTED,
+                    "La pre-solicitud debe estar aceptada antes de procesar V2."
+                )
             }
 
             val sourceMovement = source.tramite.trim().uppercase().replace('Ó', 'O')
@@ -1171,7 +1217,29 @@ class PreApplicationViewModel {
                 schoolYear.trim() != source.cicloEscolar.trim() ||
                 studentFullName.trim() != source.alumnoNombreCompleto.trim()
             ) {
-                return reject("SOURCE_MISMATCH", "Los datos solicitados no coinciden con la pre-solicitud institucional.", "SOURCE")
+                return reject(
+                    InstitutionalEnrollmentGuardCause.SOURCE_MISMATCH,
+                    "Los datos solicitados no coinciden con la pre-solicitud institucional."
+                )
+            }
+
+            val existingAnnualByFolio = MockSaseData.annualEnrollments.value.filter {
+                it.sourcePreApplicationFolio.trim().uppercase() == source.folio.trim().uppercase()
+            }
+            if (existingAnnualByFolio.isEmpty()) {
+                if (source.readinessStatus != ReadinessStatus.READY) {
+                    return reject(
+                        InstitutionalEnrollmentGuardCause.NOT_READY,
+                        "La pre-solicitud debe estar declarada READY antes de procesar V2."
+                    )
+                }
+                val pendingItems = officialEnrollmentPendingItems(source)
+                if (pendingItems.isNotEmpty()) {
+                    return reject(
+                        InstitutionalEnrollmentGuardCause.PENDING_REQUIREMENTS,
+                        pendingItems.joinToString("; ")
+                    )
+                }
             }
 
             val canonicalPreviousGroup = masterStudentByCurp(source.alumnoCurp)?.group?.takeIf { it.isNotBlank() }
@@ -1190,9 +1258,98 @@ class PreApplicationViewModel {
                 actor = "Secretaría",
                 occurredAt = "HOY ${com.example.formatTimestamp("hh:mm a")}"
             )
-            val result = AnnualEnrollmentFlowCoordinator.process(request)
-            _v2Result.value = result
-            return result
+            val annualResult = AnnualEnrollmentFlowCoordinator.process(request)
+            val institutionalResult = when (annualResult) {
+                is AnnualEnrollmentFlowResult.Conflict ->
+                    InstitutionalAnnualEnrollmentResult.AnnualConflict(annualResult)
+                is AnnualEnrollmentFlowResult.AlreadyCompleted -> {
+                    val live = _sharedPreApplications.value.filter {
+                        it.folio.trim().uppercase() == source.folio.trim().uppercase()
+                    }
+                    if (live.size == 1 && live.single().readinessStatus == ReadinessStatus.CONVERTED) {
+                        InstitutionalAnnualEnrollmentResult.AlreadyCompleted(annualResult)
+                    } else {
+                        InstitutionalAnnualEnrollmentResult.SynchronizationIncomplete(
+                            annualResult = annualResult,
+                            annualEnrollment = annualResult.enrollmentRecord,
+                            cause = if (live.size == 1 && live.single().readinessStatus == ReadinessStatus.READY) {
+                                PreApplicationSynchronizationCause.PREVIOUSLY_UNSYNCHRONIZED
+                            } else {
+                                synchronizationCauseFor(live, source)
+                            },
+                            message = "La anualidad existe, pero la pre-solicitud no está sincronizada como CONVERTED."
+                        )
+                    }
+                }
+                is AnnualEnrollmentFlowResult.Completed ->
+                    synchronizeAnnualResult(source, annualResult, conversionSynchronizer)
+                is AnnualEnrollmentFlowResult.NeedsDecision ->
+                    synchronizeAnnualResult(source, annualResult, conversionSynchronizer)
+            }
+            _v2Result.value = institutionalResult
+            return institutionalResult
+        }
+
+        private fun synchronizeAnnualResult(
+            source: PreApplication,
+            annualResult: AnnualEnrollmentFlowResult,
+            conversionSynchronizer: InstitutionalPreApplicationSynchronizer
+        ): InstitutionalAnnualEnrollmentResult {
+            val synchronization = conversionSynchronizer.synchronize(
+                source = source,
+                readState = { _sharedPreApplications.value },
+                compareAndSet = { expected, updated ->
+                    _sharedPreApplications.compareAndSet(expected, updated)
+                }
+            )
+            return when (synchronization) {
+                is PreApplicationConversionResult.Converted,
+                is PreApplicationConversionResult.AlreadyConverted -> when (annualResult) {
+                    is AnnualEnrollmentFlowResult.Completed ->
+                        InstitutionalAnnualEnrollmentResult.Completed(annualResult)
+                    is AnnualEnrollmentFlowResult.NeedsDecision ->
+                        InstitutionalAnnualEnrollmentResult.NeedsDecision(annualResult)
+                    else -> error("Resultado anual no sincronizable: $annualResult")
+                }
+                is PreApplicationConversionResult.Incomplete ->
+                    InstitutionalAnnualEnrollmentResult.SynchronizationIncomplete(
+                        annualResult = annualResult,
+                        annualEnrollment = annualEnrollmentFor(annualResult),
+                        cause = synchronization.cause,
+                        message = "La anualidad fue persistida, pero la pre-solicitud no pudo sincronizarse."
+                    )
+            }
+        }
+
+        private fun annualEnrollmentFor(result: AnnualEnrollmentFlowResult): AnnualEnrollmentRecord? {
+            val folio = when (result) {
+                is AnnualEnrollmentFlowResult.Completed -> result.folio
+                is AnnualEnrollmentFlowResult.NeedsDecision -> result.folio
+                is AnnualEnrollmentFlowResult.AlreadyCompleted -> result.enrollmentRecord.sourcePreApplicationFolio
+                is AnnualEnrollmentFlowResult.Conflict -> return null
+            }
+            return MockSaseData.annualEnrollments.value.singleOrNull {
+                it.sourcePreApplicationFolio.trim().uppercase() == folio.trim().uppercase()
+            }
+        }
+
+        private fun synchronizationCauseFor(
+            live: List<PreApplication>,
+            source: PreApplication
+        ): PreApplicationSynchronizationCause = when {
+            live.isEmpty() -> PreApplicationSynchronizationCause.PRE_APPLICATION_NOT_FOUND
+            live.size > 1 -> PreApplicationSynchronizationCause.AMBIGUOUS_FOLIO
+            live.single().status != PreApplicationStatus.ACEPTADA ->
+                PreApplicationSynchronizationCause.STATUS_CHANGED
+            live.single().alumnoCurp.filterNot(Char::isWhitespace).uppercase() !=
+                source.alumnoCurp.filterNot(Char::isWhitespace).uppercase() ||
+                live.single().alumnoNombreCompleto.trim() != source.alumnoNombreCompleto.trim() ||
+                live.single().cicloEscolar.trim() != source.cicloEscolar.trim() ||
+                live.single().gradoSolicitado != source.gradoSolicitado ||
+                live.single().tramite.trim().uppercase().replace('Ó', 'O') !=
+                source.tramite.trim().uppercase().replace('Ó', 'O') ->
+                PreApplicationSynchronizationCause.IDENTITY_CHANGED
+            else -> PreApplicationSynchronizationCause.READINESS_CHANGED
         }
     }
 

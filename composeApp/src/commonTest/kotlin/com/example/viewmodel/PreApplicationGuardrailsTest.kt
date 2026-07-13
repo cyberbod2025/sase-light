@@ -12,7 +12,13 @@ import com.example.data.presolicitud.DocumentoDeclarado
 import com.example.data.presolicitud.FichaMedicaFamiliar
 import com.example.data.presolicitud.PersonaTramite
 import com.example.data.presolicitud.OfficialStudentStatus
+import com.example.data.enrollment.AnnualEnrollmentFlowCoordinator
+import com.example.data.enrollment.AnnualEnrollmentFlowRequest
 import com.example.data.enrollment.AnnualEnrollmentFlowResult
+import com.example.data.enrollment.AnnualEnrollmentInitialStatus
+import com.example.data.enrollment.AnnualEnrollmentMovement
+import com.example.data.enrollment.AnnualEnrollmentRecord
+import com.example.data.enrollment.GroupPlacementRequirement
 import com.example.data.presolicitud.PreApplication
 import com.example.data.presolicitud.PreApplicationStatus
 import com.example.data.presolicitud.ReadinessStatus
@@ -1369,7 +1375,7 @@ class PreApplicationGuardrailsTest {
         val studentsBefore = MockSaseData.students.value.toList()
         val enrollmentsBefore = MockSaseData.annualEnrollments.value.toList()
 
-        val conflict = assertIs<AnnualEnrollmentFlowResult.Conflict>(
+        val rejected = assertIs<InstitutionalAnnualEnrollmentResult.GuardRejected>(
             PreApplicationViewModel.processAnnualEnrollmentV2(
                 declaredMovement = preApp.tramite,
                 normalizedCurp = preApp.alumnoCurp,
@@ -1381,8 +1387,7 @@ class PreApplicationGuardrailsTest {
             )
         )
 
-        assertEquals("READINESS", conflict.stage)
-        assertEquals("NOT_READY", conflict.cause)
+        assertEquals(InstitutionalEnrollmentGuardCause.NOT_READY, rejected.cause)
         assertEquals(studentsBefore, MockSaseData.students.value)
         assertEquals(enrollmentsBefore, MockSaseData.annualEnrollments.value)
     }
@@ -1393,7 +1398,7 @@ class PreApplicationGuardrailsTest {
         val studentsBefore = MockSaseData.students.value.toList()
         val enrollmentsBefore = MockSaseData.annualEnrollments.value.toList()
 
-        val conflict = assertIs<AnnualEnrollmentFlowResult.Conflict>(
+        val rejected = assertIs<InstitutionalAnnualEnrollmentResult.GuardRejected>(
             PreApplicationViewModel.processAnnualEnrollmentV2(
                 declaredMovement = preApp.tramite,
                 normalizedCurp = preApp.alumnoCurp,
@@ -1405,7 +1410,7 @@ class PreApplicationGuardrailsTest {
             )
         )
 
-        assertEquals("PRE_APPLICATION_NOT_FOUND", conflict.cause)
+        assertEquals(InstitutionalEnrollmentGuardCause.PRE_APPLICATION_NOT_FOUND, rejected.cause)
         assertEquals(studentsBefore, MockSaseData.students.value)
         assertEquals(enrollmentsBefore, MockSaseData.annualEnrollments.value)
     }
@@ -1423,10 +1428,14 @@ class PreApplicationGuardrailsTest {
             schoolYear = preApp.cicloEscolar,
             studentFullName = preApp.alumnoNombreCompleto
         )
-        val completed = assertIs<AnnualEnrollmentFlowResult.Completed>(result)
+        val completed = assertIs<InstitutionalAnnualEnrollmentResult.Completed>(result).annualResult
         assertTrue(completed.enrollmentId.startsWith("S310-"), "V2 debe usar formato S310-*")
         assertTrue(completed.enrollmentId.matches(Regex("S310-\\d{6}-\\d$")), "Formato consecutivo")
         assertTrue(MockSaseData.annualEnrollments.value.any { it.studentId?.contains("V2") == true })
+        val converted = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == preApp.folio }
+        assertEquals(ReadinessStatus.CONVERTED, converted.readinessStatus)
+        assertEquals(preApp.readyAt, converted.readyAt)
+        assertEquals(preApp.readinessNotes, converted.readinessNotes)
     }
 
     @Test
@@ -1451,7 +1460,7 @@ class PreApplicationGuardrailsTest {
     fun v2NewEntryUsesCanonicalFolioForDeterministicStudentId() {
         val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2CANON")))
 
-        val completed = assertIs<AnnualEnrollmentFlowResult.Completed>(
+        val completed = assertIs<InstitutionalAnnualEnrollmentResult.Completed>(
             PreApplicationViewModel.processAnnualEnrollmentV2(
                 declaredMovement = preApp.tramite,
                 normalizedCurp = preApp.alumnoCurp,
@@ -1461,7 +1470,7 @@ class PreApplicationGuardrailsTest {
                 schoolYear = preApp.cicloEscolar,
                 studentFullName = preApp.alumnoNombreCompleto
             )
-        )
+        ).annualResult
 
         assertEquals("MASTER-V2-${preApp.folio.trim().uppercase()}", completed.studentId)
     }
@@ -1495,10 +1504,17 @@ class PreApplicationGuardrailsTest {
             schoolYear = preApp.cicloEscolar,
             studentFullName = preApp.alumnoNombreCompleto
         )
-        val needsDecision = assertIs<AnnualEnrollmentFlowResult.NeedsDecision>(result)
+        val needsDecision = assertIs<InstitutionalAnnualEnrollmentResult.NeedsDecision>(result).annualResult
         assertEquals("S310-000001-1", needsDecision.enrollmentId)
         assertEquals("1A", needsDecision.previousGroup)
         assertEquals("2A", needsDecision.suggestedGroup)
+        assertEquals(
+            ReadinessStatus.CONVERTED,
+            PreApplicationViewModel.sharedPreApplications.value.single { it.folio == preApp.folio }.readinessStatus
+        )
+        val converted = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == preApp.folio }
+        assertEquals(preApp.readyAt, converted.readyAt)
+        assertEquals(preApp.readinessNotes, converted.readinessNotes)
     }
 
     @Test
@@ -1515,8 +1531,20 @@ class PreApplicationGuardrailsTest {
             schoolYear = preApp.cicloEscolar,
             studentFullName = preApp.alumnoNombreCompleto
         )
-        assertIs<AnnualEnrollmentFlowResult.Completed>(first)
-        val enrollmentCount = MockSaseData.annualEnrollments.value.size
+        val firstCompleted = assertIs<InstitutionalAnnualEnrollmentResult.Completed>(first)
+        val studentsBefore = MockSaseData.students.value.toList()
+        val preApplicationsBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
+        val annualEnrollmentsBefore = MockSaseData.annualEnrollments.value.toList()
+        val auditsBefore = MockSaseData.audits.value.toList()
+        val studentBefore = studentsBefore.single { it.id == firstCompleted.annualResult.studentId }
+        val annualEnrollmentBefore = annualEnrollmentsBefore.single {
+            it.sourcePreApplicationFolio == folio
+        }
+        val matriculaBefore = studentBefore.enrollmentId
+        val convertedBefore = preApplicationsBefore.single { it.folio == folio }
+        val readyAtBefore = convertedBefore.readyAt
+        val readinessNotesBefore = convertedBefore.readinessNotes
+
         val second = PreApplicationViewModel.processAnnualEnrollmentV2(
             declaredMovement = preApp.tramite,
             normalizedCurp = preApp.alumnoCurp,
@@ -1526,8 +1554,233 @@ class PreApplicationGuardrailsTest {
             schoolYear = preApp.cicloEscolar,
             studentFullName = preApp.alumnoNombreCompleto
         )
-        assertIs<AnnualEnrollmentFlowResult.AlreadyCompleted>(second)
-        assertEquals(enrollmentCount, MockSaseData.annualEnrollments.value.size)
+        val replay = assertIs<InstitutionalAnnualEnrollmentResult.AlreadyCompleted>(second)
+        val studentsAfter = MockSaseData.students.value.toList()
+        val preApplicationsAfter = PreApplicationViewModel.sharedPreApplications.value.toList()
+        val annualEnrollmentsAfter = MockSaseData.annualEnrollments.value.toList()
+        val auditsAfter = MockSaseData.audits.value.toList()
+        val studentAfter = studentsAfter.single { it.id == firstCompleted.annualResult.studentId }
+        val annualEnrollmentAfter = annualEnrollmentsAfter.single {
+            it.sourcePreApplicationFolio == folio
+        }
+        val convertedAfter = preApplicationsAfter.single { it.folio == folio }
+
+        assertEquals(studentsBefore, studentsAfter)
+        assertEquals(preApplicationsBefore, preApplicationsAfter)
+        assertEquals(annualEnrollmentsBefore, annualEnrollmentsAfter)
+        assertEquals(auditsBefore, auditsAfter)
+        assertEquals(studentBefore, studentAfter)
+        assertEquals(convertedBefore, convertedAfter)
+        assertEquals(studentBefore.id, studentAfter.id)
+        assertEquals(matriculaBefore, studentAfter.enrollmentId)
+        assertEquals(matriculaBefore, annualEnrollmentAfter.permanentEnrollmentId)
+        assertEquals(annualEnrollmentBefore, annualEnrollmentAfter)
+        assertEquals(readyAtBefore, convertedAfter.readyAt)
+        assertEquals(readinessNotesBefore, convertedAfter.readinessNotes)
+        assertEquals(annualEnrollmentBefore, replay.annualResult.enrollmentRecord)
+    }
+
+    @Test
+    fun alreadyCompletedWithReadyPreApplicationReportsPreviousInconsistencyWithoutRepair() {
+        val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2UNSYNC")))
+        val annualResult = assertIs<AnnualEnrollmentFlowResult.Completed>(
+            AnnualEnrollmentFlowCoordinator.process(
+                AnnualEnrollmentFlowRequest(
+                    declaredMovement = preApp.tramite,
+                    normalizedCurp = preApp.alumnoCurp,
+                    sourcePreApplicationFolio = preApp.folio,
+                    requestedGrade = preApp.gradoSolicitado,
+                    previousGroup = null,
+                    schoolYear = preApp.cicloEscolar,
+                    newStudentId = "MASTER-V2-${preApp.folio.trim().uppercase()}",
+                    studentFullName = preApp.alumnoNombreCompleto,
+                    actor = "Secretaría",
+                    occurredAt = "HOY 12:00"
+                )
+            )
+        )
+        val studentsBefore = MockSaseData.students.value.toList()
+        val preApplicationsBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
+        val annualEnrollmentsBefore = MockSaseData.annualEnrollments.value.toList()
+        val auditsBefore = MockSaseData.audits.value.toList()
+        val studentBefore = studentsBefore.single { it.id == annualResult.studentId }
+        val annualEnrollmentBefore = annualEnrollmentsBefore.single {
+            it.sourcePreApplicationFolio == preApp.folio
+        }
+        val matriculaBefore = studentBefore.enrollmentId
+        val readyPreApplicationBefore = preApplicationsBefore.single { it.folio == preApp.folio }
+        val readyAtBefore = readyPreApplicationBefore.readyAt
+        val readinessNotesBefore = readyPreApplicationBefore.readinessNotes
+        var synchronizationCalls = 0
+
+        val result = PreApplicationViewModel.processAnnualEnrollmentV2WithSynchronizer(
+            declaredMovement = preApp.tramite,
+            normalizedCurp = preApp.alumnoCurp,
+            folio = preApp.folio,
+            requestedGrade = preApp.gradoSolicitado,
+            previousGroup = null,
+            schoolYear = preApp.cicloEscolar,
+            studentFullName = preApp.alumnoNombreCompleto,
+            conversionSynchronizer = InstitutionalPreApplicationSynchronizer { _, _, _ ->
+                synchronizationCalls += 1
+                error("El sincronizador CAS no debía invocarse")
+            }
+        )
+
+        val incomplete = assertIs<InstitutionalAnnualEnrollmentResult.SynchronizationIncomplete>(result)
+        assertEquals(PreApplicationSynchronizationCause.PREVIOUSLY_UNSYNCHRONIZED, incomplete.cause)
+        val studentsAfter = MockSaseData.students.value.toList()
+        val preApplicationsAfter = PreApplicationViewModel.sharedPreApplications.value.toList()
+        val annualEnrollmentsAfter = MockSaseData.annualEnrollments.value.toList()
+        val auditsAfter = MockSaseData.audits.value.toList()
+        val studentAfter = studentsAfter.single { it.id == annualResult.studentId }
+        val annualEnrollmentAfter = annualEnrollmentsAfter.single {
+            it.sourcePreApplicationFolio == preApp.folio
+        }
+        val readyPreApplicationAfter = preApplicationsAfter.single { it.folio == preApp.folio }
+
+        assertEquals(studentsBefore, studentsAfter)
+        assertEquals(preApplicationsBefore, preApplicationsAfter)
+        assertEquals(annualEnrollmentsBefore, annualEnrollmentsAfter)
+        assertEquals(auditsBefore, auditsAfter)
+        assertEquals(studentBefore, studentAfter)
+        assertEquals(annualEnrollmentBefore, annualEnrollmentAfter)
+        assertEquals(matriculaBefore, studentAfter.enrollmentId)
+        assertEquals(matriculaBefore, annualEnrollmentAfter.permanentEnrollmentId)
+        assertEquals(readyAtBefore, readyPreApplicationAfter.readyAt)
+        assertEquals(readinessNotesBefore, readyPreApplicationAfter.readinessNotes)
+        assertEquals(ReadinessStatus.READY, readyPreApplicationAfter.readinessStatus)
+        assertEquals(annualEnrollmentBefore, incomplete.annualEnrollment)
+        assertEquals(0, synchronizationCalls)
+
+        // v2Result may publish the UI outcome, but no institutional domain store changes.
+    }
+
+    @Test
+    fun completedAnnualEnrollmentInvokesInjectedSynchronizerExactlyOnce() {
+        val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2SYNCSPY")))
+        var synchronizationCalls = 0
+
+        val result = PreApplicationViewModel.processAnnualEnrollmentV2WithSynchronizer(
+            declaredMovement = preApp.tramite,
+            normalizedCurp = preApp.alumnoCurp,
+            folio = preApp.folio,
+            requestedGrade = preApp.gradoSolicitado,
+            previousGroup = null,
+            schoolYear = preApp.cicloEscolar,
+            studentFullName = preApp.alumnoNombreCompleto,
+            conversionSynchronizer = InstitutionalPreApplicationSynchronizer { source, readState, compareAndSet ->
+                synchronizationCalls += 1
+                synchronizePreApplicationConversion(source, readState, compareAndSet)
+            }
+        )
+
+        assertIs<InstitutionalAnnualEnrollmentResult.Completed>(result)
+        assertEquals(1, synchronizationCalls)
+        assertEquals(
+            ReadinessStatus.CONVERTED,
+            PreApplicationViewModel.sharedPreApplications.value.single { it.folio == preApp.folio }.readinessStatus
+        )
+    }
+
+    @Test
+    fun contradictoryAnnualRecordRemainsAnnualConflictAndDoesNotSynchronizePreApplication() {
+        val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2ANNCON")))
+        MockSaseData.addAnnualEnrollment(
+            AnnualEnrollmentRecord(
+                studentId = "CONTRADICTORY-STUDENT",
+                normalizedCurp = preApp.alumnoCurp,
+                permanentEnrollmentId = "S310-000097-7",
+                schoolYear = preApp.cicloEscolar,
+                sourcePreApplicationFolio = preApp.folio,
+                movement = AnnualEnrollmentMovement.NEW_ENTRY,
+                requestedGrade = preApp.gradoSolicitado + 1,
+                groupPlacementRequirement = GroupPlacementRequirement.AssignmentRequired,
+                status = AnnualEnrollmentInitialStatus.PENDING_GROUP_ASSIGNMENT
+            )
+        )
+        val preApplicationsBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
+        val enrollmentsBefore = MockSaseData.annualEnrollments.value.toList()
+
+        val result = PreApplicationViewModel.processAnnualEnrollmentV2(
+            declaredMovement = preApp.tramite,
+            normalizedCurp = preApp.alumnoCurp,
+            folio = preApp.folio,
+            requestedGrade = preApp.gradoSolicitado,
+            previousGroup = null,
+            schoolYear = preApp.cicloEscolar,
+            studentFullName = preApp.alumnoNombreCompleto
+        )
+
+        val conflict = assertIs<InstitutionalAnnualEnrollmentResult.AnnualConflict>(result)
+        assertEquals("PRE_APPLICATION_FOLIO_REUSED_WITH_DIFFERENT_DATA", conflict.annualResult.cause)
+        assertEquals(preApplicationsBefore, PreApplicationViewModel.sharedPreApplications.value)
+        assertEquals(enrollmentsBefore, MockSaseData.annualEnrollments.value)
+    }
+
+    @Test
+    fun legacyBlocksExactV2FolioAndSchoolYear() {
+        val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2LEGB")))
+        assertIs<InstitutionalAnnualEnrollmentResult.Completed>(
+            PreApplicationViewModel.processAnnualEnrollmentV2(
+                declaredMovement = preApp.tramite,
+                normalizedCurp = preApp.alumnoCurp,
+                folio = preApp.folio,
+                requestedGrade = preApp.gradoSolicitado,
+                previousGroup = null,
+                schoolYear = preApp.cicloEscolar,
+                studentFullName = preApp.alumnoNombreCompleto
+            )
+        )
+
+        assertIs<OfficialEnrollmentResult.DuplicateFolio>(
+            PreApplicationViewModel.startOfficialEnrollment(preApp, selectedGroup = "1A")
+        )
+    }
+
+    @Test
+    fun legacyDoesNotBlockHistoricalAnnualEnrollmentFromDifferentSchoolYear() {
+        val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2HIST")))
+        MockSaseData.addAnnualEnrollment(
+            AnnualEnrollmentRecord(
+                studentId = "HISTORICAL-STUDENT",
+                normalizedCurp = "HIST100101HDFABC01",
+                permanentEnrollmentId = "S310-000099-9",
+                schoolYear = "2025-2026",
+                sourcePreApplicationFolio = preApp.folio,
+                movement = AnnualEnrollmentMovement.NEW_ENTRY,
+                requestedGrade = 1,
+                groupPlacementRequirement = GroupPlacementRequirement.AssignmentRequired,
+                status = AnnualEnrollmentInitialStatus.PENDING_GROUP_ASSIGNMENT
+            )
+        )
+
+        assertIs<OfficialEnrollmentResult.Success>(
+            PreApplicationViewModel.startOfficialEnrollment(preApp, selectedGroup = "1A")
+        )
+    }
+
+    @Test
+    fun legacyReportsIntegrityErrorForMultipleExactV2Matches() {
+        val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2LEGA")))
+        val record = AnnualEnrollmentRecord(
+            studentId = "AMBIGUOUS-STUDENT",
+            normalizedCurp = preApp.alumnoCurp,
+            permanentEnrollmentId = "S310-000098-8",
+            schoolYear = preApp.cicloEscolar,
+            sourcePreApplicationFolio = preApp.folio,
+            movement = AnnualEnrollmentMovement.NEW_ENTRY,
+            requestedGrade = preApp.gradoSolicitado,
+            groupPlacementRequirement = GroupPlacementRequirement.AssignmentRequired,
+            status = AnnualEnrollmentInitialStatus.PENDING_GROUP_ASSIGNMENT
+        )
+        MockSaseData.addAnnualEnrollment(record)
+        MockSaseData.addAnnualEnrollment(record.copy())
+
+        val error = assertIs<OfficialEnrollmentResult.Error>(
+            PreApplicationViewModel.startOfficialEnrollment(preApp, selectedGroup = "1A")
+        )
+        assertTrue(error.message.contains("varias anualidades V2"))
     }
 
     @Test
@@ -1545,8 +1798,8 @@ class PreApplicationGuardrailsTest {
             schoolYear = preApp.cicloEscolar,
             studentFullName = preApp.alumnoNombreCompleto
         )
-        val conflict = assertIs<AnnualEnrollmentFlowResult.Conflict>(result)
-        assertTrue(conflict.stage.isNotBlank(), "Conflicto debe indicar etapa")
+        val rejected = assertIs<InstitutionalAnnualEnrollmentResult.GuardRejected>(result)
+        assertEquals(InstitutionalEnrollmentGuardCause.SOURCE_MISMATCH, rejected.cause)
         assertEquals(studentCount, MockSaseData.students.value.size)
         assertEquals(enrollmentCount, MockSaseData.annualEnrollments.value.size)
     }
