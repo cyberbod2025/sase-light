@@ -41,6 +41,7 @@ import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
 import com.example.viewmodel.AppRole
 import com.example.viewmodel.PreApplicationViewModel
+import com.example.viewmodel.enrollmentValidationDestination
 import com.example.ui.presolicitud.SecretariaPreApplicationDashboardScreen
 import com.example.ui.presolicitud.SectionHeader
 import com.example.ui.presolicitud.DetailRow
@@ -623,7 +624,8 @@ fun ActivityAuditFeed(
 // THE DASHBOARD SCREEN
 @Composable
 fun SecretaryDashboardScreen(
-    viewModel: LabViewModel
+    viewModel: LabViewModel,
+    recordsOnly: Boolean = false
 ) {
     val toast = LocalToast.current
     val students by viewModel.saseStudents.collectAsState()
@@ -660,8 +662,17 @@ fun SecretaryDashboardScreen(
                             Spacer(modifier = Modifier.width(4.dp))
                         }
                         Column {
-                            Text("Secretaría", fontWeight = FontWeight.ExtraBold, fontSize = if (isMobile) 20.sp else 24.sp, color = SaseNavy)
-                            Text("Gestión institucional y matrícula escolar", fontSize = if (isMobile) 11.sp else 12.sp, color = SaseMuted)
+                            Text(
+                                if (recordsOnly) "Expedientes" else "Secretaría",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = if (isMobile) 20.sp else 24.sp,
+                                color = SaseNavy
+                            )
+                            Text(
+                                if (recordsOnly) "Listado y consulta de expedientes escolares" else "Gestión institucional y matrícula escolar",
+                                fontSize = if (isMobile) 11.sp else 12.sp,
+                                color = SaseMuted
+                            )
                         }
                     }
 
@@ -687,6 +698,7 @@ fun SecretaryDashboardScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                if (!recordsOnly) {
                 // Quick Actions row (max 3)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -730,7 +742,7 @@ fun SecretaryDashboardScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Button(
-                    onClick = { viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard) },
+                    onClick = { viewModel.navigateTo(enrollmentValidationDestination()) },
                     colors = ButtonDefaults.buttonColors(containerColor = SaseGreen, contentColor = Color.White),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth().height(44.dp)
@@ -749,6 +761,7 @@ fun SecretaryDashboardScreen(
                 EnrollmentCharts(students = students)
 
                 Spacer(modifier = Modifier.height(16.dp))
+                }
 
                 SmartEnrollmentTable(
                     students = students,
@@ -763,14 +776,7 @@ fun SecretaryDashboardScreen(
         var sidebarCollapsed by remember { mutableStateOf(false) }
 
         val navigateFromSidebarDash: (String) -> Unit = { item ->
-            when (item) {
-                "Inicio", "Expedientes" -> viewModel.navigateTo(Screen.SecretaryDashboard)
-                "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
-                "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
-                "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
-                "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
-                "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
-            }
+            viewModel.navigateFromSecretarySidebar(item)
         }
 
         if (isMobile) {
@@ -782,7 +788,7 @@ fun SecretaryDashboardScreen(
                         modifier = Modifier.width(280.dp)
                     ) {
                         SaseSidebar(
-                            activeItem = "Inicio",
+                            activeItem = if (recordsOnly) "Expedientes" else "Inicio",
                             modifier = Modifier.fillMaxHeight(),
                             collapsed = false,
                             onItemClick = { item ->
@@ -798,7 +804,7 @@ fun SecretaryDashboardScreen(
         } else {
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
-                    activeItem = "Inicio",
+                    activeItem = if (recordsOnly) "Expedientes" else "Inicio",
                     collapsed = sidebarCollapsed,
                     onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
                     modifier = Modifier.fillMaxHeight(),
@@ -1178,14 +1184,7 @@ fun EnrollmentDashboardScreen(
         val scope = rememberCoroutineScope()
 
         val navigateFromSidebar: (String) -> Unit = { item ->
-            when (item) {
-                "Inicio", "Expedientes" -> viewModel.navigateTo(Screen.SecretaryDashboard)
-                "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
-                "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
-                "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
-                "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
-                "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
-            }
+            viewModel.navigateFromSecretarySidebar(item)
         }
 
         val enrollmentContent = @Composable {
@@ -1308,6 +1307,10 @@ fun SaseAppContent(viewModel: LabViewModel) {
                         is Screen.SecretaryDashboard -> SecretaryDashboardScreen(
                             viewModel = viewModel
                         )
+                        is Screen.StudentRecordsDashboard -> SecretaryDashboardScreen(
+                            viewModel = viewModel,
+                            recordsOnly = true
+                        )
                         is Screen.StudentRecord -> StudentRecordScreen(
                             studentId = screen.studentId,
                             institutionalKey = screen.institutionalKey,
@@ -1399,14 +1402,7 @@ fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
         val scope = rememberCoroutineScope()
 
         val navigateFromSidebar: (String) -> Unit = { item ->
-            when (item) {
-                "Inicio", "Expedientes" -> viewModel.navigateTo(Screen.SecretaryDashboard)
-                "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
-                "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
-                "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
-                "Altas Oficiales" -> {}
-                "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
-            }
+            viewModel.navigateFromSecretarySidebar(item)
         }
 
         val content = @Composable {

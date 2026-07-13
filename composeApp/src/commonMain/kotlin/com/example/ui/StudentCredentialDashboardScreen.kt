@@ -34,10 +34,17 @@ import com.example.viewmodel.Screen
 
 private val credentialOfficialEnrollmentPattern = Regex("^S310-[A-Z0-9]{10}-\\d{2}$")
 
+internal fun officialCredentialEnrollment(official: OfficialStudent): String? =
+    official.matriculaOficial?.takeIf {
+        official.status == OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO &&
+            it.matches(credentialOfficialEnrollmentPattern)
+    }
+
+internal fun credentialEligibleStudents(students: List<OfficialStudent>): List<OfficialStudent> =
+    students.filter { officialCredentialEnrollment(it) != null }
+
 private fun visibleCredentialEnrollment(official: OfficialStudent): String =
-    official.matriculaOficial
-        ?.takeIf { official.status == OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO && it.matches(credentialOfficialEnrollmentPattern) }
-        ?: "Por asignar"
+    officialCredentialEnrollment(official) ?: "Por asignar"
 
 @Composable
 fun StudentCredentialDashboardScreen(viewModel: LabViewModel) {
@@ -45,13 +52,7 @@ fun StudentCredentialDashboardScreen(viewModel: LabViewModel) {
     val masterStudents by viewModel.saseStudents.collectAsState()
     var selectedId by remember { mutableStateOf<String?>(null) }
 
-    val graduated = remember(officialStudents) {
-        officialStudents.filter { it.status in listOf(
-            OfficialStudentStatus.ALTA_OFICIAL_SIN_GRUPO,
-            OfficialStudentStatus.PENDIENTE_ASIGNACION_GRUPO,
-            OfficialStudentStatus.ALTA_OFICIAL_CON_GRUPO
-        ) }
-    }
+    val graduated = remember(officialStudents) { credentialEligibleStudents(officialStudents) }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize().background(SaseBgSoft)) {
         val isMobile = maxWidth < 850.dp
@@ -98,14 +99,7 @@ fun StudentCredentialDashboardScreen(viewModel: LabViewModel) {
                     onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
                     modifier = Modifier.fillMaxHeight(),
                     onItemClick = { item ->
-                        when (item) {
-                            "Inicio", "Expedientes" -> viewModel.navigateTo(Screen.SecretaryDashboard)
-                            "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
-                            "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
-                            "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
-                            "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
-                            "Credenciales" -> {}
-                        }
+                        viewModel.navigateFromSecretarySidebar(item)
                     }
                 )
                 Box(modifier = Modifier.weight(1f).fillMaxHeight()) { content() }

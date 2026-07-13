@@ -6,6 +6,7 @@ import com.example.data.enrollment.AnnualEnrollmentMovement
 import com.example.data.enrollment.AnnualEnrollmentRecord
 import com.example.data.enrollment.EnrollmentFlowMode
 import com.example.data.enrollment.GroupPlacementRequirement
+import com.example.data.presolicitud.ReadinessStatus
 import com.example.viewmodel.InstitutionalAnnualEnrollmentResult
 import com.example.viewmodel.InstitutionalEnrollmentGuardCause
 import com.example.viewmodel.PreApplicationSynchronizationCause
@@ -235,6 +236,76 @@ class EnrollmentActionPresentationTest {
                 completedResult().copy(annualResult = annualResult.copy(enrollmentId = ""))
             )
         )
+    }
+
+    @Test
+    fun completedDoesNotShowProcessAnnualEnrollmentAction() {
+        val presentation = institutionalEnrollmentPanelPresentation(
+            ReadinessStatus.CONVERTED,
+            completedResult()
+        )
+
+        assertTrue(presentation.isCompleted)
+        assertFalse(presentation.showProcessAction)
+    }
+
+    @Test
+    fun alreadyCompletedDoesNotShowInitialPanel() {
+        val presentation = institutionalEnrollmentPanelPresentation(
+            ReadinessStatus.CONVERTED,
+            InstitutionalAnnualEnrollmentResult.AlreadyCompleted(
+                AnnualEnrollmentFlowResult.AlreadyCompleted(annualEnrollmentRecord())
+            )
+        )
+
+        assertEquals(InstitutionalEnrollmentPanelState.COMPLETED, presentation.state)
+        assertFalse(presentation.showInitialGuidance)
+    }
+
+    @Test
+    fun needsDecisionKeepsOnlyPendingFollowUpActions() {
+        val result = InstitutionalAnnualEnrollmentResult.NeedsDecision(
+            AnnualEnrollmentFlowResult.NeedsDecision(
+                studentId = "MASTER-V2-PRE-TEST",
+                enrollmentId = "S310-000001-1",
+                schoolYear = "2026-2027",
+                folio = "PRE-TEST",
+                previousGroup = "1A",
+                suggestedGroup = "2A",
+                reason = "Pendiente"
+            )
+        )
+        val presentation = institutionalEnrollmentPanelPresentation(ReadinessStatus.CONVERTED, result)
+
+        assertEquals(InstitutionalEnrollmentPanelState.NEEDS_DECISION, presentation.state)
+        assertFalse(presentation.isCompleted)
+        assertFalse(presentation.showInitialGuidance)
+        assertFalse(presentation.showProcessAction)
+        assertNotNull(institutionalEnrollmentRecordAction(result))
+    }
+
+    @Test
+    fun guardRejectedNeverLooksCompleted() {
+        val presentation = institutionalEnrollmentPanelPresentation(
+            ReadinessStatus.CONVERTED,
+            InstitutionalAnnualEnrollmentResult.GuardRejected(
+                InstitutionalEnrollmentGuardCause.NOT_READY,
+                "No disponible"
+            )
+        )
+
+        assertEquals(InstitutionalEnrollmentPanelState.REJECTED, presentation.state)
+        assertFalse(presentation.isCompleted)
+        assertFalse(presentation.title.contains("completada", ignoreCase = true))
+    }
+
+    @Test
+    fun completedViewCannotExposeCompletedStateAndInitialActionTogether() {
+        val presentation = institutionalEnrollmentPanelPresentation(ReadinessStatus.CONVERTED, null)
+
+        assertTrue(presentation.isCompleted)
+        assertFalse(presentation.showInitialGuidance)
+        assertFalse(presentation.showProcessAction)
     }
 
     private fun completedResult() = InstitutionalAnnualEnrollmentResult.Completed(

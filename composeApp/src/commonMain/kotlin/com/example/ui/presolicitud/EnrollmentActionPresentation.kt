@@ -2,7 +2,9 @@ package com.example.ui.presolicitud
 
 import com.example.data.InstitutionalStudentRecordKey
 import com.example.data.toInstitutionalStudentRecordKey
+import com.example.data.enrollment.AnnualEnrollmentRecord
 import com.example.data.enrollment.EnrollmentFlowMode
+import com.example.data.presolicitud.ReadinessStatus
 import com.example.viewmodel.InstitutionalAnnualEnrollmentResult
 
 internal data class EnrollmentActionPresentation(
@@ -30,6 +32,65 @@ internal fun enrollmentActionPresentation(mode: EnrollmentFlowMode): EnrollmentA
             annualV2ActionLabel = "Procesar inscripción anual"
         )
     }
+
+internal enum class InstitutionalEnrollmentPanelState {
+    INITIAL,
+    COMPLETED,
+    NEEDS_DECISION,
+    REJECTED,
+    CONFLICT,
+    SYNCHRONIZATION_INCOMPLETE
+}
+
+internal data class InstitutionalEnrollmentPanelPresentation(
+    val state: InstitutionalEnrollmentPanelState,
+    val title: String,
+    val isCompleted: Boolean,
+    val showInitialGuidance: Boolean,
+    val showProcessAction: Boolean
+)
+
+internal fun institutionalEnrollmentPanelPresentation(
+    readinessStatus: ReadinessStatus,
+    result: InstitutionalAnnualEnrollmentResult?
+): InstitutionalEnrollmentPanelPresentation {
+    val state = when (result) {
+        is InstitutionalAnnualEnrollmentResult.Completed,
+        is InstitutionalAnnualEnrollmentResult.AlreadyCompleted -> InstitutionalEnrollmentPanelState.COMPLETED
+        is InstitutionalAnnualEnrollmentResult.NeedsDecision -> InstitutionalEnrollmentPanelState.NEEDS_DECISION
+        is InstitutionalAnnualEnrollmentResult.GuardRejected -> InstitutionalEnrollmentPanelState.REJECTED
+        is InstitutionalAnnualEnrollmentResult.AnnualConflict -> InstitutionalEnrollmentPanelState.CONFLICT
+        is InstitutionalAnnualEnrollmentResult.SynchronizationIncomplete ->
+            InstitutionalEnrollmentPanelState.SYNCHRONIZATION_INCOMPLETE
+        null -> if (readinessStatus == ReadinessStatus.CONVERTED) {
+            InstitutionalEnrollmentPanelState.COMPLETED
+        } else {
+            InstitutionalEnrollmentPanelState.INITIAL
+        }
+    }
+    return InstitutionalEnrollmentPanelPresentation(
+        state = state,
+        title = when (state) {
+            InstitutionalEnrollmentPanelState.COMPLETED -> "Alta oficial completada"
+            InstitutionalEnrollmentPanelState.NEEDS_DECISION -> "Alta registrada · decisión pendiente"
+            InstitutionalEnrollmentPanelState.REJECTED -> "Alta no iniciada"
+            InstitutionalEnrollmentPanelState.CONFLICT -> "Alta requiere revisión"
+            InstitutionalEnrollmentPanelState.SYNCHRONIZATION_INCOMPLETE -> "Sincronización pendiente"
+            InstitutionalEnrollmentPanelState.INITIAL -> "Alta Oficial contextual"
+        },
+        isCompleted = state == InstitutionalEnrollmentPanelState.COMPLETED,
+        showInitialGuidance = state in setOf(
+            InstitutionalEnrollmentPanelState.INITIAL,
+            InstitutionalEnrollmentPanelState.REJECTED,
+            InstitutionalEnrollmentPanelState.CONFLICT
+        ),
+        showProcessAction = state in setOf(
+            InstitutionalEnrollmentPanelState.INITIAL,
+            InstitutionalEnrollmentPanelState.REJECTED,
+            InstitutionalEnrollmentPanelState.CONFLICT
+        )
+    )
+}
 
 internal fun institutionalEnrollmentMessage(result: InstitutionalAnnualEnrollmentResult): String =
     when (result) {
@@ -87,3 +148,24 @@ internal fun institutionalEnrollmentRecordAction(
         }
         ?.let { InstitutionalEnrollmentRecordAction("Abrir expediente", it) }
 }
+
+internal fun institutionalEnrollmentRecordAction(
+    folio: String,
+    annualEnrollments: List<AnnualEnrollmentRecord>
+): InstitutionalEnrollmentRecordAction? = annualEnrollments
+    .singleOrNull { it.sourcePreApplicationFolio.trim().equals(folio.trim(), ignoreCase = true) }
+    ?.let { annual ->
+        InstitutionalStudentRecordKey(
+            studentId = annual.studentId,
+            schoolYear = annual.schoolYear,
+            sourcePreApplicationFolio = annual.sourcePreApplicationFolio,
+            enrollmentId = annual.permanentEnrollmentId
+        )
+    }
+    ?.takeIf { key ->
+        key.studentId.isNotBlank() &&
+            !key.schoolYear.isNullOrBlank() &&
+            !key.sourcePreApplicationFolio.isNullOrBlank() &&
+            !key.enrollmentId.isNullOrBlank()
+    }
+    ?.let { InstitutionalEnrollmentRecordAction("Abrir expediente", it) }

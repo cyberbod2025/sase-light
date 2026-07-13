@@ -401,7 +401,7 @@ fun StudentRecordScreen(
         Box(modifier = SaseBackgroundModifier(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Expediente no encontrado", fontWeight = FontWeight.Bold, color = SaseNavy)
-                Button(onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) }) {
+                Button(onClick = { viewModel.navigateTo(returnTo) }) {
                     Text("Regresar")
                 }
             }
@@ -417,14 +417,7 @@ fun StudentRecordScreen(
         var sidebarCollapsed by remember { mutableStateOf(true) }
 
         val navigateFromSidebar: (String) -> Unit = { item ->
-            when (item) {
-                "Inicio", "Expedientes" -> viewModel.navigateTo(Screen.SecretaryDashboard)
-                "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
-                "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
-                "Pre-Solicitudes" -> viewModel.navigateTo(Screen.SecretariaPreApplicationDashboard)
-                "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
-                "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
-            }
+            viewModel.navigateFromSecretarySidebar(item)
         }
 
         val recordContent = @Composable {
@@ -444,7 +437,7 @@ fun StudentRecordScreen(
                             IconButton(onClick = { scope.launch { drawerState.open() } }) {
                                 Icon(Icons.Default.Menu, contentDescription = "Menú", tint = SaseNavy)
                             }
-                            IconButton(onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) }) {
+                            IconButton(onClick = { viewModel.navigateTo(returnTo) }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = SaseNavy)
                             }
                             Spacer(modifier = Modifier.width(4.dp))
@@ -473,7 +466,7 @@ fun StudentRecordScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) }) {
+                            IconButton(onClick = { viewModel.navigateTo(returnTo) }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = SaseNavy)
                             }
                             Spacer(modifier = Modifier.width(6.dp))

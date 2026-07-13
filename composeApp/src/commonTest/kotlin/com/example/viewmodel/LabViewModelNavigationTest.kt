@@ -9,6 +9,34 @@ import kotlin.test.assertFailsWith
 
 class LabViewModelNavigationTest {
     @Test
+    fun expedientesNavigatesToRealStudentRecordsDestination() {
+        val viewModel = LabViewModel()
+
+        viewModel.navigateFromSecretarySidebar("Expedientes")
+
+        assertIs<Screen.StudentRecordsDashboard>(viewModel.currentScreen.value)
+    }
+
+    @Test
+    fun validarInscripcionOpensExistingAdministrativeReviewFlow() {
+        val viewModel = LabViewModel()
+
+        viewModel.navigateTo(enrollmentValidationDestination())
+
+        assertIs<Screen.SecretariaPreApplicationDashboard>(viewModel.currentScreen.value)
+    }
+
+    @Test
+    fun studentRecordPreservesRequestedReturnDestination() {
+        val route = Screen.StudentRecord(
+            studentId = "MASTER-V2-PRE-TEST",
+            returnTo = Screen.SecretariaPreApplicationDashboard
+        )
+
+        assertIs<Screen.SecretariaPreApplicationDashboard>(route.returnTo)
+    }
+
+    @Test
     fun institutionalRecordRouteKeepsStudentIdAndExactResolutionContext() {
         val viewModel = LabViewModel()
         val key = InstitutionalStudentRecordKey(

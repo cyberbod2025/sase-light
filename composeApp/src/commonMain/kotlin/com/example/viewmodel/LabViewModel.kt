@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 sealed class Screen {
     data object SecretaryDashboard : Screen()
+    data object StudentRecordsDashboard : Screen()
     data object EnrollmentDashboard : Screen()
     data class StudentRecord(
         val studentId: String,
@@ -34,6 +35,20 @@ sealed class Screen {
     data class CredentialPreview(val studentId: String) : Screen()
     data object StudentCredentialDashboard : Screen()
 }
+
+internal fun secretarySidebarDestination(item: String): Screen? = when (item) {
+    "Inicio" -> Screen.SecretaryDashboard
+    "Expedientes" -> Screen.StudentRecordsDashboard
+    "Inscripciones" -> Screen.EnrollmentDashboard
+    "Portal Familia" -> Screen.PreApplicationFamilyPortal
+    "Pre-Solicitudes" -> Screen.SecretariaPreApplicationDashboard
+    "Altas Oficiales" -> Screen.OfficialEnrollmentDashboard
+    "Credenciales" -> Screen.StudentCredentialDashboard
+    else -> null
+}
+
+internal fun enrollmentValidationDestination(): Screen =
+    Screen.SecretariaPreApplicationDashboard
 
 // Roles MOCK
 enum class AppRole(val label: String) {
@@ -59,6 +74,10 @@ class LabViewModel(
 
     fun navigateTo(screen: Screen) {
         _currentScreen.value = screen
+    }
+
+    fun navigateFromSecretarySidebar(item: String) {
+        secretarySidebarDestination(item)?.let(::navigateTo)
     }
 
     fun navigateBack() {

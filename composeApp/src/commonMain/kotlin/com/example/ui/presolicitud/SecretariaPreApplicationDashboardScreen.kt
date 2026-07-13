@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.InstitutionalStudentRecordKey
+import com.example.data.MockSaseData
 import com.example.data.presolicitud.*
 import com.example.ui.*
 import com.example.util.LocalToast
@@ -75,14 +76,7 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
         val scope = rememberCoroutineScope()
 
         val navigateFromSidebar: (String) -> Unit = { item ->
-            when (item) {
-                "Inicio", "Expedientes" -> viewModel.navigateTo(Screen.SecretaryDashboard)
-                "Inscripciones" -> viewModel.navigateTo(Screen.EnrollmentDashboard)
-                "Portal Familia" -> viewModel.navigateTo(Screen.PreApplicationFamilyPortal)
-                "Pre-Solicitudes" -> {}
-                "Altas Oficiales" -> viewModel.navigateTo(Screen.OfficialEnrollmentDashboard)
-                "Credenciales" -> viewModel.navigateTo(Screen.StudentCredentialDashboard)
-            }
+            viewModel.navigateFromSecretarySidebar(item)
         }
 
         val content = @Composable {
@@ -464,6 +458,14 @@ private fun PreApplicationDetailTabs(
                         )
                     )
                 },
+                onOpenStudentRecordById = { studentId ->
+                    viewModel.navigateTo(
+                        Screen.StudentRecord(
+                            studentId = studentId,
+                            returnTo = Screen.SecretariaPreApplicationDashboard
+                        )
+                    )
+                },
                 onClose = { showOfficialEnrollmentPanel = false },
                 scope = scope
             )
@@ -556,6 +558,18 @@ private fun PreApplicationDetailTabs(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Aceptar para alta oficial", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
+            } else {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    if (preApp.readinessStatus == ReadinessStatus.CONVERTED || officialStudent != null) {
+                        "Modo lectura: el alta institucional ya existe y no admite revalidación desde esta vista."
+                    } else {
+                        "Modo lectura: la solicitud fue aceptada. Continúa con la validación institucional y el alta oficial."
+                    },
+                    color = SaseMuted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
         }
@@ -935,19 +949,23 @@ private fun OfficialEnrollmentReadinessCard(
         }
         Button(
             onClick = onStartOfficialEnrollment,
-            enabled = isPersistedReady || officialStarted,
+            enabled = isPersistedReady || officialStarted || isConverted,
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (officialStarted) SaseBlue else SaseGreen,
+                containerColor = if (officialStarted || isConverted) SaseBlue else SaseGreen,
                 disabledContainerColor = SaseMuted.copy(alpha = 0.18f),
                 disabledContentColor = SaseMuted
             ),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(if (isPersistedReady || officialStarted) Icons.Default.AssignmentTurnedIn else Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
+            Icon(if (isPersistedReady || officialStarted || isConverted) Icons.Default.AssignmentTurnedIn else Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                if (officialStarted) "Ver seguimiento de alta" else "Dar de alta oficial",
+                when {
+                    isConverted -> "Abrir seguimiento institucional"
+                    officialStarted -> "Ver seguimiento de alta"
+                    else -> "Dar de alta oficial"
+                },
                 fontWeight = FontWeight.Bold,
                 fontSize = 11.sp
             )
@@ -986,6 +1004,7 @@ private fun OfficialEnrollmentContextualPanel(
     preApp: PreApplication,
     officialStudent: OfficialStudent?,
     onOpenStudentRecord: (InstitutionalStudentRecordKey) -> Unit,
+    onOpenStudentRecordById: (String) -> Unit,
     onClose: () -> Unit,
     scope: CoroutineScope
 ) {
@@ -1005,6 +1024,21 @@ private fun OfficialEnrollmentContextualPanel(
     var institutionalResult by remember(preApp.folio) {
         mutableStateOf<InstitutionalAnnualEnrollmentResult?>(null)
     }
+    val annualEnrollments by MockSaseData.annualEnrollments.collectAsState()
+    val masterStudents by MockSaseData.students.collectAsState()
+    val panelPresentation = institutionalEnrollmentPanelPresentation(
+        readinessStatus = preApp.readinessStatus,
+        result = institutionalResult
+    )
+    val recordAction = institutionalResult?.let(::institutionalEnrollmentRecordAction)
+        ?: institutionalEnrollmentRecordAction(preApp.folio, annualEnrollments)
+    val legacyStudentId = if (panelPresentation.isCompleted && recordAction == null) {
+        officialStudent?.let { official ->
+            masterStudents.singleOrNull { it.curp.equals(official.curp, ignoreCase = true) }?.id
+        }
+    } else {
+        null
+    }
 
     Column(
         modifier = Modifier
@@ -1020,7 +1054,12 @@ private fun OfficialEnrollmentContextualPanel(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Alta Oficial contextual", color = SaseNavy, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    panelPresentation.title,
+                    color = if (panelPresentation.isCompleted) SaseGreen else SaseNavy,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
                 Text("Folio precargado: ${preApp.folio}", color = SaseMuted, fontSize = 10.sp)
             }
             IconButton(onClick = onClose) {
@@ -1028,6 +1067,7 @@ private fun OfficialEnrollmentContextualPanel(
             }
         }
 
+        if (panelPresentation.showInitialGuidance) {
         Spacer(modifier = Modifier.height(8.dp))
         Box(
             modifier = Modifier
@@ -1043,6 +1083,7 @@ private fun OfficialEnrollmentContextualPanel(
                 fontWeight = FontWeight.Bold
             )
         }
+        }
 
         Spacer(modifier = Modifier.height(10.dp))
         DetailRow("Nombre", preApp.alumnoNombreCompleto)
@@ -1051,12 +1092,24 @@ private fun OfficialEnrollmentContextualPanel(
         DetailRow("Persona que tramita", preApp.personaTramite.nombreCompleto.ifBlank { "Pendiente" })
         DetailRow(
             "Matrícula",
-            visibleOfficialEnrollment(officialStudent)
+            recordAction?.key?.enrollmentId ?: visibleOfficialEnrollment(officialStudent)
         )
+        DetailRow("Ciclo", recordAction?.key?.schoolYear ?: preApp.cicloEscolar)
+        DetailRow("Folio", recordAction?.key?.sourcePreApplicationFolio ?: preApp.folio)
+
+        if (panelPresentation.isCompleted) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Registro institucional final. La información se muestra en modo lectura.",
+                color = SaseGreen,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        if (actionPresentation.showLegacyGroupControls && grade in 1..3) {
+        if (panelPresentation.showProcessAction && actionPresentation.showLegacyGroupControls && grade in 1..3) {
             SectionHeader("Asignación inicial de grupo")
             DetailRow("Grupo sugerido por balance", suggestedGroup ?: "Sin sugerencia disponible")
             Text("Criterios: sexo, edad y ${PreApplicationViewModel.promedioLabelForGrade(grade).lowercase()}.", color = SaseMuted, fontSize = 9.sp)
@@ -1109,7 +1162,7 @@ private fun OfficialEnrollmentContextualPanel(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (actionPresentation.showLegacyStartAction && officialStudent == null) {
+        if (panelPresentation.showProcessAction && actionPresentation.showLegacyStartAction && officialStudent == null) {
             Button(
                 onClick = {
                     val enrollmentResult = PreApplicationViewModel.startOfficialEnrollment(preApp, selectedGroup)
@@ -1125,7 +1178,7 @@ private fun OfficialEnrollmentContextualPanel(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Iniciar alta oficial", fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
-        } else if (actionPresentation.showLegacyConfirmationAction && officialStudent != null) {
+        } else if (panelPresentation.showProcessAction && actionPresentation.showLegacyConfirmationAction && officialStudent != null) {
             OfficialEnrollmentConfirmation(preApp, officialStudent)
 
             if (officialStudent.status == OfficialStudentStatus.PENDIENTE_ASIGNACION_GRUPO) {
@@ -1155,7 +1208,7 @@ private fun OfficialEnrollmentContextualPanel(
         }
 
         val isProcessingV2 by PreApplicationViewModel.isProcessingAnnualEnrollmentV2.collectAsState()
-        if (actionPresentation.showAnnualV2Action) {
+        if (panelPresentation.showProcessAction && actionPresentation.showAnnualV2Action) {
             Spacer(modifier = Modifier.height(8.dp))
             Button(
             onClick = {
@@ -1212,7 +1265,6 @@ private fun OfficialEnrollmentContextualPanel(
         if (resultMessage != null) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(resultMessage ?: "", color = resultColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            val recordAction = institutionalResult?.let(::institutionalEnrollmentRecordAction)
             if (recordAction != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
@@ -1228,6 +1280,25 @@ private fun OfficialEnrollmentContextualPanel(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(recordAction.label, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
+            }
+        }
+        if (resultMessage == null && panelPresentation.isCompleted && (recordAction != null || legacyStudentId != null)) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    if (recordAction != null) {
+                        onOpenStudentRecord(recordAction.key)
+                    } else if (legacyStudentId != null) {
+                        onOpenStudentRecordById(legacyStudentId)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = SaseNavy, contentColor = Color.White),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Abrir expediente", fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
         }
     }
