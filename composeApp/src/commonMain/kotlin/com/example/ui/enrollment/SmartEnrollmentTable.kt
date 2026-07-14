@@ -16,10 +16,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
@@ -40,6 +42,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -80,6 +85,8 @@ fun SmartEnrollmentTable(
     students: List<Student>,
     onStudentClick: (String) -> Unit,
     onRegisterObsClick: (Student) -> Unit,
+    onDocChipClick: (Student) -> Unit = {},
+    onStatusChipClick: (Student) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedGroupFilter by remember { mutableStateOf("Todos") }
@@ -149,9 +156,20 @@ fun SmartEnrollmentTable(
             if (filteredList.isEmpty()) {
                 EmptyState(students.isEmpty())
             } else if (isCompact) {
-                CompactStudentList(students = filteredList, onStudentClick = onStudentClick)
+                CompactStudentList(
+                    students = filteredList,
+                    onStudentClick = onStudentClick,
+                    onDocChipClick = onDocChipClick,
+                    onStatusChipClick = onStatusChipClick
+                )
             } else {
-                WideStudentTable(students = filteredList, onStudentClick = onStudentClick, onRegisterObsClick = onRegisterObsClick)
+                WideStudentTable(
+                    students = filteredList,
+                    onStudentClick = onStudentClick,
+                    onRegisterObsClick = onRegisterObsClick,
+                    onDocChipClick = onDocChipClick,
+                    onStatusChipClick = onStatusChipClick
+                )
             }
         }
     }
@@ -196,10 +214,11 @@ private fun EmptyState(noStudents: Boolean) {
 private fun WideStudentTable(
     students: List<Student>,
     onStudentClick: (String) -> Unit,
-    onRegisterObsClick: (Student) -> Unit
+    onRegisterObsClick: (Student) -> Unit,
+    onDocChipClick: (Student) -> Unit = {},
+    onStatusChipClick: (Student) -> Unit = {}
 ) {
     Column(modifier = Modifier.widthIn(min = 480.dp)) {
-        // Table headers
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -218,35 +237,111 @@ private fun WideStudentTable(
 
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             students.forEach { student ->
+                var expanded by remember { mutableStateOf(false) }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
-                        .clickable { onStudentClick(student.id) }
                         .padding(horizontal = 8.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(modifier = Modifier.weight(2.5f), verticalAlignment = Alignment.CenterVertically) {
-                        StudentAvatar(student)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(student.fullName, color = SaseText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            Text("Matrícula: ${visibleEnrollmentId(student)}", color = SaseMuted, fontSize = 10.sp)
+                    Row(
+                        modifier = Modifier
+                            .weight(2.5f + 0.8f + 2.0f)
+                            .semantics { contentDescription = "student_card_${student.id}" }
+                            .testTag("student_card_${student.id}")
+                            .clickable { onStudentClick(student.id) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(modifier = Modifier.weight(2.5f), verticalAlignment = Alignment.CenterVertically) {
+                            StudentAvatar(student)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(student.fullName, color = SaseText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("Matrícula: ${visibleEnrollmentId(student)}", color = SaseMuted, fontSize = 10.sp)
+                            }
                         }
+                        Text(student.group, color = SaseText, fontSize = 12.sp, modifier = Modifier.weight(0.8f))
+                        Text(student.tutorName, color = SaseText, fontSize = 12.sp, modifier = Modifier.weight(2.0f))
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = "Ver expediente",
+                            tint = SaseMuted,
+                            modifier = Modifier.size(14.dp).testTag("student_chevron_${student.id}")
+                        )
                     }
-                    Text(student.group, color = SaseText, fontSize = 12.sp, modifier = Modifier.weight(0.8f))
-                    Box(modifier = Modifier.weight(1.2f).padding(end = 4.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .padding(end = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                    Box(
+                        modifier = Modifier
+                            .wrapContentSize()
+                            .clip(RoundedCornerShape(999.dp))
+                            .semantics { contentDescription = "student_status_chip_${student.id}" }
+                            .testTag("student_status_chip_${student.id}")
+                            .clickable { onStatusChipClick(student) }
+                    ) {
                         StatusPill(status = student.status)
                     }
-                    Text(student.tutorName, color = SaseText, fontSize = 12.sp, modifier = Modifier.weight(2.0f))
+                }
                     Row(modifier = Modifier.weight(1.5f), verticalAlignment = Alignment.CenterVertically) {
-                        DocBadge(student.documentationStatus)
-                        Spacer(modifier = Modifier.weight(1f))
-                        IconButton(
-                            onClick = { onRegisterObsClick(student) },
-                            modifier = Modifier.size(22.dp)
+                        Box(
+                            modifier = Modifier
+                                .wrapContentSize()
+                                .clip(RoundedCornerShape(6.dp))
+                                .semantics { contentDescription = "student_docs_chip_${student.id}" }
+                                .testTag("student_docs_chip_${student.id}")
+                                .clickable { onDocChipClick(student) }
                         ) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Opciones", tint = SaseMuted, modifier = Modifier.size(16.dp))
+                            DocBadge(student.documentationStatus)
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        Box {
+                            IconButton(
+                                onClick = { expanded = true },
+                                modifier = Modifier.size(22.dp).semantics { contentDescription = "student_menu_${student.id}" }.testTag("student_menu_${student.id}")
+                            ) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Opciones", tint = SaseMuted, modifier = Modifier.size(16.dp))
+                            }
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Abrir expediente") },
+                                    onClick = { expanded = false; onStudentClick(student.id) },
+                                    modifier = Modifier.testTag("menu_open_record_${student.id}")
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Editar observaciones") },
+                                    onClick = { expanded = false; onRegisterObsClick(student) },
+                                    modifier = Modifier.testTag("menu_edit_observations_${student.id}")
+                                )
+                                if (student.documentationStatus != "Completa") {
+                                    DropdownMenuItem(
+                                        text = { Text("Ver documentos pendientes") },
+                                        onClick = { expanded = false; onDocChipClick(student) },
+                                        modifier = Modifier.testTag("menu_view_pending_docs_${student.id}")
+                                    )
+                                }
+                                if (!hasOfficialEnrollment(student)) {
+                                    DropdownMenuItem(
+                                        text = { Text("Procesar alta oficial") },
+                                        onClick = { expanded = false; onDocChipClick(student) },
+                                        modifier = Modifier.testTag("menu_process_enrollment_${student.id}")
+                                    )
+                                }
+                                if (hasOfficialEnrollment(student)) {
+                                    DropdownMenuItem(
+                                        text = { Text("Ver credencial") },
+                                        onClick = { expanded = false; onStudentClick(student.id) },
+                                        modifier = Modifier.testTag("menu_view_credentials_${student.id}")
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -259,34 +354,85 @@ private fun WideStudentTable(
 @Composable
 private fun CompactStudentList(
     students: List<Student>,
-    onStudentClick: (String) -> Unit
+    onStudentClick: (String) -> Unit,
+    onDocChipClick: (Student) -> Unit = {},
+    onStatusChipClick: (Student) -> Unit = {}
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         students.forEach { student ->
+            var expanded by remember { mutableStateOf(false) }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color.White.copy(alpha = 0.72f))
-                    .clickable { onStudentClick(student.id) }
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    StudentAvatar(student)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(student.fullName, color = SaseText, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
-                        Text("Matrícula: ${visibleEnrollmentId(student)}", color = SaseMuted, fontSize = 10.sp)
-                        if (!hasOfficialEnrollment(student)) {
-                            Text(enrollmentPendingReason(student), color = SaseOrange, fontSize = 9.sp, lineHeight = 11.sp)
-                        }
-                    }
-                    IconButton(
-                        onClick = { onStudentClick(student.id) },
-                        modifier = Modifier.size(32.dp)
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .semantics { contentDescription = "student_card_${student.id}" }
+                            .testTag("student_card_${student.id}")
+                            .clickable { onStudentClick(student.id) },
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Ver expediente", tint = SaseNavy, modifier = Modifier.size(18.dp))
+                        StudentAvatar(student)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(student.fullName, color = SaseText, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                            Text("Matrícula: ${visibleEnrollmentId(student)}", color = SaseMuted, fontSize = 10.sp)
+                            if (!hasOfficialEnrollment(student)) {
+                                Text(enrollmentPendingReason(student), color = SaseOrange, fontSize = 9.sp, lineHeight = 11.sp)
+                            }
+                        }
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = "Ver expediente",
+                            tint = SaseNavy,
+                            modifier = Modifier.size(18.dp).testTag("student_chevron_${student.id}")
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    Box {
+                        IconButton(
+                            onClick = { expanded = true },
+                            modifier = Modifier.size(32.dp).semantics { contentDescription = "student_menu_${student.id}" }.testTag("student_menu_${student.id}")
+                        ) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Opciones", tint = SaseNavy, modifier = Modifier.size(18.dp))
+                        }
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Abrir expediente") },
+                                onClick = { expanded = false; onStudentClick(student.id) },
+                                modifier = Modifier.testTag("menu_open_record_${student.id}")
+                            )
+                            if (student.documentationStatus != "Completa") {
+                                DropdownMenuItem(
+                                    text = { Text("Ver documentos pendientes") },
+                                    onClick = { expanded = false; onDocChipClick(student) },
+                                    modifier = Modifier.testTag("menu_view_pending_docs_${student.id}")
+                                )
+                            }
+                            if (!hasOfficialEnrollment(student)) {
+                                DropdownMenuItem(
+                                    text = { Text("Procesar alta oficial") },
+                                    onClick = { expanded = false; onDocChipClick(student) },
+                                    modifier = Modifier.testTag("menu_process_enrollment_${student.id}")
+                                )
+                            }
+                            if (hasOfficialEnrollment(student)) {
+                                DropdownMenuItem(
+                                    text = { Text("Ver credencial") },
+                                    onClick = { expanded = false; onStudentClick(student.id) },
+                                    modifier = Modifier.testTag("menu_view_credentials_${student.id}")
+                                )
+                            }
+                        }
                     }
                 }
                 Row(
@@ -295,8 +441,26 @@ private fun CompactStudentList(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(student.group, color = SaseNavy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    StatusPill(status = student.status)
-                    DocBadge(student.documentationStatus)
+                    Box(
+                        modifier = Modifier
+                            .wrapContentSize()
+                            .clip(RoundedCornerShape(999.dp))
+                            .semantics { contentDescription = "student_status_chip_${student.id}" }
+                            .testTag("student_status_chip_${student.id}")
+                            .clickable { onStatusChipClick(student) }
+                    ) {
+                        StatusPill(status = student.status)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .wrapContentSize()
+                            .clip(RoundedCornerShape(6.dp))
+                            .semantics { contentDescription = "student_docs_chip_${student.id}" }
+                            .testTag("student_docs_chip_${student.id}")
+                            .clickable { onDocChipClick(student) }
+                    ) {
+                        DocBadge(student.documentationStatus)
+                    }
                 }
             }
         }

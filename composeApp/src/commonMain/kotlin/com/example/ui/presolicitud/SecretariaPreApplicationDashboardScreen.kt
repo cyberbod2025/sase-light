@@ -647,16 +647,26 @@ private fun EditPreApplicationDialog(
                 Text("Editar datos capturados", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 18.sp)
                 Text("Ajuste interno de Secretaría antes de aceptar para alta oficial. Folio: ${preApp.folio}", color = saseMutedColor(), fontSize = 11.sp)
 
+                val fieldColors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = SaseNavy,
+                    unfocusedTextColor = SaseNavy,
+                    focusedBorderColor = SaseNavy,
+                    unfocusedBorderColor = SaseBorder,
+                    focusedLabelColor = SaseNavy,
+                    unfocusedLabelColor = SaseMuted
+                )
                 OutlinedTextField(
                     value = telefonoEdit,
                     onValueChange = { telefonoEdit = it.filter { char -> char.isDigit() }.take(10) },
                     label = { Text("Teléfono") },
+                    colors = fieldColors,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = domicilioEdit,
                     onValueChange = { domicilioEdit = it.uppercase() },
                     label = { Text("Domicilio") },
+                    colors = fieldColors,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -885,7 +895,12 @@ private fun OfficialEnrollmentReadinessCard(
     val readerIsReadyForOfficial = isPersistedReady && pendingItems.isEmpty()
     val officialCompleted = officialStarted && pendingItems.isEmpty()
     val officialWithPending = officialStarted && pendingItems.isNotEmpty() && !isConverted
+    val curpDuplicate = remember(preApp.folio, preApp.alumnoCurp, preApp.tramite) {
+        PreApplicationViewModel.curpDuplicateInfo(preApp.folio, preApp.alumnoCurp, preApp.tramite)
+    }
+    val isCurpBlocked = curpDuplicate != null
     val headerColor = when {
+        isCurpBlocked -> SaseRed
         officialCompleted || isConverted -> SaseGreen
         officialStarted -> SaseNavy
         readerIsReadyForOfficial -> SaseGreen
@@ -893,6 +908,7 @@ private fun OfficialEnrollmentReadinessCard(
         else -> saseMutedColor()
     }
     val headerText = when {
+        isCurpBlocked -> "CURP ya registrada"
         officialCompleted || isConverted -> "Alta oficial completada"
         officialWithPending -> "Alta oficial iniciada con pendientes"
         pendingItems.isNotEmpty() -> "Con pendientes bloqueantes"
@@ -961,8 +977,32 @@ private fun OfficialEnrollmentReadinessCard(
             }
         }
 
+        if (isCurpBlocked) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "La CURP de esta solicitud ya existe en el padrón. No puede continuar.",
+                color = SaseRed, fontSize = 11.sp, fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { /* TODO: navegar a expediente existente */ },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Abrir expediente existente", fontSize = 10.sp) }
+                OutlinedButton(
+                    onClick = { /* TODO: abrir edición de CURP */ },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Corregir CURP", fontSize = 10.sp) }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Acciones de inscripción no disponibles mientras la CURP esté duplicada.",
+                color = saseMutedColor(), fontSize = 8.sp
+            )
+        }
+
         Spacer(modifier = Modifier.height(10.dp))
-        if (!officialStarted && !isPersistedReady) {
+        if (!officialStarted && !isPersistedReady && !isCurpBlocked) {
             OutlinedButton(
                 onClick = {
                     val result = PreApplicationViewModel.markReadyForOfficialEnrollment(preApp.folio)
@@ -990,44 +1030,46 @@ private fun OfficialEnrollmentReadinessCard(
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
-        Button(
-            onClick = onStartOfficialEnrollment,
-            enabled = isPersistedReady || officialStarted || isConverted,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (officialStarted || isConverted) SaseBlue else SaseGreen,
-                disabledContainerColor = saseMutedColor().copy(alpha = 0.18f),
-                disabledContentColor = saseMutedColor()
-            ),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(if (isPersistedReady || officialStarted || isConverted) Icons.Default.AssignmentTurnedIn else Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                when {
-                    isConverted -> "Abrir seguimiento institucional"
-                    officialStarted -> "Ver seguimiento de alta"
-                    else -> "Dar de alta oficial"
-                },
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp
-            )
-        }
-        if (!officialStarted && !isPersistedReady) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(SaseOrange.copy(alpha = 0.08f))
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
+        if (!isCurpBlocked) {
+            Button(
+                onClick = onStartOfficialEnrollment,
+                enabled = isPersistedReady || officialStarted || isConverted,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (officialStarted || isConverted) SaseBlue else SaseGreen,
+                    disabledContainerColor = saseMutedColor().copy(alpha = 0.18f),
+                    disabledContentColor = saseMutedColor()
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
+                Icon(if (isPersistedReady || officialStarted || isConverted) Icons.Default.AssignmentTurnedIn else Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    "Disponible cuando Secretaría haya aceptado la solicitud, cotejado documentos y capturado fotografías requeridas.",
-                    color = SaseOrange,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
+                    when {
+                        isConverted -> "Abrir seguimiento institucional"
+                        officialStarted -> "Ver seguimiento de alta"
+                        else -> "Dar de alta oficial"
+                    },
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
                 )
+            }
+            if (!officialStarted && !isPersistedReady) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(SaseOrange.copy(alpha = 0.08f))
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        "Disponible cuando Secretaría haya aceptado la solicitud, cotejado documentos y capturado fotografías requeridas.",
+                        color = SaseOrange,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
         if (readinessMessage != null) {
@@ -1069,6 +1111,9 @@ private fun OfficialEnrollmentContextualPanel(
     }
     val annualEnrollments by MockSaseData.annualEnrollments.collectAsState()
     val masterStudents by MockSaseData.students.collectAsState()
+    val curpDuplicate = remember(preApp.folio, preApp.alumnoCurp, preApp.tramite) {
+        PreApplicationViewModel.curpDuplicateInfo(preApp.folio, preApp.alumnoCurp, preApp.tramite)
+    }
     val panelPresentation = institutionalEnrollmentPanelPresentation(
         readinessStatus = preApp.readinessStatus,
         result = institutionalResult
@@ -1205,7 +1250,7 @@ private fun OfficialEnrollmentContextualPanel(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (panelPresentation.showProcessAction && actionPresentation.showLegacyStartAction && officialStudent == null) {
+        if (panelPresentation.showProcessAction && actionPresentation.showLegacyStartAction && officialStudent == null && curpDuplicate == null) {
             Button(
                 onClick = {
                     val enrollmentResult = PreApplicationViewModel.startOfficialEnrollment(preApp, selectedGroup)
@@ -1251,7 +1296,7 @@ private fun OfficialEnrollmentContextualPanel(
         }
 
         val isProcessingV2 by PreApplicationViewModel.isProcessingAnnualEnrollmentV2.collectAsState()
-        if (panelPresentation.showProcessAction && actionPresentation.showAnnualV2Action) {
+        if (panelPresentation.showProcessAction && actionPresentation.showAnnualV2Action && curpDuplicate == null) {
             Spacer(modifier = Modifier.height(8.dp))
             Button(
             onClick = {

@@ -702,6 +702,7 @@ class PreApplicationViewModel {
         fun officialEnrollmentPendingItems(preApp: PreApplication): List<String> {
             val photoState = _photos.value[preApp.folio]
             return buildList {
+                curpDuplicateInfo(preApp.folio, preApp.alumnoCurp, preApp.tramite)?.let { add(it) }
                 if (preApp.status != PreApplicationStatus.ACEPTADA) {
                     add("Pre-solicitud aceptada por Secretaría")
                 }
@@ -935,6 +936,20 @@ class PreApplicationViewModel {
 
         private fun preApplicationByCurp(curp: String): PreApplication? =
             _sharedPreApplications.value.firstOrNull { normalizeCurp(it.alumnoCurp) == normalizeCurp(curp) }
+
+        fun curpDuplicateInfo(folio: String, curp: String, tramite: String = ""): String? {
+            if (tramite.uppercase() == "REINSCRIPCION") return null
+            val normalized = normalizeCurp(curp)
+            val inMaster = MockSaseData.students.value.firstOrNull {
+                normalizeCurp(it.curp) == normalized && it.preApplicationFolio?.let { p -> normalizeCurp(p) != normalizeCurp(folio) } == true
+            }
+            if (inMaster != null) return "CURP ya registrada en el padrón maestro (${inMaster.fullName})"
+            val inOfficial = _officialStudents.value.firstOrNull {
+                normalizeCurp(it.curp) == normalized && normalizeCurp(it.preApplicationFolio) != normalizeCurp(folio)
+            }
+            if (inOfficial != null) return "CURP ya registrada en alta oficial (${inOfficial.alumnoNombreCompleto})"
+            return null
+        }
 
         fun startOfficialEnrollment(preApp: PreApplication, selectedGroup: String?): OfficialEnrollmentResult {
             val existing = officialEnrollmentForFolio(preApp.folio)

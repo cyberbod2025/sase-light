@@ -21,3 +21,36 @@ local.properties
 composeApp/build/
 debug.keystore
 .vscode/settings.json
+
+# Agent state — never commit
+.opencode/
+.codex/
+*.patch
+
+# Evidence — exclude redundant/temporary; keep only sanitized
+evidence/android/**/emulator/
+evidence/android/**/*.xml
+evidence/android/**/screenrecord.mp4
+evidence/android/**/logcat.txt
+evidence/android/**/device-info.txt
+evidence/android/**/screenshot-before.png
+evidence/android/**/screenshot-after*.png
+evidence/android/**/screenshot-after-menu-item.png
+evidence/android/**/scenario-e-docs-tap.png
+evidence/android/01D/20260714-112820/
+evidence/android/20260714-110909/
+evidence/android/20260714-110924/
+evidence/android/01F-logs/
+evidence/android/boot-failure*.log
+evidence/android/emulator-startup.log
+evidence/android/launch-dumpsys.log
+
+# Keep selected sanitized evidence
+!evidence/android/01D/20260714-113801/s20-fe/results.json
+!evidence/android/01D/20260714-113801/s20-fe/metadata.json
+!evidence/android/01D/20260714-113801/s20-fe/scenario-b-chevron-tap.png
+!evidence/android/01D/20260714-113801/s20-fe/scenario-d-menu-closed.png
+!evidence/android/01D/20260714-113801/s20-fe/scenario-e-docs-chip.png
+!evidence/android/01D/20260714-113801/s20-fe/scenario-f-status-chip.png
+!evidence/android/01D/20260714-113801/s20-fe/scenario-g-menu-card4.png
+!evidence/android/01D/20260714-113801/s20-fe/device-info.txt

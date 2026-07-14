@@ -1,0 +1,9 @@
+deviceType: physical
+deviceAlias: Samsung S20 FE
+deviceSerial: S20-FE-PHYSICAL
+deviceModel: SM-G781B
+androidVersion: 13
+apiLevel: 33
+gitHead: eb36599f7fc43e581815619541163a6c9496ffee
+branch: main
+apkSha256: ba63939ed137efd6c993fb1bcdb85d7cd61b8b720fc58edff10e2ce5070b898d

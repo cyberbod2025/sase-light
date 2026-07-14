@@ -771,6 +771,12 @@ fun SecretaryDashboardScreen(
                     onStudentClick = { id -> viewModel.navigateTo(Screen.StudentRecord(id)) },
                     onRegisterObsClick = { student ->
                         viewModel.navigateTo(Screen.StudentRecord(student.id))
+                    },
+                    onDocChipClick = { student ->
+                        viewModel.navigateTo(Screen.StudentRecord(student.id))
+                    },
+                    onStatusChipClick = { student ->
+                        viewModel.navigateTo(Screen.StudentRecord(student.id))
                     }
                 )
             }

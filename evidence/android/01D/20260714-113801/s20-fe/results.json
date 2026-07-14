@@ -1,0 +1,81 @@
+{
+  "session": "01F-B S20 FE closure",
+  "device": "Samsung S20 FE (SM-G781B, Android 13/API 33)",
+  "serial": "RFCT419Q0YE",
+  "timestamp": "2026-07-14T11:38:00-06:00",
+  "scenarios": {
+    "A": {
+      "name": "Body tap navigates to StudentRecord",
+      "status": "PASS",
+      "note": "Tapping student_card_1 body navigates to StudentRecord for ALUMNO DEMO 01. Evidence: hierarchy with Expediente, Regresar, ALUMNO DEMO 01, student details."
+    },
+    "B": {
+      "name": "Chevron tap navigates to StudentRecord",
+      "status": "PASS",
+      "note": "Tapping 'Ver expediente' chevron at (801,342) navigates to StudentRecord. Evidence: hierarchy confirmed Expediente title, Regresar, tabs (Resumen, Datos personales, Responsables)."
+    },
+    "C": {
+      "name": "Menu visible with correct items",
+      "status": "PASS",
+      "note": "DropdownMenu opens on tap. TEST-CONVERTED menu contains: 'Abrir expediente' + 'Ver credencial'. TEST-CONVERTED menu bounds: [552,390][942,726]. Items visible in uiautomator dump."
+    },
+    "D": {
+      "name": "Menu close by tapping outside",
+      "status": "PASS",
+      "note": "Tapping outside menu bounds at (200,200) closes the menu. Verified by hierarchy dump — 'Abrir expediente' / 'Ver credencial' nodes absent after tap."
+    },
+    "E": {
+      "name": "Docs chip tap navigates to StudentRecord",
+      "status": "PASS",
+      "note": "Tapping student_docs_chip_1 ('Completa') at (667,483) navigates to StudentRecord. Evidence: hierarchy shows Expediente, Documento section, ALUMNO DEMO 01."
+    },
+    "F": {
+      "name": "Status chip tap navigates to StudentRecord",
+      "status": "PASS",
+      "note": "Tapping student_status_chip_1 ('Alta oficial con grupo') at (391,1186) navigates to StudentRecord. Evidence: hierarchy shows Expediente, ALUMNO DEMO 01."
+    },
+    "G": {
+      "name": "Menu items differ by student state",
+      "status": "PASS",
+      "note": "TEST-CONVERTED (Alta oficial con grupo): 'Abrir expediente' + 'Ver credencial'. TEST-PENDING (Lista para alta oficial): 'Abrir expediente' + 'Procesar alta oficial'. Menu adapts to student enrollment state."
+    }
+  },
+  "summary": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0,
+    "pass_rate": "100%"
+  },
+  "known_limitations": {
+    "Pixel_7_emu": "uiautomator does not capture DropdownMenu item text (NAF nodes). Menu opens visually on screen but text is not extractable. S20 FE shows full item text correctly.",
+    "student_chevron_X_semantics": "Chevron Icon overrides contentDescription — 'student_chevron_X' not available. Instead 'Ver expediente' is the accessible identifier."
+  },
+  "files": {
+    "hierarchies": [
+      "ui-b.xml (Scenario B post-navigation)",
+      "window_dump_back.xml (dashboard state after Regresar)",
+      "window_dump_scrolled.xml (scrolled dashboard)",
+      "window_dump_top.xml (dashboard top)",
+      "window_dump_card.xml (scrolled to cards)",
+      "window_dump_all.xml (full view)",
+      "window_dump_chips.xml (cards with chips visible)",
+      "window_dump_menu_open.xml (menu opened on card 1)",
+      "window_dump_menu_closed.xml (menu closed)",
+      "window_dump_docs_chip.xml (docs chip post-navigation)",
+      "window_dump_back2.xml (dashboard after docs chip)",
+      "window_dump_f.xml (scrolled for status chip)",
+      "window_dump_status_chip.xml (status chip post-navigation)",
+      "window_dump_g.xml (scrolled for scenario G)",
+      "window_dump_g2.xml (menu test positions)",
+      "window_dump_menu_card4.xml (menu opened on card 4)"
+    ],
+    "screenshots": [
+      "scenario-b-chevron-tap.png",
+      "scenario-d-menu-closed.png",
+      "scenario-e-docs-chip.png",
+      "scenario-f-status-chip.png",
+      "scenario-g-menu-card4.png"
+    ]
+  },
+  "verification": "All 7 scenarios PASS on S20 FE physical device. SmartEnrollmentTable interaction model confirmed."
+}
