@@ -38,18 +38,24 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -100,7 +106,16 @@ import com.example.ui.TutorItem
 import com.example.util.LocalToast
 import com.example.viewmodel.AppRole
 import com.example.viewmodel.LabViewModel
+import com.example.viewmodel.OfficialEnrollmentResult
 import com.example.viewmodel.PreApplicationViewModel
+import com.example.data.presolicitud.PreApplicationAdministrativeChanges
+import com.example.data.presolicitud.PreApplicationAdministrativeFieldChange
+import com.example.data.presolicitud.PreApplicationAdministrativeDataSnapshot
+import com.example.data.presolicitud.administrativeDataSnapshot
+import com.example.data.presolicitud.PreApplicationStatus
+import com.example.data.presolicitud.ReadinessStatus
+import com.example.viewmodel.ReadinessResult
+import com.example.data.presolicitud.UpdatePreApplicationAdministrativeDataRequest
 import com.example.viewmodel.Screen
 import kotlinx.coroutines.launch
 
@@ -183,7 +198,7 @@ private fun RecordHeaderFacts(student: Student) {
 @Composable
 private fun RecordHeaderFact(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
-        Text(label, color = SaseMuted, fontSize = 10.sp)
+        Text(label, color = SaseText.copy(alpha = 0.65f), fontSize = 10.sp)
         Text(value, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 12.sp)
     }
 }
@@ -196,13 +211,13 @@ private fun InstitutionalStudentRecordRoute(
     returnTo: Screen,
     viewModel: LabViewModel
 ) {
-    val students by viewModel.saseStudents.collectAsState()
+    val saseStudents by viewModel.saseStudents.collectAsState()
     val preApplications by PreApplicationViewModel.sharedPreApplications.collectAsState()
-    val resolution = remember(studentId, institutionalKey, students, annualEnrollments, preApplications) {
+    val resolution = remember(studentId, institutionalKey, saseStudents, annualEnrollments, preApplications) {
         resolveInstitutionalStudentRecordForRoute(
             studentId = studentId,
             institutionalKey = institutionalKey,
-            students = students,
+            students = saseStudents,
             annualEnrollments = annualEnrollments,
             preApplications = preApplications
         )
@@ -210,18 +225,89 @@ private fun InstitutionalStudentRecordRoute(
     val presentation = remember(resolution) {
         institutionalStudentRecordPresentation(resolution)
     }
+    val currentStudent = remember(saseStudents, studentId) { saseStudents.find { it.id == studentId } }
+    val isConverted = remember(presentation) {
+        val folio = (presentation as? InstitutionalStudentRecordPresentation.Content)?.folio
+        if (folio != null) preApplications.firstOrNull { it.folio == folio }?.readinessStatus == ReadinessStatus.CONVERTED
+        else false
+    }
 
     InstitutionalStudentRecordContent(
         presentation = presentation,
-        onBack = { viewModel.navigateTo(returnTo) }
+        student = currentStudent,
+        isConverted = isConverted,
+        onBack = { viewModel.navigateTo(returnTo) },
+        onSaveStudent = { updatedStudent ->
+            viewModel.updateStudent(updatedStudent)
+            val folio = (presentation as? InstitutionalStudentRecordPresentation.Content)?.folio
+            if (!folio.isNullOrBlank()) {
+                val preApp = preApplications.firstOrNull { it.folio.trim().uppercase() == folio.trim().uppercase() }
+                if (preApp != null && preApp.status == PreApplicationStatus.ENVIADA) {
+                    PreApplicationViewModel.updatePreApplicationAdministrativeData(
+                        UpdatePreApplicationAdministrativeDataRequest(
+                            folio = folio,
+                            expected = preApp.administrativeDataSnapshot(),
+                            changes = PreApplicationAdministrativeChanges(
+                                address = PreApplicationAdministrativeFieldChange.Replace(
+                                    updatedStudent.address.trim().uppercase()
+                                ),
+                                phone = PreApplicationAdministrativeFieldChange.Replace(
+                                    updatedStudent.tutorPhone.trim()
+                                )
+                            )
+                        )
+                    )
+                }
+            }
+            viewModel.logSaseAudit("Expediente actualizado", "Secretaría", updatedStudent.fullName)
+        },
+        onLogAudit = { action, detail ->
+            viewModel.logSaseAudit(action, "Secretaría", detail)
+        }
     )
 }
 
 @Composable
 private fun InstitutionalStudentRecordContent(
     presentation: InstitutionalStudentRecordPresentation,
-    onBack: () -> Unit
+    student: Student?,
+    isConverted: Boolean = false,
+    onBack: () -> Unit,
+    onSaveStudent: (Student) -> Unit,
+    onLogAudit: (String, String) -> Unit
 ) {
+    var isEditing by remember { mutableStateOf(false) }
+    var editName by remember(student) { mutableStateOf(student?.fullName ?: "") }
+    var editCurp by remember(student) { mutableStateOf(student?.curp ?: "") }
+    val displayAddress by remember(presentation) {
+        mutableStateOf(
+            (presentation as? InstitutionalStudentRecordPresentation.Content)?.editableAddress ?: student?.address ?: ""
+        )
+    }
+    var editAddress by remember(displayAddress) { mutableStateOf(displayAddress) }
+    var editZipCode by remember(student) { mutableStateOf(student?.zipCode ?: "") }
+    var editTutorName by remember(student) { mutableStateOf(student?.tutorName ?: "") }
+    val displayPhone by remember(presentation) {
+        mutableStateOf(
+            (presentation as? InstitutionalStudentRecordPresentation.Content)?.editablePhone ?: student?.tutorPhone ?: ""
+        )
+    }
+    var editTutorPhone by remember(displayPhone) { mutableStateOf(displayPhone) }
+    var editEmail by remember(student) { mutableStateOf(student?.tutorEmail ?: "") }
+    var editGroup by remember(student) { mutableStateOf(student?.group ?: "") }
+    var toastMessage by remember { mutableStateOf("") }
+    var showValidationNotice by remember { mutableStateOf(false) }
+    var showFolioAcceptedNotice by remember { mutableStateOf(false) }
+    var showGroupDialog by remember { mutableStateOf(false) }
+    val toast = LocalToast.current
+    val preAppFolio = (presentation as? InstitutionalStudentRecordPresentation.Content)?.folio ?: ""
+    val hasPendingDocs = remember(preAppFolio) {
+        preAppFolio.isNotBlank() && PreApplicationViewModel.sharedPreApplications.value
+            .find { it.folio == preAppFolio }
+            ?.let { preApp -> preApp.documentosDeclarados.any { !it.noAplica && !it.validado } }
+            ?: false
+    }
+
     BoxWithConstraints(modifier = SaseBackgroundModifier()) {
         val compact = maxWidth < 600.dp
         Column(
@@ -242,7 +328,35 @@ private fun InstitutionalStudentRecordContent(
                 Spacer(modifier = Modifier.width(6.dp))
                 Column {
                     Text("Expediente institucional", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = SaseNavy)
-                    Text("Información reconciliada por fuentes", fontSize = 11.sp, color = SaseMuted)
+                    Text(
+                        if (isEditing) "Modo edición" else "Información reconciliada por fuentes",
+                        fontSize = 11.sp,
+                        color = if (isEditing) SaseGreen else SaseText.copy(alpha = 0.55f)
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                if (presentation is InstitutionalStudentRecordPresentation.Content && presentation.isEditable && !isEditing) {
+                    Button(
+                        onClick = {
+                            if (student != null) {
+                                editName = student.fullName
+                                editCurp = student.curp
+                                editAddress = displayAddress
+                                editZipCode = student.zipCode
+                                editTutorName = student.tutorName
+                                editTutorPhone = displayPhone
+                                editEmail = student.tutorEmail
+                                editGroup = student.group
+                            }
+                            isEditing = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Editar", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
                 }
             }
 
@@ -257,35 +371,443 @@ private fun InstitutionalStudentRecordContent(
                     }
                 }
                 is InstitutionalStudentRecordPresentation.Content -> {
-                    GlassCard {
-                        Text(presentation.fullName, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = SaseNavy)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        RecordHeaderFact("CURP", presentation.curp)
-                    }
-                    GlassCard {
-                        Text("Datos institucionales", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = SaseNavy)
-                        Spacer(modifier = Modifier.height(10.dp))
-                        presentation.fields.forEach { field ->
-                            InstitutionalPresentationRow(field, compact)
-                            HorizontalDivider(color = SaseBorder.copy(alpha = 0.55f))
-                        }
-                    }
-                    if (presentation.warnings.isNotEmpty()) {
+                    if (isEditing && student != null) {
                         GlassCard {
-                            Text("Advertencias institucionales", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = SaseOrange)
+                            Text("Editando datos del alumno", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = SaseGreen)
+                            Spacer(modifier = Modifier.height(10.dp))
+                            OutlinedTextField(
+                                value = editName,
+                                onValueChange = { editName = it },
+                                label = { Text("Nombre completo") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
                             Spacer(modifier = Modifier.height(8.dp))
-                            presentation.warnings.forEach { warning ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.Top
-                                ) {
-                                    Icon(Icons.Default.Warning, contentDescription = null, tint = SaseOrange, modifier = Modifier.size(16.dp))
-                                    Text(warning, color = SaseText, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            OutlinedTextField(
+                                value = editCurp,
+                                onValueChange = { editCurp = it.uppercase() },
+                                label = { Text("CURP") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            HorizontalDivider(color = SaseBorder.copy(alpha = 0.3f))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Contacto", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = SaseBlue)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = editAddress,
+                                onValueChange = { editAddress = it },
+                                label = { Text("Domicilio") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = editZipCode,
+                                onValueChange = { editZipCode = it },
+                                label = { Text("Código postal") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = editTutorPhone,
+                                onValueChange = { editTutorPhone = it },
+                                label = { Text("Teléfono del hogar") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = editTutorName,
+                                onValueChange = { editTutorName = it },
+                                label = { Text("Responsable") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = editEmail,
+                                onValueChange = { editEmail = it },
+                                label = { Text("Correo") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = editGroup,
+                                onValueChange = { editGroup = it },
+                                label = { Text("Grupo") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
+                    } else {
+                        GlassCard {
+                            Text(presentation.fullName, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = SaseNavy)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            RecordHeaderFact("CURP", presentation.curp)
+                        }
+                        GlassCard {
+                            Text("Datos institucionales", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = SaseNavy)
+                            Spacer(modifier = Modifier.height(10.dp))
+                            presentation.fields.forEach { field ->
+                                val onClick = when {
+                                    field.label == "Folio de pre-solicitud" && presentation.acceptFolioVisible -> {
+                                        val folio = presentation.folio
+                                        {
+                        PreApplicationViewModel.approvePreApplication(folio)
+                            showFolioAcceptedNotice = true
+                            toast("Folio $folio aceptado")
+                            onLogAudit("Folio aceptado", "Folio: $folio")
+                                        }
+                                    }
+                                    field.label == "Grupo" && field.value == "Pendiente de asignación" -> {
+                                        {
+                                            showGroupDialog = true
+                                        }
+                                    }
+                                    else -> null
+                                }
+                                InstitutionalPresentationRow(field, compact, onClick = onClick)
+                                HorizontalDivider(color = SaseBorder.copy(alpha = 0.55f))
+                            }
+                        }
+                        if (presentation.warnings.isNotEmpty()) {
+                            GlassCard {
+                                Text("Advertencias institucionales", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = SaseOrange)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                presentation.warnings.forEach { warning ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.Top
+                                    ) {
+                                        Icon(Icons.Default.Warning, contentDescription = null, tint = SaseOrange, modifier = Modifier.size(16.dp))
+                                        Text(warning, color = SaseText, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                                    }
                                 }
                             }
                         }
                     }
+
+                    if (isEditing && student != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    isEditing = false
+                                    toast("Edición cancelada")
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Cancelar", fontWeight = FontWeight.Bold)
+                            }
+                            Button(
+                                onClick = {
+                                    if (editName.isBlank() || editCurp.isBlank()) {
+                                        toast("Nombre y CURP son obligatorios")
+                                    } else {
+                                        val updated = student.copy(
+                                            fullName = editName.trim().uppercase(),
+                                            curp = editCurp.trim().uppercase(),
+                                            address = editAddress.trim().uppercase(),
+                                            zipCode = editZipCode.trim(),
+                                            tutorName = editTutorName.trim().uppercase(),
+                                            tutorPhone = editTutorPhone.trim(),
+                                            tutorEmail = editEmail.trim(),
+                                            group = editGroup.trim()
+                                        )
+                                        onSaveStudent(updated)
+                                        isEditing = false
+                                        toast("Cambios guardados")
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Guardar", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    val showActions = (presentation.isEditable || presentation.acceptFolioVisible || presentation.canReopenReview) && !isEditing
+                    if (showActions) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (presentation.isEditable) {
+                                Button(
+                                    onClick = {
+                                        val folio = (presentation as? InstitutionalStudentRecordPresentation.Content)?.folio
+                                        if (!folio.isNullOrBlank()) {
+                                            PreApplicationViewModel.markReadyForOfficialEnrollment(folio)
+                                        }
+                                        showValidationNotice = true
+                                        toast("Expediente validado correctamente")
+                                        onLogAudit("Expediente validado", student?.fullName ?: "")
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Validar", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+
+                            if (presentation.acceptFolioVisible && presentation.folio.isNotBlank()) {
+                                Button(
+                                    onClick = {
+                                        PreApplicationViewModel.approvePreApplication(presentation.folio)
+                                        showFolioAcceptedNotice = true
+                                        toast("Folio ${presentation.folio} aceptado")
+                                        onLogAudit("Folio aceptado", "Folio: ${presentation.folio}")
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Aceptar folio", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+
+                            if (presentation.canReopenReview && presentation.folio.isNotBlank()) {
+                                Button(
+                                    onClick = {
+                                        PreApplicationViewModel.reopenReview(presentation.folio)
+                                        toast("Revisión reabierta")
+                                        onLogAudit("Revisión reabierta", "Folio: ${presentation.folio}")
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SaseOrange),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Reabrir revisión", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showValidationNotice) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showValidationNotice = false }) {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, SaseGreen.copy(alpha = 0.4f))
+            ) {
+                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SaseGreen, modifier = Modifier.size(48.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Expediente validado", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = SaseGreen)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("La información del expediente ha sido revisada y validada por Secretaría.", color = SaseText, fontSize = 12.sp, textAlign = TextAlign.Center)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = { showValidationNotice = false }, colors = ButtonDefaults.buttonColors(containerColor = SaseGreen)) {
+                        Text("Cerrar", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showFolioAcceptedNotice) {
+        val acceptedFolio = (presentation as? InstitutionalStudentRecordPresentation.Content)?.folio ?: ""
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showFolioAcceptedNotice = false }) {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, SaseBlue.copy(alpha = 0.4f))
+            ) {
+                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Description, contentDescription = null, tint = SaseBlue, modifier = Modifier.size(48.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Folio aceptado", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = SaseBlue)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("El folio $acceptedFolio ha sido aceptado y registrado en el expediente.", color = SaseText, fontSize = 12.sp, textAlign = TextAlign.Center)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = { showFolioAcceptedNotice = false }, colors = ButtonDefaults.buttonColors(containerColor = SaseBlue)) {
+                        Text("Cerrar", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showGroupDialog) {
+        GrupoDecisionDialog(
+            folio = preAppFolio,
+            onDismiss = { showGroupDialog = false },
+            toast = toast
+        )
+    }
+}
+
+@Composable
+private fun GrupoDecisionDialog(
+    folio: String,
+    onDismiss: () -> Unit,
+    toast: (String) -> Unit
+) {
+    val preApps by PreApplicationViewModel.sharedPreApplications.collectAsState()
+    val officialStudents by PreApplicationViewModel.officialStudents.collectAsState()
+    val preApp = remember(folio, preApps) { preApps.find { it.folio == folio } }
+    val officialStudent = remember(folio, officialStudents) { officialStudents.find { it.preApplicationFolio == folio } }
+    var selectedGroup by remember(folio) { mutableStateOf<String?>(null) }
+    var groupConfirmed by remember { mutableStateOf(false) }
+    var resultMessage by remember { mutableStateOf<String?>(null) }
+    var resultColor by remember { mutableStateOf(SaseGreen) }
+
+    val grade = preApp?.gradoSolicitado ?: 0
+    val groupOptions = if (grade in 1..3) PreApplicationViewModel.groupOptionsForGrade(grade) else emptyList()
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, SaseBorder),
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Asignación de grupo", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = SaseNavy)
+                Text("Folio: $folio", color = SaseMuted, fontSize = 11.sp)
+
+                if (preApp == null) {
+                    Text("No se encontró la pre-solicitud.", color = SaseOrange, fontSize = 12.sp)
+                } else if (groupOptions.isEmpty()) {
+                    Text("No hay grupos disponibles para el grado $grade.", color = SaseOrange, fontSize = 12.sp)
+                } else {
+                    Text("Grado: ${grade}°", color = SaseText, fontSize = 12.sp)
+
+                    if (officialStudent != null) {
+                        Text("Alta oficial iniciada. Confirma el grupo para completar la asignación.", color = SaseMuted, fontSize = 11.sp)
+                    } else {
+                        Text("Se iniciará el alta oficial con el grupo seleccionado.", color = SaseMuted, fontSize = 11.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    HorizontalDivider(color = SaseBorder.copy(alpha = 0.3f))
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        groupOptions.forEach { option ->
+                            FilterChip(
+                                selected = selectedGroup == option,
+                                onClick = { selectedGroup = option },
+                                label = { Text(option, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = SaseGreen.copy(alpha = 0.14f),
+                                    selectedLabelColor = SaseGreen,
+                                    labelColor = SaseMuted
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = selectedGroup == option,
+                                    borderColor = SaseBorder,
+                                    selectedBorderColor = SaseGreen.copy(alpha = 0.35f)
+                                )
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.White.copy(alpha = 0.42f))
+                            .clickable { groupConfirmed = !groupConfirmed }
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = groupConfirmed,
+                            onCheckedChange = { groupConfirmed = it },
+                            colors = CheckboxDefaults.colors(checkedColor = SaseGreen)
+                        )
+                        Text("Confirmar asignación de grupo", color = SaseText, fontSize = 11.sp)
+                    }
+
+                    Button(
+                        onClick = {
+                            val group = selectedGroup ?: return@Button
+                            if (officialStudent != null) {
+                                val result = PreApplicationViewModel.confirmInitialGroup(folio, group)
+                                resultMessage = result.message
+                                resultColor = when (result) {
+                                    is OfficialEnrollmentResult.Success -> SaseGreen
+                                    else -> SaseOrange
+                                }
+                                if (result is OfficialEnrollmentResult.Success) {
+                                    toast("Grupo $group confirmado")
+                                    onDismiss()
+                                }
+                            } else {
+                                val app = preApp
+                                val enrollResult = PreApplicationViewModel.startOfficialEnrollment(app, group)
+                                resultMessage = enrollResult.message
+                                resultColor = when (enrollResult) {
+                                    is OfficialEnrollmentResult.Success -> SaseGreen
+                                    else -> SaseOrange
+                                }
+                                if (enrollResult is OfficialEnrollmentResult.Success) {
+                                    val confirmResult = PreApplicationViewModel.confirmInitialGroup(folio, group)
+                                    resultMessage = confirmResult.message
+                                    resultColor = when (confirmResult) {
+                                        is OfficialEnrollmentResult.Success -> SaseGreen
+                                        else -> SaseOrange
+                                    }
+                                    if (confirmResult is OfficialEnrollmentResult.Success) {
+                                        toast("Grupo $group asignado")
+                                        onDismiss()
+                                    }
+                                }
+                            }
+                        },
+                        enabled = selectedGroup != null && groupConfirmed,
+                        colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Confirmar grupo", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (resultMessage != null) {
+                    Text(resultMessage ?: "", color = resultColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cerrar", color = SaseMuted)
                 }
             }
         }
@@ -295,7 +817,8 @@ private fun InstitutionalStudentRecordContent(
 @Composable
 private fun InstitutionalPresentationRow(
     field: InstitutionalRecordPresentationField,
-    compact: Boolean
+    compact: Boolean,
+    onClick: (() -> Unit)? = null
 ) {
     val qualityColor = when (field.quality) {
         InstitutionalRecordDataQuality.CONFIRMED -> SaseGreen
@@ -311,8 +834,8 @@ private fun InstitutionalPresentationRow(
     }
     val valueContent: @Composable () -> Unit = {
         Column {
-            Text(field.label, color = SaseMuted, fontSize = 10.sp)
-            Text(field.value, color = SaseText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(field.label, color = SaseText.copy(alpha = 0.65f), fontSize = 10.sp)
+            Text(field.value, color = if (onClick != null) SaseBlue else SaseText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
     val qualityBadge: @Composable () -> Unit = {
@@ -326,15 +849,20 @@ private fun InstitutionalPresentationRow(
             Text(qualityLabel, color = qualityColor, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         }
     }
+    val baseModifier = if (onClick != null) {
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).clickable { onClick() }
+    } else {
+        Modifier.fillMaxWidth()
+    }
     if (compact) {
-        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp)) {
+        Column(modifier = baseModifier.padding(vertical = 9.dp)) {
             valueContent()
             Spacer(modifier = Modifier.height(6.dp))
             qualityBadge()
         }
     } else {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
+            modifier = baseModifier.padding(vertical = 9.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -367,6 +895,19 @@ fun StudentRecordScreen(
     val toast = LocalToast.current
     val students by viewModel.saseStudents.collectAsState()
     val student = remember(students, studentId) { students.find { it.id == studentId } }
+    val preApps by PreApplicationViewModel.sharedPreApplications.collectAsState()
+    val isConverted = remember(student, preApps) {
+        val folio = student?.preApplicationFolio
+        if (folio != null) preApps.firstOrNull { it.folio == folio }?.readinessStatus == ReadinessStatus.CONVERTED
+        else false
+    }
+    val hasPendingDocs = remember(student, preApps) {
+        val folio = student?.preApplicationFolio
+        if (folio != null) preApps.firstOrNull { it.folio == folio }
+            ?.let { it.documentosDeclarados.any { d -> !d.noAplica && !d.validado } }
+            ?: false
+        else false
+    }
 
     var activeTab by remember { mutableStateOf("Resumen") }
     val tabs = listOf(
@@ -633,11 +1174,11 @@ fun StudentRecordScreen(
                         )
                         Box(
                             modifier = Modifier
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
                                 .clip(RoundedCornerShape(999.dp))
                                 .background(bgColor)
                                 .border(1.dp, if (selected) SaseNavy else SaseBorder, RoundedCornerShape(12.dp))
                                 .clickable { activeTab = title }
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
                             Text(
                                 text = title,
@@ -697,6 +1238,7 @@ fun StudentRecordScreen(
                                     }
 
                                     // Attendance block
+                                    if (isConverted) {
                                     GlassCard(modifier = Modifier.fillMaxWidth()) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseGreen))
@@ -729,6 +1271,7 @@ fun StudentRecordScreen(
                                             }
                                         }
                                     }
+                                    }
 
                                     // Health block
                                     GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -745,6 +1288,7 @@ fun StudentRecordScreen(
                                     }
 
                                     // Incidents summary block
+                                    if (isConverted) {
                                     GlassCard(modifier = Modifier.fillMaxWidth()) {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
@@ -786,6 +1330,7 @@ fun StudentRecordScreen(
                                                 HorizontalDivider(color = SaseBorder.copy(alpha = 0.05f))
                                             }
                                         }
+                                    }
                                     }
 
                                     // Orientation block
@@ -906,6 +1451,7 @@ fun StudentRecordScreen(
                                         horizontalArrangement = Arrangement.spacedBy(14.dp)
                                     ) {
                                         // Attendance block
+                                        if (isConverted) {
                                         GlassCard(modifier = Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseGreen))
@@ -939,6 +1485,7 @@ fun StudentRecordScreen(
                                                 }
                                             }
                                         }
+                                        }
 
                                         // Health block
                                         GlassCard(modifier = Modifier.weight(1.5f)) {
@@ -960,6 +1507,7 @@ fun StudentRecordScreen(
                                         horizontalArrangement = Arrangement.spacedBy(14.dp)
                                     ) {
                                         // Incidents summary block
+                                        if (isConverted) {
                                         GlassCard(modifier = Modifier.weight(1.5f)) {
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
@@ -967,7 +1515,7 @@ fun StudentRecordScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text("Historial de incidencias", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
-                                                Text("Ver historial", color = SaseBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { activeTab = "Historial" })
+                                            Text("Ver historial", color = if (hasPendingDocs) SaseMuted else SaseBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable(enabled = !hasPendingDocs) { activeTab = "Historial" })
                                             }
                                             Spacer(modifier = Modifier.height(10.dp))
                                             if (student.schoolIncidents.isEmpty()) {
@@ -997,6 +1545,7 @@ fun StudentRecordScreen(
                                                     HorizontalDivider(color = SaseBorder.copy(alpha = 0.05f))
                                                 }
                                             }
+                                        }
                                         }
 
                                         // Orientation block
@@ -1322,14 +1871,8 @@ fun StudentRecordScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            if (userRole == AppRole.SECRETARIA) {
-                                ActionButton("Registrar incidencia", Icons.Default.Warning, SaseRed, Modifier.fillMaxWidth()) { showIncidentDialog = true }
-                            }
                             ActionButton("Agregar observación", Icons.AutoMirrored.Filled.Comment, SaseBlue, Modifier.fillMaxWidth()) { showObsDialog = true }
                             ActionButton("Ver documentos", Icons.AutoMirrored.Filled.Assignment, SaseViolet, Modifier.fillMaxWidth()) { showDocumentDialog = true }
-                            if (userRole == AppRole.SECRETARIA) {
-                                ActionButton("Escalar caso", Icons.AutoMirrored.Filled.CallSplit, SaseOrange, Modifier.fillMaxWidth()) { showEscalarDialog = true }
-                            }
                         }
                     } else {
                         Row(
@@ -1337,14 +1880,8 @@ fun StudentRecordScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (userRole == AppRole.SECRETARIA) {
-                                ActionButton("Registrar incidencia", Icons.Default.Warning, SaseRed, Modifier.weight(1f)) { showIncidentDialog = true }
-                            }
                             ActionButton("Agregar observación", Icons.AutoMirrored.Filled.Comment, SaseBlue, Modifier.weight(1f)) { showObsDialog = true }
                             ActionButton("Ver documentos", Icons.AutoMirrored.Filled.Assignment, SaseViolet, Modifier.weight(1.2f)) { showDocumentDialog = true }
-                            if (userRole == AppRole.SECRETARIA) {
-                                ActionButton("Escalar caso", Icons.AutoMirrored.Filled.CallSplit, SaseOrange, Modifier.weight(1f)) { showEscalarDialog = true }
-                            }
                         }
                     }
                 }

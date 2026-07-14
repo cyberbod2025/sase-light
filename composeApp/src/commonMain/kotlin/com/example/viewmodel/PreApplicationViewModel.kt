@@ -346,8 +346,49 @@ class PreApplicationViewModel {
         fun toggleDocumentCotejado(folio: String, docNombre: String) {
             updatePreApp(folio) { app ->
                 app.copy(documentosDeclarados = app.documentosDeclarados.map { doc ->
-                    if (doc.nombre != docNombre || !doc.declarado) doc
+                    if (doc.nombre != docNombre || !doc.declarado || doc.noAplica || doc.validado) doc
+                    else if (doc.rechazado) doc.copy(rechazado = false, cotejadoSecretaria = true)
                     else doc.copy(cotejadoSecretaria = !doc.cotejadoSecretaria)
+                })
+            }
+            reconcileReadinessAfterRequirementChange(folio)
+        }
+
+        fun markDocumentNoAplica(folio: String, docNombre: String) {
+            updatePreApp(folio) { app ->
+                app.copy(documentosDeclarados = app.documentosDeclarados.map { doc ->
+                    if (doc.nombre != docNombre) doc
+                    else doc.copy(noAplica = true, cotejadoSecretaria = false, validado = false, rechazado = false)
+                })
+            }
+            reconcileReadinessAfterRequirementChange(folio)
+        }
+
+        fun markDocumentValidado(folio: String, docNombre: String) {
+            updatePreApp(folio) { app ->
+                app.copy(documentosDeclarados = app.documentosDeclarados.map { doc ->
+                    if (doc.nombre != docNombre || !doc.declarado || !doc.cotejadoSecretaria) doc
+                    else doc.copy(validado = true, rechazado = false)
+                })
+            }
+            reconcileReadinessAfterRequirementChange(folio)
+        }
+
+        fun markDocumentRechazado(folio: String, docNombre: String) {
+            updatePreApp(folio) { app ->
+                app.copy(documentosDeclarados = app.documentosDeclarados.map { doc ->
+                    if (doc.nombre != docNombre || !doc.declarado || !doc.cotejadoSecretaria) doc
+                    else doc.copy(rechazado = true, validado = false, cotejadoSecretaria = false)
+                })
+            }
+            reconcileReadinessAfterRequirementChange(folio)
+        }
+
+        fun setDocumentObservacion(folio: String, docNombre: String, observacion: String) {
+            updatePreApp(folio) { app ->
+                app.copy(documentosDeclarados = app.documentosDeclarados.map { doc ->
+                    if (doc.nombre != docNombre) doc
+                    else doc.copy(observacion = observacion.take(220))
                 })
             }
             reconcileReadinessAfterRequirementChange(folio)
@@ -664,7 +705,7 @@ class PreApplicationViewModel {
                 if (preApp.status != PreApplicationStatus.ACEPTADA) {
                     add("Pre-solicitud aceptada por Secretaría")
                 }
-                if (preApp.documentosDeclarados.any { !it.declarado || !it.cotejadoSecretaria }) {
+                if (preApp.documentosDeclarados.any { !it.noAplica && !it.validado }) {
                     add("Documentos requeridos cotejados")
                 }
                 if (preApp.promedioGradoAnterior?.let { it in 5.0..10.0 } != true) {
@@ -748,6 +789,20 @@ class PreApplicationViewModel {
             )
             updatePreApp(folio) { ready }
             return ReadinessResult.Success(ready)
+        }
+
+        fun reopenReview(folio: String): Boolean {
+            val preApp = _sharedPreApplications.value.firstOrNull { it.folio.trim().uppercase() == folio.trim().uppercase() }
+                ?: return false
+            if (preApp.readinessStatus != ReadinessStatus.READY) return false
+            updatePreApp(folio) {
+                it.copy(
+                    readinessStatus = ReadinessStatus.PENDING,
+                    readyAt = null,
+                    readinessNotes = "Revisión reabierta por Secretaría."
+                )
+            }
+            return true
         }
 
         fun officialEnrollmentForFolio(folio: String): OfficialStudent? =

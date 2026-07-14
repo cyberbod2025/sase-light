@@ -76,6 +76,9 @@ val SaseOrange = Color(0xFFF97316)
 val SaseRed = Color(0xFFDC2626)
 val SaseText = Color(0xFF0F172A)
 val SaseMuted = Color(0xFF64748B)
+
+fun saseMutedColor(): Color = SaseMuted
+fun saseTextColor(): Color = SaseText
 val SaseBorder = Color(0x3894A3B8) // Transparent border
 
 // Background Brush with macOS light circles drawBehind effect

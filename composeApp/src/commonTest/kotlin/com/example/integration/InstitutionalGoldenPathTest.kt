@@ -245,6 +245,7 @@ class InstitutionalGoldenPathTest {
         )
         PreApplicationViewModel.approvePreApplication(submitted.folio)
         PreApplicationViewModel.toggleDocumentCotejado(submitted.folio, "CURP")
+        PreApplicationViewModel.markDocumentValidado(submitted.folio, "CURP")
         PreApplicationViewModel.simulateCaptureStudentPhoto(submitted.folio)
         PreApplicationViewModel.simulateCaptureResponsablePhoto(submitted.folio)
         return PreApplicationViewModel.sharedPreApplications.value.single { it.folio == submitted.folio }

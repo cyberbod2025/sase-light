@@ -220,6 +220,7 @@ class PreApplicationGuardrailsTest {
             preApplication(curp = uniqueCurp("RECON2"), documents = listOf(document))
         }
         PreApplicationViewModel.toggleDocumentCotejado(submitted.folio, document.nombre)
+        PreApplicationViewModel.markDocumentValidado(submitted.folio, document.nombre)
         PreApplicationViewModel.simulateCaptureStudentPhoto(submitted.folio)
         PreApplicationViewModel.simulateCaptureResponsablePhoto(submitted.folio)
         PreApplicationViewModel.approvePreApplication(submitted.folio)
@@ -227,7 +228,8 @@ class PreApplicationGuardrailsTest {
             PreApplicationViewModel.markReadyForOfficialEnrollment(submitted.folio)
         )
 
-        PreApplicationViewModel.toggleDocumentCotejado(submitted.folio, document.nombre)
+        // Rechazar el documento validado → resetea cotejadoSecretaria, crea nuevo pendiente
+        PreApplicationViewModel.markDocumentRechazado(submitted.folio, document.nombre)
 
         val blocked = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == submitted.folio }
         assertEquals(ReadinessStatus.BLOCKED, blocked.readinessStatus)
@@ -1335,6 +1337,7 @@ class PreApplicationGuardrailsTest {
             "Corregir domicilio"
         )
         PreApplicationViewModel.toggleDocumentCotejado(submitted.folio, document.nombre)
+        PreApplicationViewModel.markDocumentValidado(submitted.folio, document.nombre)
         PreApplicationViewModel.simulateCaptureStudentPhoto(submitted.folio)
         PreApplicationViewModel.simulateCaptureResponsablePhoto(submitted.folio)
         PreApplicationViewModel.approvePreApplication(submitted.folio)

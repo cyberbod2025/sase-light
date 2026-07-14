@@ -6,6 +6,7 @@ import com.example.data.enrollment.AnnualEnrollmentRecord
 import com.example.data.enrollment.AnnualEnrollmentFlowResult
 import com.example.data.enrollment.GroupPlacementRequirement
 import com.example.data.presolicitud.PreApplication
+import com.example.data.presolicitud.PreApplicationStatus
 import com.example.data.presolicitud.ReadinessStatus
 
 data class InstitutionalStudentRecordKey(
@@ -70,7 +71,10 @@ data class InstitutionalStudentRecord(
 
 sealed interface InstitutionalStudentRecordResolution {
     data class Resolved(
-        val record: InstitutionalStudentRecord
+        val record: InstitutionalStudentRecord,
+        val isEditable: Boolean = false,
+        val acceptFolioVisible: Boolean = false,
+        val canReopenReview: Boolean = false
     ) : InstitutionalStudentRecordResolution
 
     data class StudentNotFound(
@@ -246,6 +250,18 @@ fun resolveInstitutionalStudentRecord(
                 !annual.movement.matchesDeclared(preApplication.tramite))
         )
 
+    val isConverted = preApplication?.readinessStatus == ReadinessStatus.CONVERTED
+    val isEditable = preApplication != null && !isConverted &&
+        preApplication.readinessStatus != ReadinessStatus.READY &&
+        preApplication.status in setOf(
+            PreApplicationStatus.ENVIADA,
+            PreApplicationStatus.ACEPTADA
+        )
+    val acceptFolioVisible = preApplication != null && !isConverted &&
+        preApplication.status == PreApplicationStatus.ENVIADA
+    val canReopenReview = preApplication != null && !isConverted &&
+        preApplication.readinessStatus == ReadinessStatus.READY
+
     val warnings = buildSet {
         if (student.preApplicationFolio?.trim().isNullOrEmpty()) {
             add(InstitutionalRecordWarning.MISSING_STUDENT_PRE_APPLICATION_TRACEABILITY)
@@ -261,7 +277,7 @@ fun resolveInstitutionalStudentRecord(
         }
         if (preApplication == null) {
             add(InstitutionalRecordWarning.PRE_APPLICATION_NOT_FOUND)
-        } else if (preApplication.readinessStatus != ReadinessStatus.CONVERTED) {
+        } else if (!isConverted) {
             add(InstitutionalRecordWarning.PRE_APPLICATION_SYNCHRONIZATION_INCOMPLETE)
         }
         if (preApplicationContextMismatch) {
@@ -273,7 +289,7 @@ fun resolveInstitutionalStudentRecord(
     }
 
     return InstitutionalStudentRecordResolution.Resolved(
-        InstitutionalStudentRecord(
+        record = InstitutionalStudentRecord(
             studentId = student.id,
             fullName = student.fullName,
             curp = student.curp,
@@ -299,7 +315,10 @@ fun resolveInstitutionalStudentRecord(
                 preApplicationContextIncomplete
             ),
             warnings = warnings
-        )
+        ),
+        isEditable = isEditable,
+        acceptFolioVisible = acceptFolioVisible,
+        canReopenReview = canReopenReview
     )
 }
 

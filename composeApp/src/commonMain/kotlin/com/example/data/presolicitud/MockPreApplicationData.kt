@@ -11,7 +11,7 @@ object MockPreApplicationData {
     private val requiredDocsPending = listOf(
         DocumentoDeclarado("ACTA DE NACIMIENTO", true, true),
         DocumentoDeclarado("CURP", true, false),
-        DocumentoDeclarado("BOLETA / CERTIFICADO", false, false),
+        DocumentoDeclarado("BOLETA / CERTIFICADO", true, false),
         DocumentoDeclarado("COMPROBANTE DE DOMICILIO", true, false)
     )
 

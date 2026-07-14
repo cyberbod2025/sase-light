@@ -139,7 +139,11 @@ data class AntecedentesUdeii(
 data class DocumentoDeclarado(
     val nombre: String,
     val declarado: Boolean,
-    val cotejadoSecretaria: Boolean = false
+    val cotejadoSecretaria: Boolean = false,
+    val validado: Boolean = false,
+    val rechazado: Boolean = false,
+    val noAplica: Boolean = false,
+    val observacion: String = ""
 )
 
 data class ConsentimientosFamiliares(

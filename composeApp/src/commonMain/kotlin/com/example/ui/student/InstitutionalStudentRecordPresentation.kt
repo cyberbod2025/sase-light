@@ -21,7 +21,13 @@ internal sealed interface InstitutionalStudentRecordPresentation {
         val fullName: String,
         val curp: String,
         val fields: List<InstitutionalRecordPresentationField>,
-        val warnings: List<String>
+        val warnings: List<String>,
+        val isEditable: Boolean = false,
+        val acceptFolioVisible: Boolean = false,
+        val canReopenReview: Boolean = false,
+        val folio: String = "",
+        val editableAddress: String = "",
+        val editablePhone: String = ""
     ) : InstitutionalStudentRecordPresentation
 
     data class Terminal(
@@ -89,7 +95,11 @@ internal fun resolveInstitutionalStudentRecordForRoute(
 internal fun institutionalStudentRecordPresentation(
     resolution: InstitutionalStudentRecordResolution
 ): InstitutionalStudentRecordPresentation = when (resolution) {
-    is InstitutionalStudentRecordResolution.Resolved -> resolution.record.toPresentation()
+    is InstitutionalStudentRecordResolution.Resolved -> resolution.record.toPresentation(
+        resolution.isEditable,
+        resolution.acceptFolioVisible,
+        resolution.canReopenReview
+    )
     is InstitutionalStudentRecordResolution.StudentNotFound -> terminal(
         "Estudiante no encontrado",
         "No existe una identidad institucional para ${resolution.studentId}."
@@ -126,7 +136,11 @@ internal fun institutionalStudentRecordPresentation(
     )
 }
 
-private fun InstitutionalStudentRecord.toPresentation(): InstitutionalStudentRecordPresentation.Content =
+private fun InstitutionalStudentRecord.toPresentation(
+    isEditable: Boolean = false,
+    acceptFolioVisible: Boolean = false,
+    canReopenReview: Boolean = false
+): InstitutionalStudentRecordPresentation.Content =
     InstitutionalStudentRecordPresentation.Content(
         fullName = fullName.ifBlank { "Nombre no disponible" },
         curp = curp.ifBlank { "No disponible" },
@@ -146,7 +160,13 @@ private fun InstitutionalStudentRecord.toPresentation(): InstitutionalStudentRec
             address.presentation("Domicilio"),
             householdPhone.presentation("Teléfono del hogar")
         ),
-        warnings = warnings.map { it.label() }.sorted()
+        warnings = warnings.map { it.label() }.sorted(),
+        isEditable = isEditable,
+        acceptFolioVisible = acceptFolioVisible,
+        canReopenReview = canReopenReview,
+        folio = preApplicationFolio,
+        editableAddress = address.value.orEmpty(),
+        editablePhone = householdPhone.value.orEmpty()
     )
 
 private fun <T> InstitutionalRecordField<T>.presentation(

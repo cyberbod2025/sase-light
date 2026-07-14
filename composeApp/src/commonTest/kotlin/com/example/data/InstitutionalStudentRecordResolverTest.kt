@@ -7,6 +7,7 @@ import com.example.data.enrollment.AnnualEnrollmentRecord
 import com.example.data.enrollment.GroupPlacementRequirement
 import com.example.data.presolicitud.MockPreApplicationData
 import com.example.data.presolicitud.PreApplication
+import com.example.data.presolicitud.PreApplicationStatus
 import com.example.data.presolicitud.ReadinessStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -881,6 +882,71 @@ class InstitutionalStudentRecordResolverTest {
     private fun assertUnavailable(field: InstitutionalRecordField<*>) {
         assertNull(field.value)
         assertEquals(InstitutionalRecordDataQuality.UNAVAILABLE, field.quality)
+    }
+
+    @Test
+    fun isEditableTrueWhenEnviadaAndPending() {
+        val preApp = preApplication().copy(
+            status = PreApplicationStatus.ENVIADA,
+            readinessStatus = ReadinessStatus.PENDING
+        )
+        val resolved = assertIs<InstitutionalStudentRecordResolution.Resolved>(
+            resolve(preApplications = listOf(preApp))
+        )
+        assertTrue(resolved.isEditable, "isEditable should be true when ENVIADA and PENDING")
+        assertTrue(resolved.acceptFolioVisible, "acceptFolioVisible should be true when ENVIADA")
+    }
+
+    @Test
+    fun isEditableFalseWhenReadinessReady() {
+        val preApp = preApplication().copy(
+            status = PreApplicationStatus.ENVIADA,
+            readinessStatus = ReadinessStatus.READY
+        )
+        val resolved = assertIs<InstitutionalStudentRecordResolution.Resolved>(
+            resolve(preApplications = listOf(preApp))
+        )
+        assertFalse(resolved.isEditable, "isEditable should be false when readiness is READY")
+        assertTrue(resolved.acceptFolioVisible, "acceptFolioVisible should still be true when status is ENVIADA")
+    }
+
+    @Test
+    fun acceptFolioVisibleFalseWhenStatusAceptada() {
+        val preApp = preApplication().copy(
+            status = PreApplicationStatus.ACEPTADA,
+            readinessStatus = ReadinessStatus.PENDING
+        )
+        val resolved = assertIs<InstitutionalStudentRecordResolution.Resolved>(
+            resolve(preApplications = listOf(preApp))
+        )
+        assertFalse(resolved.acceptFolioVisible, "acceptFolioVisible should be false when status is ACEPTADA")
+        assertTrue(resolved.isEditable, "isEditable should be true when status is ACEPTADA (H1)")
+    }
+
+    @Test
+    fun bothFalseWhenConverted() {
+        val preApp = preApplication().copy(
+            status = PreApplicationStatus.ENVIADA,
+            readinessStatus = ReadinessStatus.CONVERTED
+        )
+        val resolved = assertIs<InstitutionalStudentRecordResolution.Resolved>(
+            resolve(preApplications = listOf(preApp))
+        )
+        assertFalse(resolved.isEditable, "isEditable should be false when CONVERTED")
+        assertFalse(resolved.acceptFolioVisible, "acceptFolioVisible should be false when CONVERTED")
+    }
+
+    @Test
+    fun bothFalseWhenBothReadyAndAceptada() {
+        val preApp = preApplication().copy(
+            status = PreApplicationStatus.ACEPTADA,
+            readinessStatus = ReadinessStatus.READY
+        )
+        val resolved = assertIs<InstitutionalStudentRecordResolution.Resolved>(
+            resolve(preApplications = listOf(preApp))
+        )
+        assertFalse(resolved.isEditable, "isEditable should be false when READY and ACEPTADA")
+        assertFalse(resolved.acceptFolioVisible, "acceptFolioVisible should be false when status is ACEPTADA")
     }
 
     private fun AnnualEnrollmentRecord.preApplicationFolio(): String = sourcePreApplicationFolio
