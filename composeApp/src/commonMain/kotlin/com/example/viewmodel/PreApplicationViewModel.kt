@@ -303,7 +303,12 @@ class PreApplicationViewModel {
         private fun demoPhotoStates(): Map<String, PreApplicationPhotoState> = mapOf(
             "PRE-X1A2" to PreApplicationPhotoState("mock://photo/student/PRE-X1A2.jpg", "mock://photo/responsable/PRE-X1A2.jpg"),
             "PRE-D4L4" to PreApplicationPhotoState("mock://photo/student/PRE-D4L4.jpg", "mock://photo/responsable/PRE-D4L4.jpg"),
-            "PRE-E5M5" to PreApplicationPhotoState("mock://photo/student/PRE-E5M5.jpg", "mock://photo/responsable/PRE-E5M5.jpg")
+            "PRE-E5M5" to PreApplicationPhotoState("mock://photo/student/PRE-E5M5.jpg", "mock://photo/responsable/PRE-E5M5.jpg"),
+            // D6: los fixtures FIX-01 declarados READY requieren fotos para que
+            // su readiness sea coherente con officialEnrollmentPendingItems.
+            "PRE-NEW-001" to PreApplicationPhotoState("mock://photo/student/PRE-NEW-001.jpg", "mock://photo/responsable/PRE-NEW-001.jpg"),
+            "PRE-CONFLICT-001" to PreApplicationPhotoState("mock://photo/student/PRE-CONFLICT-001.jpg", "mock://photo/responsable/PRE-CONFLICT-001.jpg"),
+            "PRE-REENROLL-001" to PreApplicationPhotoState("mock://photo/student/PRE-REENROLL-001.jpg", "mock://photo/responsable/PRE-REENROLL-001.jpg")
         )
 
         private val _photos = MutableStateFlow(demoPhotoStates())
@@ -581,6 +586,18 @@ class PreApplicationViewModel {
             _sharedPreApplications.value = _sharedPreApplications.value.map {
                 if (it.folio == folio) transform(it) else it
             }
+        }
+
+        fun updatePreApplicationCurp(folio: String, newCurp: String) {
+            val normalized = normalizeCurp(newCurp)
+            if (normalized.length != 18) return
+            // D5: una pre-solicitud CONVERTED ya generó identidad institucional
+            // (alumno oficial / anualidad). Su CURP no se corrige aquí; la ruta
+            // válida es el expediente institucional.
+            val current = _sharedPreApplications.value.firstOrNull { it.folio == folio } ?: return
+            if (current.readinessStatus == ReadinessStatus.CONVERTED) return
+            updatePreApp(folio) { it.copy(alumnoCurp = normalized) }
+            reconcileReadinessAfterRequirementChange(folio)
         }
 
         private fun buildStoredPreApplication(preApplication: PreApplication): PreApplication {

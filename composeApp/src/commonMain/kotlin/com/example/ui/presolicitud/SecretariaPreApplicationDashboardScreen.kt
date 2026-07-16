@@ -431,6 +431,8 @@ private fun PreApplicationDetailTabs(
     }
     var showDocObservationDialog by remember { mutableStateOf<String?>(null) }
     var docObservationDraft by remember { mutableStateOf("") }
+    var showCurpCorrectionDialog by remember { mutableStateOf(false) }
+    var curpDraft by remember { mutableStateOf(preApp.alumnoCurp) }
 
     GlassCard(modifier = modifier, containerColor = SecretaryMobileCard.copy(alpha = 0.92f)) {
         // Folio + Status
@@ -480,7 +482,18 @@ private fun PreApplicationDetailTabs(
             pendingItems = officialEnrollmentPendingItems,
             officialStudent = officialStudent,
             onStartOfficialEnrollment = { showOfficialEnrollmentPanel = true },
-            onNavigateToDocs = { selectedTab = 3 }
+            onNavigateToDocs = { selectedTab = 3 },
+            onOpenExistingStudent = {
+                MockSaseData.studentByCurp(preApp.alumnoCurp)?.let { student ->
+                    viewModel.navigateTo(
+                        Screen.StudentRecord(
+                            studentId = student.id,
+                            returnTo = Screen.SecretariaPreApplicationDashboard
+                        )
+                    )
+                }
+            },
+            onCorrectCurp = { showCurpCorrectionDialog = true }
         )
 
         if (showOfficialEnrollmentPanel) {
@@ -619,6 +632,94 @@ private fun PreApplicationDetailTabs(
                 preApp = preApp,
                 onDismiss = { showEditDialog = false }
             )
+        }
+
+        // CURP correction dialog
+        if (showCurpCorrectionDialog) {
+            CurpCorrectionDialog(
+                currentCurp = preApp.alumnoCurp,
+                folio = preApp.folio,
+                onDismiss = { showCurpCorrectionDialog = false }
+            )
+        }
+    }
+}
+
+private val curpPattern = Regex("^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z0-9]\\d$")
+
+@Composable
+private fun CurpCorrectionDialog(
+    currentCurp: String,
+    folio: String,
+    onDismiss: () -> Unit
+) {
+    val toast = LocalToast.current
+    var curpEdit by remember(folio) { mutableStateOf(currentCurp) }
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = SaseNavy,
+        unfocusedTextColor = SaseNavy,
+        focusedBorderColor = SaseNavy,
+        unfocusedBorderColor = SaseBorder,
+        focusedLabelColor = SaseNavy,
+        unfocusedLabelColor = SaseMuted
+    )
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, SaseBorder),
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Corregir CURP", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 18.sp)
+                Text("Folio: $folio", color = saseMutedColor(), fontSize = 11.sp)
+
+                OutlinedTextField(
+                    value = curpEdit,
+                    onValueChange = { curpEdit = it.filter { char -> char.isLetterOrDigit() }.uppercase().take(18) },
+                    label = { Text("CURP") },
+                    colors = fieldColors,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancelar", color = saseMutedColor())
+                    }
+                    Button(
+                        onClick = {
+                            val candidate = curpEdit.trim().uppercase()
+                            if (candidate.length != 18) {
+                                toast("La CURP debe tener 18 caracteres")
+                            } else if (!candidate.matches(curpPattern)) {
+                                toast("Formato de CURP inválido")
+                            } else {
+                                val duplicate = PreApplicationViewModel.curpDuplicateInfo(folio, candidate)
+                                if (duplicate != null) {
+                                    toast("CURP ya registrada: $duplicate")
+                                } else {
+                                    PreApplicationViewModel.updatePreApplicationCurp(folio, candidate)
+                                    toast("CURP actualizada: $candidate")
+                                    onDismiss()
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Guardar")
+                    }
+                }
+            }
         }
     }
 }
@@ -883,7 +984,9 @@ private fun OfficialEnrollmentReadinessCard(
     pendingItems: List<String>,
     officialStudent: OfficialStudent?,
     onStartOfficialEnrollment: () -> Unit,
-    onNavigateToDocs: () -> Unit = {}
+    onNavigateToDocs: () -> Unit = {},
+    onOpenExistingStudent: () -> Unit = {},
+    onCorrectCurp: () -> Unit = {}
 ) {
     val isReadyByChecklist = pendingItems.isEmpty()
     val isPersistedReady = preApp.readinessStatus == ReadinessStatus.READY
@@ -986,13 +1089,17 @@ private fun OfficialEnrollmentReadinessCard(
             Spacer(modifier = Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
-                    onClick = { /* TODO: navegar a expediente existente */ },
+                    onClick = onOpenExistingStudent,
                     modifier = Modifier.weight(1f)
                 ) { Text("Abrir expediente existente", fontSize = 10.sp) }
-                OutlinedButton(
-                    onClick = { /* TODO: abrir edición de CURP */ },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Corregir CURP", fontSize = 10.sp) }
+                // D5: tras la conversión la identidad es institucional; la CURP
+                // ya no se corrige desde la pre-solicitud.
+                if (!isConverted) {
+                    OutlinedButton(
+                        onClick = onCorrectCurp,
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Corregir CURP", fontSize = 10.sp) }
+                }
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -1030,10 +1137,10 @@ private fun OfficialEnrollmentReadinessCard(
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
-        if (!isCurpBlocked) {
+        if (!isCurpBlocked && (isPersistedReady || officialStarted || isConverted)) {
             Button(
                 onClick = onStartOfficialEnrollment,
-                enabled = isPersistedReady || officialStarted || isConverted,
+                enabled = (isPersistedReady && isReadyByChecklist) || officialStarted || isConverted,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (officialStarted || isConverted) SaseBlue else SaseGreen,
                     disabledContainerColor = saseMutedColor().copy(alpha = 0.18f),
@@ -1054,7 +1161,7 @@ private fun OfficialEnrollmentReadinessCard(
                     fontSize = 11.sp
                 )
             }
-            if (!officialStarted && !isPersistedReady) {
+            if (!officialStarted && !isReadyByChecklist) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Box(
                     modifier = Modifier
