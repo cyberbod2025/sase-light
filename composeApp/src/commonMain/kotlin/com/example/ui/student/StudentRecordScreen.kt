@@ -86,8 +86,6 @@ import com.example.data.SaseObservation
 import com.example.data.Student
 import com.example.data.enrollment.AnnualEnrollmentRecord
 import com.example.ui.DataRow
-import com.example.ui.GlassCard
-import com.example.ui.PillStat
 import com.example.ui.SaseBackgroundModifier
 import com.example.ui.SaseBgSoft
 import com.example.ui.SaseBlue
@@ -103,6 +101,16 @@ import com.example.ui.SaseSidebar
 import com.example.ui.SaseText
 import com.example.ui.SaseViolet
 import com.example.ui.TutorItem
+import com.example.ui.components.buttons.SasePrimaryButton
+import com.example.ui.components.buttons.SaseSecondaryButton
+import com.example.ui.components.cards.SaseCard
+import com.example.ui.components.chips.SaseStatusChip
+import com.example.ui.components.chips.SaseStatusVariant
+import com.example.ui.components.feedback.SaseAlertCard
+import com.example.ui.components.feedback.SaseAlertVariant
+import com.example.ui.components.fields.SaseTextField
+import com.example.ui.components.navigation.SaseSectionTabs
+import com.example.ui.theme.SaseColors
 import com.example.util.LocalToast
 import com.example.viewmodel.AppRole
 import com.example.viewmodel.LabViewModel
@@ -336,7 +344,8 @@ private fun InstitutionalStudentRecordContent(
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 if (presentation is InstitutionalStudentRecordPresentation.Content && presentation.isEditable && !isEditing) {
-                    Button(
+                    SasePrimaryButton(
+                        text = "Editar",
                         onClick = {
                             if (student != null) {
                                 editName = student.fullName
@@ -350,114 +359,84 @@ private fun InstitutionalStudentRecordContent(
                             }
                             isEditing = true
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Editar", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
+                        icon = Icons.Default.Edit,
+                        containerColor = SaseBlue
+                    )
                 }
             }
 
             when (presentation) {
-                is InstitutionalStudentRecordPresentation.Terminal -> GlassCard {
+                is InstitutionalStudentRecordPresentation.Terminal -> SaseCard {
                     Text(presentation.title, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = SaseRed)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(presentation.message, color = SaseText, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(12.dp))
-                    Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = SaseNavy)) {
-                        Text("Volver", fontWeight = FontWeight.Bold)
-                    }
+                    SasePrimaryButton(text = "Volver", onClick = onBack, containerColor = SaseNavy)
                 }
                 is InstitutionalStudentRecordPresentation.Content -> {
                     if (isEditing && student != null) {
-                        GlassCard {
+                        SaseCard {
                             Text("Editando datos del alumno", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = SaseGreen)
                             Spacer(modifier = Modifier.height(10.dp))
-                            OutlinedTextField(
+                            SaseTextField(
                                 value = editName,
                                 onValueChange = { editName = it },
-                                label = { Text("Nombre completo") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp)
+                                label = "Nombre completo"
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
+                            SaseTextField(
                                 value = editCurp,
                                 onValueChange = { editCurp = it.uppercase() },
-                                label = { Text("CURP") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp)
+                                label = "CURP"
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             HorizontalDivider(color = SaseBorder.copy(alpha = 0.3f))
                             Spacer(modifier = Modifier.height(8.dp))
                             Text("Contacto", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = SaseBlue)
                             Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
+                            SaseTextField(
                                 value = editAddress,
                                 onValueChange = { editAddress = it },
-                                label = { Text("Domicilio") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp)
+                                label = "Domicilio"
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
+                            SaseTextField(
                                 value = editZipCode,
                                 onValueChange = { editZipCode = it },
-                                label = { Text("Código postal") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp)
+                                label = "Código postal"
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
+                            SaseTextField(
                                 value = editTutorPhone,
                                 onValueChange = { editTutorPhone = it },
-                                label = { Text("Teléfono del hogar") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp)
+                                label = "Teléfono del hogar"
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
+                            SaseTextField(
                                 value = editTutorName,
                                 onValueChange = { editTutorName = it },
-                                label = { Text("Responsable") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp)
+                                label = "Responsable"
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
+                            SaseTextField(
                                 value = editEmail,
                                 onValueChange = { editEmail = it },
-                                label = { Text("Correo") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp)
+                                label = "Correo"
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
+                            SaseTextField(
                                 value = editGroup,
                                 onValueChange = { editGroup = it },
-                                label = { Text("Grupo") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp)
+                                label = "Grupo"
                             )
                         }
                     } else {
-                        GlassCard {
+                        SaseCard {
                             Text(presentation.fullName, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = SaseNavy)
                             Spacer(modifier = Modifier.height(6.dp))
                             RecordHeaderFact("CURP", presentation.curp)
                         }
-                        GlassCard {
+                        SaseCard {
                             Text("Datos institucionales", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = SaseNavy)
                             Spacer(modifier = Modifier.height(10.dp))
                             presentation.fields.forEach { field ->
@@ -483,7 +462,7 @@ private fun InstitutionalStudentRecordContent(
                             }
                         }
                         if (presentation.warnings.isNotEmpty()) {
-                            GlassCard {
+                            SaseCard {
                                 Text("Advertencias institucionales", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = SaseOrange)
                                 Spacer(modifier = Modifier.height(8.dp))
                                 presentation.warnings.forEach { warning ->
@@ -505,17 +484,16 @@ private fun InstitutionalStudentRecordContent(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            OutlinedButton(
+                            SaseSecondaryButton(
+                                text = "Cancelar",
                                 onClick = {
                                     isEditing = false
                                     toast("Edición cancelada")
                                 },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text("Cancelar", fontWeight = FontWeight.Bold)
-                            }
-                            Button(
+                                modifier = Modifier.weight(1f)
+                            )
+                            SasePrimaryButton(
+                                text = "Guardar",
                                 onClick = {
                                     if (editName.isBlank() || editCurp.isBlank()) {
                                         toast("Nombre y CURP son obligatorios")
@@ -535,14 +513,10 @@ private fun InstitutionalStudentRecordContent(
                                         toast("Cambios guardados")
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Guardar", fontWeight = FontWeight.Bold)
-                            }
+                                icon = Icons.Default.Check,
+                                containerColor = SaseGreen,
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
 
@@ -553,7 +527,8 @@ private fun InstitutionalStudentRecordContent(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             if (presentation.isEditable) {
-                                Button(
+                                SasePrimaryButton(
+                                    text = "Validar",
                                     onClick = {
                                         val folio = (presentation as? InstitutionalStudentRecordPresentation.Content)?.folio
                                         if (!folio.isNullOrBlank()) {
@@ -563,49 +538,39 @@ private fun InstitutionalStudentRecordContent(
                                         toast("Expediente validado correctamente")
                                         onLogAudit("Expediente validado", student?.fullName ?: "")
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Validar", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                }
+                                    icon = Icons.Default.CheckCircle,
+                                    containerColor = SaseGreen,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
 
                             if (presentation.acceptFolioVisible && presentation.folio.isNotBlank()) {
-                                Button(
+                                SasePrimaryButton(
+                                    text = "Aceptar folio",
                                     onClick = {
                                         PreApplicationViewModel.approvePreApplication(presentation.folio)
                                         showFolioAcceptedNotice = true
                                         toast("Folio ${presentation.folio} aceptado")
                                         onLogAudit("Folio aceptado", "Folio: ${presentation.folio}")
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Aceptar folio", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                }
+                                    icon = Icons.Default.Description,
+                                    containerColor = SaseBlue,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
 
                             if (presentation.canReopenReview && presentation.folio.isNotBlank()) {
-                                Button(
+                                SasePrimaryButton(
+                                    text = "Reabrir revisión",
                                     onClick = {
                                         PreApplicationViewModel.reopenReview(presentation.folio)
                                         toast("Revisión reabierta")
                                         onLogAudit("Revisión reabierta", "Folio: ${presentation.folio}")
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = SaseOrange),
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Reabrir revisión", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                }
+                                    icon = Icons.Default.Refresh,
+                                    containerColor = SaseOrange,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                         }
                     }
@@ -628,9 +593,7 @@ private fun InstitutionalStudentRecordContent(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("La información del expediente ha sido revisada y validada por Secretaría.", color = SaseText, fontSize = 12.sp, textAlign = TextAlign.Center)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { showValidationNotice = false }, colors = ButtonDefaults.buttonColors(containerColor = SaseGreen)) {
-                        Text("Cerrar", fontWeight = FontWeight.Bold)
-                    }
+                    SasePrimaryButton(text = "Cerrar", onClick = { showValidationNotice = false }, containerColor = SaseGreen)
                 }
             }
         }
@@ -651,9 +614,7 @@ private fun InstitutionalStudentRecordContent(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("El folio $acceptedFolio ha sido aceptado y registrado en el expediente.", color = SaseText, fontSize = 12.sp, textAlign = TextAlign.Center)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { showFolioAcceptedNotice = false }, colors = ButtonDefaults.buttonColors(containerColor = SaseBlue)) {
-                        Text("Cerrar", fontWeight = FontWeight.Bold)
-                    }
+                    SasePrimaryButton(text = "Cerrar", onClick = { showFolioAcceptedNotice = false }, containerColor = SaseBlue)
                 }
             }
         }
@@ -754,9 +715,10 @@ private fun GrupoDecisionDialog(
                         Text("Confirmar asignación de grupo", color = SaseText, fontSize = 11.sp)
                     }
 
-                    Button(
+                    SasePrimaryButton(
+                        text = "Confirmar grupo",
                         onClick = {
-                            val group = selectedGroup ?: return@Button
+                            val group = selectedGroup ?: return@SasePrimaryButton
                             if (officialStudent != null) {
                                 val result = PreApplicationViewModel.confirmInitialGroup(folio, group)
                                 resultMessage = result.message
@@ -791,12 +753,9 @@ private fun GrupoDecisionDialog(
                             }
                         },
                         enabled = selectedGroup != null && groupConfirmed,
-                        colors = ButtonDefaults.buttonColors(containerColor = SaseGreen),
-                        shape = RoundedCornerShape(12.dp),
+                        containerColor = SaseGreen,
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Confirmar grupo", fontWeight = FontWeight.Bold)
-                    }
+                    )
                 }
 
                 if (resultMessage != null) {
@@ -942,9 +901,7 @@ fun StudentRecordScreen(
         Box(modifier = SaseBackgroundModifier(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Expediente no encontrado", fontWeight = FontWeight.Bold, color = SaseNavy)
-                Button(onClick = { viewModel.navigateTo(returnTo) }) {
-                    Text("Regresar")
-                }
+                SasePrimaryButton(text = "Regresar", onClick = { viewModel.navigateTo(returnTo) })
             }
         }
         return
@@ -988,16 +945,13 @@ fun StudentRecordScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Button(
+                            SasePrimaryButton(
+                                text = "Documento",
                                 onClick = { showDocumentDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
-                                shape = RoundedCornerShape(12.dp),
+                                icon = Icons.Default.Description,
+                                containerColor = SaseBlue,
                                 modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Documento", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
-                            }
+                            )
                         }
                     }
                 } else {
@@ -1015,15 +969,12 @@ fun StudentRecordScreen(
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
+                            SasePrimaryButton(
+                                text = "Ver documentos",
                                 onClick = { showDocumentDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Ver documentos", fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                            }
+                                icon = Icons.Default.Description,
+                                containerColor = SaseBlue
+                            )
                         }
                     }
                 }
@@ -1031,7 +982,7 @@ fun StudentRecordScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Ficha Perfil Principal (Header Perfil)
-                GlassCard {
+                SaseCard {
                     if (isMobile) {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
@@ -1143,52 +1094,28 @@ fun StudentRecordScreen(
                             .then(if (isMobile) Modifier.horizontalScroll(rememberScrollState()) else Modifier),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        PillStat(label = "Riesgo: ${student.riskLevel}", color = when(student.riskLevel){ "Alto" -> SaseRed "Medio" -> SaseOrange else -> SaseGreen })
-                        PillStat(label = "BAP: ${student.bap}", color = if(student.bap == "Sí") SaseViolet else SaseMuted)
-                        PillStat(label = "Seguro escolar: ${student.schoolInsurance}", color = SaseGreen)
-                        PillStat(label = "Documentación: ${student.documentationStatus}", color = if(student.documentationStatus == "Completa") SaseGreen else SaseOrange)
+                        val riesgoVariant = when (student.riskLevel) {
+                            "Alto" -> SaseStatusVariant.ERROR
+                            "Medio" -> SaseStatusVariant.WARNING
+                            else -> SaseStatusVariant.SUCCESS
+                        }
+                        SaseStatusChip(label = "Riesgo: ${student.riskLevel}", variant = riesgoVariant)
+                        val bapVariant = if (student.bap == "Sí") SaseStatusVariant.INFORMATION else SaseStatusVariant.NEUTRAL
+                        SaseStatusChip(label = "BAP: ${student.bap}", variant = bapVariant)
+                        SaseStatusChip(label = "Seguro escolar: ${student.schoolInsurance}", variant = SaseStatusVariant.SUCCESS)
+                        val docVariant = if (student.documentationStatus == "Completa") SaseStatusVariant.SUCCESS else SaseStatusVariant.WARNING
+                        SaseStatusChip(label = "Documentación: ${student.documentationStatus}", variant = docVariant)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Full-row horizontal scroll target for mobile; avoids tiny tab gesture zones.
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    tabs.forEach { title ->
-                        val selected = activeTab == title
-                        val bgColor by animateColorAsState(
-                            targetValue = if (selected) SaseNavy else Color.White.copy(alpha = 0.66f),
-                            animationSpec = spring(dampingRatio = 0.68f, stiffness = 300f),
-                            label = "tabBg"
-                        )
-                        val textColor by animateColorAsState(
-                            targetValue = if (selected) Color.White else SaseText,
-                            animationSpec = spring(dampingRatio = 0.68f, stiffness = 300f),
-                            label = "tabText"
-                        )
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(bgColor)
-                                .border(1.dp, if (selected) SaseNavy else SaseBorder, RoundedCornerShape(12.dp))
-                                .clickable { activeTab = title }
-                        ) {
-                            Text(
-                                text = title,
-                                color = textColor,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-                }
+                SaseSectionTabs(
+                    tabs = tabs,
+                    selectedTab = activeTab,
+                    onTabSelected = { activeTab = it },
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -1202,7 +1129,7 @@ fun StudentRecordScreen(
                             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                                 if (!isWide) {
                                     // General data block
-                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    SaseCard(modifier = Modifier.fillMaxWidth()) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseBlue))
     Spacer(Modifier.width(8.dp))
@@ -1217,7 +1144,7 @@ fun StudentRecordScreen(
                                     }
 
                                     // Contacts block
-                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    SaseCard(modifier = Modifier.fillMaxWidth()) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseCyan))
     Spacer(Modifier.width(8.dp))
@@ -1239,7 +1166,7 @@ fun StudentRecordScreen(
 
                                     // Attendance block
                                     if (isConverted) {
-                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    SaseCard(modifier = Modifier.fillMaxWidth()) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseGreen))
     Spacer(Modifier.width(8.dp))
@@ -1274,7 +1201,7 @@ fun StudentRecordScreen(
                                     }
 
                                     // Health block
-                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    SaseCard(modifier = Modifier.fillMaxWidth()) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseCyan))
     Spacer(Modifier.width(8.dp))
@@ -1289,7 +1216,7 @@ fun StudentRecordScreen(
 
                                     // Incidents summary block
                                     if (isConverted) {
-                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    SaseCard(modifier = Modifier.fillMaxWidth()) {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1334,7 +1261,7 @@ fun StudentRecordScreen(
                                     }
 
                                     // Orientation block
-                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    SaseCard(modifier = Modifier.fillMaxWidth()) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseViolet))
     Spacer(Modifier.width(8.dp))
@@ -1348,7 +1275,7 @@ fun StudentRecordScreen(
                                     }
 
                                     // Documents block
-                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    SaseCard(modifier = Modifier.fillMaxWidth()) {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1384,7 +1311,7 @@ fun StudentRecordScreen(
                                     }
 
                                     // Observations block
-                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    SaseCard(modifier = Modifier.fillMaxWidth()) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseOrange))
     Spacer(Modifier.width(8.dp))
@@ -1410,7 +1337,7 @@ fun StudentRecordScreen(
                                         horizontalArrangement = Arrangement.spacedBy(14.dp)
                                     ) {
                                         // General data block
-                                        GlassCard(modifier = Modifier.weight(1f)) {
+                                        SaseCard(modifier = Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseBlue))
     Spacer(Modifier.width(8.dp))
@@ -1425,7 +1352,7 @@ fun StudentRecordScreen(
                                         }
 
                                         // Contacts block
-                                        GlassCard(modifier = Modifier.weight(1f)) {
+                                        SaseCard(modifier = Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseCyan))
     Spacer(Modifier.width(8.dp))
@@ -1452,7 +1379,7 @@ fun StudentRecordScreen(
                                     ) {
                                         // Attendance block
                                         if (isConverted) {
-                                        GlassCard(modifier = Modifier.weight(1f)) {
+                                        SaseCard(modifier = Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseGreen))
     Spacer(Modifier.width(8.dp))
@@ -1488,7 +1415,7 @@ fun StudentRecordScreen(
                                         }
 
                                         // Health block
-                                        GlassCard(modifier = Modifier.weight(1.5f)) {
+                                        SaseCard(modifier = Modifier.weight(1.5f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseCyan))
     Spacer(Modifier.width(8.dp))
@@ -1508,7 +1435,7 @@ fun StudentRecordScreen(
                                     ) {
                                         // Incidents summary block
                                         if (isConverted) {
-                                        GlassCard(modifier = Modifier.weight(1.5f)) {
+                                        SaseCard(modifier = Modifier.weight(1.5f)) {
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1549,7 +1476,7 @@ fun StudentRecordScreen(
                                         }
 
                                         // Orientation block
-                                        GlassCard(modifier = Modifier.weight(1.2f)) {
+                                        SaseCard(modifier = Modifier.weight(1.2f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseViolet))
     Spacer(Modifier.width(8.dp))
@@ -1568,7 +1495,7 @@ fun StudentRecordScreen(
                                         horizontalArrangement = Arrangement.spacedBy(14.dp)
                                     ) {
                                         // Documents block
-                                        GlassCard(modifier = Modifier.weight(1.2f)) {
+                                        SaseCard(modifier = Modifier.weight(1.2f)) {
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1600,7 +1527,7 @@ fun StudentRecordScreen(
                                         }
 
                                         // Observations block
-                                        GlassCard(modifier = Modifier.weight(1.5f)) {
+                                        SaseCard(modifier = Modifier.weight(1.5f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(SaseOrange))
     Spacer(Modifier.width(8.dp))
@@ -1626,7 +1553,7 @@ fun StudentRecordScreen(
                         }
 
                         "Datos personales" -> {
-                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            SaseCard(modifier = Modifier.fillMaxWidth()) {
                                 Text("Datos personales del alumno", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
                                 DataRow(label = "Nombre completo", value = student.fullName)
@@ -1650,7 +1577,7 @@ fun StudentRecordScreen(
                         }
 
                         "Responsables" -> {
-                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            SaseCard(modifier = Modifier.fillMaxWidth()) {
                                 Text("Responsables y contactos", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
                                 TutorItem(
@@ -1678,7 +1605,7 @@ fun StudentRecordScreen(
                         }
 
                         "Contexto" -> {
-                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            SaseCard(modifier = Modifier.fillMaxWidth()) {
                                 Text("Contexto y seguimiento del alumno", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
                                 DataRow(label = "Asistencia acumulada", value = "${student.attendancePercent}%")
@@ -1697,22 +1624,19 @@ fun StudentRecordScreen(
                         }
 
                         "Historial" -> {
-                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            SaseCard(modifier = Modifier.fillMaxWidth()) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text("Historial completo de incidencias", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
-                                    Button(
+                                    SasePrimaryButton(
+                                        text = "Registrar incidencia",
                                         onClick = { showIncidentDialog = true },
-                                        colors = ButtonDefaults.buttonColors(containerColor = SaseRed),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Registrar incidencia", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
+                                        icon = Icons.Default.Add,
+                                        containerColor = SaseRed
+                                    )
                                 }
                                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -1749,7 +1673,7 @@ fun StudentRecordScreen(
                         }
 
                         "Salud" -> {
-                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            SaseCard(modifier = Modifier.fillMaxWidth()) {
                                 Text("Historial médico y salud del Alumno", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
                                 DataRow(label = "Alergias severas", value = student.healthAlergies)
@@ -1760,7 +1684,7 @@ fun StudentRecordScreen(
                         }
 
                         "Orientación" -> {
-                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            SaseCard(modifier = Modifier.fillMaxWidth()) {
                                 Text("Bitácora de Orientación y Trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
                                 DataRow(label = "Estatus escolar", value = student.orientationStatus)
@@ -1771,7 +1695,7 @@ fun StudentRecordScreen(
                         }
 
                         "Documentos" -> {
-                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            SaseCard(modifier = Modifier.fillMaxWidth()) {
                                 Text("Expediente digitalizado (Documentos obligatorios)", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1796,22 +1720,19 @@ fun StudentRecordScreen(
                         }
 
                         "Observaciones" -> {
-                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            SaseCard(modifier = Modifier.fillMaxWidth()) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text("Bitácora pedagógica de observaciones", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
-                                    Button(
+                                    SasePrimaryButton(
+                                        text = "Agregar observación",
                                         onClick = { showObsDialog = true },
-                                        colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Agregar observación", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
+                                        icon = Icons.Default.Add,
+                                        containerColor = SaseBlue
+                                    )
                                 }
                                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -1841,38 +1762,30 @@ fun StudentRecordScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Bottom floating-like action bar (fijo o inferior)
-                GlassCard(
+                SaseCard(
                     modifier = Modifier.fillMaxWidth(),
                     borderColor = SaseBlue.copy(alpha = 0.4f),
                     containerColor = SaseNavy.copy(alpha = 0.03f)
                 ) {
-                    @Composable
-                    fun ActionButton(
-                        text: String,
-                        icon: androidx.compose.ui.graphics.vector.ImageVector,
-                        color: Color,
-                        modifier: Modifier,
-                        onClick: () -> Unit
-                    ) {
-                        Button(
-                            onClick = onClick,
-                            colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = Color.White),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = modifier.heightIn(min = 44.dp)
-                        ) {
-                            Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, color = Color.White)
-                        }
-                    }
-
                     if (!isWide) {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            ActionButton("Agregar observación", Icons.AutoMirrored.Filled.Comment, SaseBlue, Modifier.fillMaxWidth()) { showObsDialog = true }
-                            ActionButton("Ver documentos", Icons.AutoMirrored.Filled.Assignment, SaseViolet, Modifier.fillMaxWidth()) { showDocumentDialog = true }
+                            SasePrimaryButton(
+                                text = "Agregar observación",
+                                onClick = { showObsDialog = true },
+                                icon = Icons.AutoMirrored.Filled.Comment,
+                                containerColor = SaseBlue,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            SasePrimaryButton(
+                                text = "Ver documentos",
+                                onClick = { showDocumentDialog = true },
+                                icon = Icons.AutoMirrored.Filled.Assignment,
+                                containerColor = SaseViolet,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     } else {
                         Row(
@@ -1880,8 +1793,20 @@ fun StudentRecordScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            ActionButton("Agregar observación", Icons.AutoMirrored.Filled.Comment, SaseBlue, Modifier.weight(1f)) { showObsDialog = true }
-                            ActionButton("Ver documentos", Icons.AutoMirrored.Filled.Assignment, SaseViolet, Modifier.weight(1.2f)) { showDocumentDialog = true }
+                            SasePrimaryButton(
+                                text = "Agregar observación",
+                                onClick = { showObsDialog = true },
+                                icon = Icons.AutoMirrored.Filled.Comment,
+                                containerColor = SaseBlue,
+                                modifier = Modifier.weight(1f)
+                            )
+                            SasePrimaryButton(
+                                text = "Ver documentos",
+                                onClick = { showDocumentDialog = true },
+                                icon = Icons.AutoMirrored.Filled.Assignment,
+                                containerColor = SaseViolet,
+                                modifier = Modifier.weight(1.2f)
+                            )
                         }
                     }
                 }
@@ -1924,12 +1849,11 @@ fun StudentRecordScreen(
                         }
                     }
 
-                    OutlinedTextField(
+                    SaseTextField(
                         value = incDesc,
                         onValueChange = { incDesc = it },
-                        label = { Text("Descripción") },
-                        placeholder = { Text("Ej. El alumno llegó 15 minutos tarde...") },
-                        modifier = Modifier.fillMaxWidth()
+                        label = "Descripción",
+                        placeholder = "Ej. El alumno llegó 15 minutos tarde..."
                     )
 
                     Row(
@@ -1939,7 +1863,8 @@ fun StudentRecordScreen(
                         TextButton(onClick = { showIncidentDialog = false }, modifier = Modifier.weight(1f)) {
                             Text("Cancelar", color = SaseMuted)
                         }
-                        Button(
+                        SasePrimaryButton(
+                            text = "Registrar",
                             onClick = {
                                 if (incDesc.isNotBlank()) {
                                     val incs = student.schoolIncidents.toMutableList()
@@ -1954,11 +1879,9 @@ fun StudentRecordScreen(
                                     toast("Favor de agregar descripción")
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = SaseRed),
+                            containerColor = SaseRed,
                             modifier = Modifier.weight(1.5f)
-                        ) {
-                            Text("Registrar", fontWeight = FontWeight.Bold)
-                        }
+                        )
                     }
                 }
             }
@@ -2027,7 +1950,8 @@ fun StudentRecordScreen(
                         TextButton(onClick = { showObsDialog = false }, modifier = Modifier.weight(1f)) {
                             Text("Cerrar", color = SaseMuted, fontWeight = FontWeight.Bold)
                         }
-                        Button(
+                        SasePrimaryButton(
+                            text = "Agregar",
                             onClick = {
                                 if (obsText.isNotBlank()) {
                                     val obs = student.observations.toMutableList()
@@ -2042,12 +1966,9 @@ fun StudentRecordScreen(
                                     toast("Favor de agregar observaciones")
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = SaseBlue, contentColor = Color.White),
-                            shape = RoundedCornerShape(12.dp),
+                            containerColor = SaseBlue,
                             modifier = Modifier.weight(1.5f)
-                        ) {
-                            Text("Agregar", fontWeight = FontWeight.Bold, color = Color.White)
-                        }
+                        )
                     }
                 }
             }
@@ -2072,11 +1993,10 @@ fun StudentRecordScreen(
                     Text("Escalar caso a Dirección / Psicología", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                     Text("Describa el motivo del escalamiento y asigne prioridad.", color = SaseMuted, fontSize = 11.sp)
 
-                    OutlinedTextField(
+                    SaseTextField(
                         value = escalarNotes,
                         onValueChange = { escalarNotes = it },
-                        label = { Text("Motivo de canalización") },
-                        modifier = Modifier.fillMaxWidth()
+                        label = "Motivo de canalización"
                     )
 
                     Row(
@@ -2086,7 +2006,8 @@ fun StudentRecordScreen(
                         TextButton(onClick = { showEscalarDialog = false }, modifier = Modifier.weight(1f)) {
                             Text("Cancelar", color = SaseMuted)
                         }
-                        Button(
+                        SasePrimaryButton(
+                            text = "Escalar Caso",
                             onClick = {
                                 if (escalarNotes.isNotBlank()) {
                                     viewModel.logSaseAudit("Caso escalado", "Dirección", "${student.fullName} - Canalización")
@@ -2097,11 +2018,9 @@ fun StudentRecordScreen(
                                     toast("Favor de agregar motivo")
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = SaseOrange),
+                            containerColor = SaseOrange,
                             modifier = Modifier.weight(1.5f)
-                        ) {
-                            Text("Escalar Caso", fontWeight = FontWeight.Bold)
-                        }
+                        )
                     }
                 }
             }
