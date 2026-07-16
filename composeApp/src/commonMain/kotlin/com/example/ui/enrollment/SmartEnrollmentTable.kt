@@ -61,6 +61,8 @@ import com.example.ui.SaseMuted
 import com.example.ui.SaseNavy
 import com.example.ui.SaseOrange
 import com.example.ui.SaseRed
+import com.example.data.DerivedEnrollmentStatus
+import com.example.data.deriveEnrollmentStatus
 import com.example.ui.SaseText
 
 private val officialEnrollmentPattern = Regex("^S310-[A-Z0-9]{10}-\\d{2}$")
@@ -284,7 +286,8 @@ private fun WideStudentTable(
                             .testTag("student_status_chip_${student.id}")
                             .clickable { onStatusChipClick(student) }
                     ) {
-                        StatusPill(status = student.status)
+                        val derived = deriveEnrollmentStatus(student)
+                        StatusPill(status = derived.label)
                     }
                 }
                     Row(modifier = Modifier.weight(1.5f), verticalAlignment = Alignment.CenterVertically) {
@@ -449,7 +452,8 @@ private fun CompactStudentList(
                             .testTag("student_status_chip_${student.id}")
                             .clickable { onStatusChipClick(student) }
                     ) {
-                        StatusPill(status = student.status)
+                        val derived = deriveEnrollmentStatus(student)
+                        StatusPill(status = derived.label)
                     }
                     Box(
                         modifier = Modifier
@@ -572,6 +576,13 @@ fun StatusPill(status: String) {
         "Activo" -> Triple(SaseGreen.copy(alpha = 0.12f), SaseGreenDark, "Activo")
         "En riesgo" -> Triple(SaseOrange.copy(alpha = 0.12f), SaseOrange, "En riesgo")
         "Nuevo ingreso" -> Triple(SaseBlue.copy(alpha = 0.12f), SaseBlue, "Nuevo ingreso")
+        "Alta oficial con grupo" -> Triple(SaseGreen.copy(alpha = 0.12f), SaseGreenDark, "Alta oficial")
+        "Alta oficial sin grupo" -> Triple(SaseBlue.copy(alpha = 0.12f), SaseBlue, "Alta oficial")
+        "Lista para alta oficial" -> Triple(SaseGreen.copy(alpha = 0.12f), SaseGreenDark, "Lista para alta")
+        "Documentos pendientes" -> Triple(SaseOrange.copy(alpha = 0.12f), SaseOrange, "Docs pendientes")
+        "Fotografías pendientes" -> Triple(SaseOrange.copy(alpha = 0.12f), SaseOrange, "Fotos pendientes")
+        "Grupo por asignar" -> Triple(SaseOrange.copy(alpha = 0.12f), SaseOrange, "Grupo por asignar")
+        "Conflicto de CURP" -> Triple(SaseRed.copy(alpha = 0.12f), SaseRed, "Conflicto CURP")
         else -> Triple(SaseMuted.copy(alpha = 0.12f), SaseMuted, status)
     }
 

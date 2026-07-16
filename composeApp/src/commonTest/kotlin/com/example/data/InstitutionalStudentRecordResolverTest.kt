@@ -857,6 +857,7 @@ class InstitutionalStudentRecordResolverTest {
 
     private fun preApplication() = MockPreApplicationData.preApplications.first().copy(
         folio = "PRE-L6A",
+        tramite = "NUEVO INGRESO",
         alumnoNombreCompleto = "ALUMNA INSTITUCIONAL",
         alumnoCurp = "L6AA100101MDFABC01",
         alumnoDomicilio = "DOMICILIO INSTITUCIONAL CORREGIDO",
