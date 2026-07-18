@@ -1194,7 +1194,9 @@ private fun OfficialEnrollmentReadinessCard(
                     disabledContentColor = saseMutedColor()
                 ),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("official_enrollment_action")
             ) {
                 Icon(if (isPersistedReady || officialStarted || isConverted) Icons.Default.AssignmentTurnedIn else Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(6.dp))

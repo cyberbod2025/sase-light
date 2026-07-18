@@ -67,6 +67,12 @@ kotlin {
       implementation(compose.desktop.currentOs)
     }
 
+    val desktopTest by getting
+    desktopTest.dependencies {
+      @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+      implementation(compose.uiTest)
+    }
+
     iosMain.dependencies {
     }
   }
