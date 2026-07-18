@@ -19,6 +19,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,6 +35,7 @@ import com.example.data.MockSaseData
 import com.example.data.presolicitud.*
 import com.example.ui.*
 import com.example.util.LocalToast
+import com.example.viewmodel.CurpCorrectionResult
 import com.example.viewmodel.LabViewModel
 
 import com.example.viewmodel.InstitutionalAnnualEnrollmentResult
@@ -171,7 +176,9 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                                 focusedTextColor = saseTextColor(),
                                 unfocusedTextColor = saseTextColor()
                             ),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("preapplication_search")
                         )
                         Row(
                             modifier = Modifier
@@ -325,7 +332,9 @@ private fun PreApplicationList(
                             .clip(RoundedCornerShape(12.dp))
                             .background(if (isSelected) SaseBlue.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.5f))
                             .border(if (isSelected) 1.dp else 0.dp, if (isSelected) SaseBlue.copy(alpha = 0.3f) else Color.Transparent, RoundedCornerShape(12.dp))
-                            .clickable { onSelect(app) }
+                            .testTag("preapplication_row_${app.folio}")
+                            .semantics { selected = isSelected }
+                            .clickable(role = Role.Button) { onSelect(app) }
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -432,7 +441,6 @@ private fun PreApplicationDetailTabs(
     var showDocObservationDialog by remember { mutableStateOf<String?>(null) }
     var docObservationDraft by remember { mutableStateOf("") }
     var showCurpCorrectionDialog by remember { mutableStateOf(false) }
-    var curpDraft by remember { mutableStateOf(preApp.alumnoCurp) }
 
     GlassCard(modifier = modifier, containerColor = SecretaryMobileCard.copy(alpha = 0.92f)) {
         // Folio + Status
@@ -483,15 +491,13 @@ private fun PreApplicationDetailTabs(
             officialStudent = officialStudent,
             onStartOfficialEnrollment = { showOfficialEnrollmentPanel = true },
             onNavigateToDocs = { selectedTab = 3 },
-            onOpenExistingStudent = {
-                MockSaseData.studentByCurp(preApp.alumnoCurp)?.let { student ->
-                    viewModel.navigateTo(
-                        Screen.StudentRecord(
-                            studentId = student.id,
-                            returnTo = Screen.SecretariaPreApplicationDashboard
-                        )
+            onOpenExistingStudent = { studentId ->
+                viewModel.navigateTo(
+                    Screen.StudentRecord(
+                        studentId = studentId,
+                        returnTo = Screen.SecretariaPreApplicationDashboard
                     )
-                }
+                )
             },
             onCorrectCurp = { showCurpCorrectionDialog = true }
         )
@@ -645,8 +651,6 @@ private fun PreApplicationDetailTabs(
     }
 }
 
-private val curpPattern = Regex("^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z0-9]\\d$")
-
 @Composable
 private fun CurpCorrectionDialog(
     currentCurp: String,
@@ -655,6 +659,7 @@ private fun CurpCorrectionDialog(
 ) {
     val toast = LocalToast.current
     var curpEdit by remember(folio) { mutableStateOf(currentCurp) }
+    var errorMessage by remember(folio) { mutableStateOf<String?>(null) }
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = SaseNavy,
         unfocusedTextColor = SaseNavy,
@@ -669,7 +674,10 @@ private fun CurpCorrectionDialog(
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             border = BorderStroke(1.dp, SaseBorder),
-            modifier = Modifier.fillMaxWidth().padding(16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .testTag("curp_correction_dialog")
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -680,10 +688,20 @@ private fun CurpCorrectionDialog(
 
                 OutlinedTextField(
                     value = curpEdit,
-                    onValueChange = { curpEdit = it.filter { char -> char.isLetterOrDigit() }.uppercase().take(18) },
+                    onValueChange = {
+                        curpEdit = it
+                        errorMessage = null
+                    },
                     label = { Text("CURP") },
+                    isError = errorMessage != null,
+                    supportingText = errorMessage?.let { message ->
+                        { Text(message) }
+                    },
+                    singleLine = true,
                     colors = fieldColors,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("curp_correction_input")
                 )
 
                 Row(
@@ -692,29 +710,41 @@ private fun CurpCorrectionDialog(
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("curp_correction_cancel")
                     ) {
                         Text("Cancelar", color = saseMutedColor())
                     }
                     Button(
                         onClick = {
-                            val candidate = curpEdit.trim().uppercase()
-                            if (candidate.length != 18) {
-                                toast("La CURP debe tener 18 caracteres")
-                            } else if (!candidate.matches(curpPattern)) {
-                                toast("Formato de CURP inválido")
-                            } else {
-                                val duplicate = PreApplicationViewModel.curpDuplicateInfo(folio, candidate)
-                                if (duplicate != null) {
-                                    toast("CURP ya registrada: $duplicate")
-                                } else {
-                                    PreApplicationViewModel.updatePreApplicationCurp(folio, candidate)
-                                    toast("CURP actualizada: $candidate")
+                            when (val result = PreApplicationViewModel.correctPreApplicationCurp(folio, curpEdit)) {
+                                is CurpCorrectionResult.Updated -> {
+                                    curpEdit = result.normalizedCurp
+                                    errorMessage = null
+                                    toast("CURP actualizada correctamente")
                                     onDismiss()
+                                }
+                                is CurpCorrectionResult.InvalidFormat -> {
+                                    errorMessage = result.message
+                                }
+                                is CurpCorrectionResult.Duplicate -> {
+                                    errorMessage = result.conflict.institutionalMessage
+                                }
+                                CurpCorrectionResult.NotFound -> {
+                                    errorMessage = "No se encontró la pre-solicitud. Actualiza la vista e inténtalo de nuevo."
+                                }
+                                CurpCorrectionResult.AlreadyConverted -> {
+                                    errorMessage = "La solicitud ya fue convertida; la CURP se gestiona desde el expediente institucional."
+                                }
+                                CurpCorrectionResult.InstitutionalIdentityLocked -> {
+                                    errorMessage = "La CURP de una reinscripción está vinculada al expediente institucional y no puede corregirse aquí."
                                 }
                             }
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("curp_correction_save")
                     ) {
                         Text("Guardar")
                     }
@@ -985,7 +1015,7 @@ private fun OfficialEnrollmentReadinessCard(
     officialStudent: OfficialStudent?,
     onStartOfficialEnrollment: () -> Unit,
     onNavigateToDocs: () -> Unit = {},
-    onOpenExistingStudent: () -> Unit = {},
+    onOpenExistingStudent: (String) -> Unit = {},
     onCorrectCurp: () -> Unit = {}
 ) {
     val isReadyByChecklist = pendingItems.isEmpty()
@@ -998,10 +1028,10 @@ private fun OfficialEnrollmentReadinessCard(
     val readerIsReadyForOfficial = isPersistedReady && pendingItems.isEmpty()
     val officialCompleted = officialStarted && pendingItems.isEmpty()
     val officialWithPending = officialStarted && pendingItems.isNotEmpty() && !isConverted
-    val curpDuplicate = remember(preApp.folio, preApp.alumnoCurp, preApp.tramite) {
-        PreApplicationViewModel.curpDuplicateInfo(preApp.folio, preApp.alumnoCurp, preApp.tramite)
+    val curpConflict = remember(preApp.folio, preApp.alumnoCurp, preApp.tramite) {
+        PreApplicationViewModel.resolveCurpConflict(preApp.folio, preApp.alumnoCurp)
     }
-    val isCurpBlocked = curpDuplicate != null
+    val isCurpBlocked = curpConflict != null
     val headerColor = when {
         isCurpBlocked -> SaseRed
         officialCompleted || isConverted -> SaseGreen
@@ -1080,32 +1110,49 @@ private fun OfficialEnrollmentReadinessCard(
             }
         }
 
-        if (isCurpBlocked) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "La CURP de esta solicitud ya existe en el padrón. No puede continuar.",
-                color = SaseRed, fontSize = 11.sp, fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = onOpenExistingStudent,
-                    modifier = Modifier.weight(1f)
-                ) { Text("Abrir expediente existente", fontSize = 10.sp) }
-                // D5: tras la conversión la identidad es institucional; la CURP
-                // ya no se corrige desde la pre-solicitud.
-                if (!isConverted) {
-                    OutlinedButton(
-                        onClick = onCorrectCurp,
-                        modifier = Modifier.weight(1f)
-                    ) { Text("Corregir CURP", fontSize = 10.sp) }
+        if (curpConflict != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("curp_conflict_panel")
+            ) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    curpConflict.institutionalMessage,
+                    color = SaseRed, fontSize = 11.sp, fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    curpConflict.masterStudentId
+                        ?.takeIf { curpConflict.isNavigable }
+                        ?.let { studentId ->
+                            OutlinedButton(
+                                onClick = { onOpenExistingStudent(studentId) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("open_existing_student_button")
+                            ) { Text("Abrir expediente existente", fontSize = 10.sp) }
+                        }
+                    // D5: tras la conversión la identidad es institucional; la CURP
+                    // ya no se corrige desde la pre-solicitud.
+                    if (!isConverted) {
+                        OutlinedButton(
+                            onClick = onCorrectCurp,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("correct_curp_button")
+                        ) { Text("Corregir CURP", fontSize = 10.sp) }
+                    }
                 }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Acciones de inscripción no disponibles mientras la CURP esté duplicada.",
+                    color = saseMutedColor(), fontSize = 8.sp
+                )
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                "Acciones de inscripción no disponibles mientras la CURP esté duplicada.",
-                color = saseMutedColor(), fontSize = 8.sp
-            )
         }
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -1219,7 +1266,7 @@ private fun OfficialEnrollmentContextualPanel(
     val annualEnrollments by MockSaseData.annualEnrollments.collectAsState()
     val masterStudents by MockSaseData.students.collectAsState()
     val curpDuplicate = remember(preApp.folio, preApp.alumnoCurp, preApp.tramite) {
-        PreApplicationViewModel.curpDuplicateInfo(preApp.folio, preApp.alumnoCurp, preApp.tramite)
+        PreApplicationViewModel.curpDuplicateInfo(preApp.folio, preApp.alumnoCurp)
     }
     val panelPresentation = institutionalEnrollmentPanelPresentation(
         readinessStatus = preApp.readinessStatus,

@@ -84,6 +84,14 @@ sealed class FamilyResubmissionResult {
     data class DuplicateCurp(
         val curp: String
     ) : FamilyResubmissionResult()
+
+    data class InvalidCurp(
+        val message: String
+    ) : FamilyResubmissionResult()
+
+    data class InstitutionalIdentityLocked(
+        val folio: String
+    ) : FamilyResubmissionResult()
 }
 
 sealed class OfficialEnrollmentResult {
@@ -209,7 +217,6 @@ class PreApplicationViewModel {
         val sharedPreApplications: StateFlow<List<PreApplication>> = _sharedPreApplications.asStateFlow()
         private val preApplicationFolioChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         private const val preApplicationTimestampPrefix = "Hoy "
-        private val officialCurpPattern = Regex("^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z0-9]\\d$")
 
         fun approvePreApplication(folio: String) {
             updatePreApp(folio) { it.copy(status = PreApplicationStatus.ACEPTADA) }
@@ -442,7 +449,7 @@ class PreApplicationViewModel {
             return "PRE-310-${preApplicationFolioChars.take(6)}"
         }
 
-        private fun normalizeCurp(curp: String): String = curp.trim().uppercase()
+        private fun normalizeCurp(curp: String): String = CurpCorrectionPolicy.normalize(curp)
 
         private fun normalizeFamilyLookupValue(value: String): String =
             value.filterNot { it.isWhitespace() }.uppercase()
@@ -472,7 +479,8 @@ class PreApplicationViewModel {
 
         private fun normalizeMatricula(matricula: String): String = matricula.trim().uppercase()
 
-        private fun isOfficialCurpComplete(curp: String): Boolean = normalizeCurp(curp).matches(officialCurpPattern)
+        private fun isOfficialCurpComplete(curp: String): Boolean =
+            CurpCorrectionPolicy.validate(curp) is CurpValidationResult.Valid
 
         private fun ingresoAnioCorto(cicloEscolar: String): Int? =
             Regex("\\d{4}").find(cicloEscolar)?.value?.takeLast(2)?.toIntOrNull()
@@ -588,16 +596,126 @@ class PreApplicationViewModel {
             }
         }
 
-        fun updatePreApplicationCurp(folio: String, newCurp: String) {
-            val normalized = normalizeCurp(newCurp)
-            if (normalized.length != 18) return
-            // D5: una pre-solicitud CONVERTED ya generó identidad institucional
-            // (alumno oficial / anualidad). Su CURP no se corrige aquí; la ruta
-            // válida es el expediente institucional.
-            val current = _sharedPreApplications.value.firstOrNull { it.folio == folio } ?: return
-            if (current.readinessStatus == ReadinessStatus.CONVERTED) return
-            updatePreApp(folio) { it.copy(alumnoCurp = normalized) }
-            reconcileReadinessAfterRequirementChange(folio)
+        private fun curpConflictCandidates(
+            currentFolio: String,
+            normalizedCurp: String,
+            preApplications: List<PreApplication>
+        ): List<CurpConflictCandidate> {
+            val normalizedFolio = currentFolio.trim().uppercase()
+            val masterStudents = MockSaseData.students.value
+
+            return buildList {
+                preApplications
+                    .asSequence()
+                    .filter { normalizeCurp(it.alumnoCurp) == normalizedCurp }
+                    .filter { it.folio.trim().uppercase() != normalizedFolio }
+                    .forEach { preApplication ->
+                        add(
+                            CurpConflictCandidate(
+                                source = CurpConflictSource.PRE_APPLICATION,
+                                curp = preApplication.alumnoCurp,
+                                relatedFolio = preApplication.folio
+                            )
+                        )
+                    }
+
+                masterStudents
+                    .asSequence()
+                    .filter { normalizeCurp(it.curp) == normalizedCurp }
+                    .filter {
+                        it.preApplicationFolio?.trim()?.uppercase() != normalizedFolio
+                    }
+                    .forEach { student ->
+                        add(
+                            CurpConflictCandidate(
+                                source = CurpConflictSource.MASTER_STUDENT,
+                                curp = student.curp,
+                                relatedFolio = student.preApplicationFolio,
+                                masterStudentId = student.id
+                            )
+                        )
+                    }
+
+                _officialStudents.value
+                    .asSequence()
+                    .filter { normalizeCurp(it.curp) == normalizedCurp }
+                    .filter { it.preApplicationFolio.trim().uppercase() != normalizedFolio }
+                    .forEach { officialStudent ->
+                        add(
+                            CurpConflictCandidate(
+                                source = CurpConflictSource.OFFICIAL_STUDENT,
+                                curp = officialStudent.curp,
+                                relatedFolio = officialStudent.preApplicationFolio,
+                                masterStudentId = masterStudents.firstOrNull {
+                                    normalizeCurp(it.curp) == normalizedCurp
+                                }?.id
+                            )
+                        )
+                    }
+            }
+        }
+
+        private fun resolveCurpConflictFromState(
+            currentFolio: String,
+            curp: String,
+            preApplications: List<PreApplication> = _sharedPreApplications.value
+        ): CurpConflict? {
+            val normalizedCurp = normalizeCurp(curp)
+            return CurpCorrectionPolicy.resolveConflict(
+                currentFolio = currentFolio,
+                rawCurp = normalizedCurp,
+                candidates = curpConflictCandidates(
+                    currentFolio = currentFolio,
+                    normalizedCurp = normalizedCurp,
+                    preApplications = preApplications
+                )
+            )
+        }
+
+        fun correctPreApplicationCurp(
+            folio: String,
+            newCurp: String
+        ): CurpCorrectionResult {
+            val normalizedFolio = folio.trim().uppercase()
+
+            while (true) {
+                val currentPreApplications = _sharedPreApplications.value
+                val targetIndex = currentPreApplications.indexOfFirst {
+                    it.folio.trim().uppercase() == normalizedFolio
+                }
+                if (targetIndex < 0) return CurpCorrectionResult.NotFound
+
+                val current = currentPreApplications[targetIndex]
+                if (current.readinessStatus == ReadinessStatus.CONVERTED) {
+                    return CurpCorrectionResult.AlreadyConverted
+                }
+                if (current.tramite.trim().uppercase() == "REINSCRIPCION") {
+                    return CurpCorrectionResult.InstitutionalIdentityLocked
+                }
+
+                val normalizedCurp = when (val validation = CurpCorrectionPolicy.validate(newCurp)) {
+                    is CurpValidationResult.Invalid ->
+                        return CurpCorrectionResult.InvalidFormat(validation.message)
+                    is CurpValidationResult.Valid -> validation.normalizedCurp
+                }
+
+                val conflict = resolveCurpConflictFromState(
+                    currentFolio = current.folio,
+                    curp = normalizedCurp,
+                    preApplications = currentPreApplications
+                )
+                if (conflict != null) {
+                    return CurpCorrectionResult.Duplicate(conflict)
+                }
+
+                val updatedPreApplications = currentPreApplications.toMutableList().apply {
+                    this[targetIndex] = current.copy(alumnoCurp = normalizedCurp)
+                }
+                if (_sharedPreApplications.compareAndSet(currentPreApplications, updatedPreApplications)) {
+                    reconcileReadinessAfterRequirementChange(current.folio)
+                    return CurpCorrectionResult.Updated(normalizedCurp)
+                }
+            }
         }
 
         private fun buildStoredPreApplication(preApplication: PreApplication): PreApplication {
@@ -619,9 +737,12 @@ class PreApplicationViewModel {
         }
 
         fun submitFamilyPreApplication(preApplication: PreApplication): FamilySubmissionResult {
-            val normalizedCurp = normalizeCurp(preApplication.alumnoCurp)
+            val normalizedCurp = when (val validation = CurpCorrectionPolicy.validate(preApplication.alumnoCurp)) {
+                is CurpValidationResult.Invalid ->
+                    return FamilySubmissionResult.InsufficientData(validation.message)
+                is CurpValidationResult.Valid -> validation.normalizedCurp
+            }
             if (preApplication.alumnoNombreCompleto.isBlank() ||
-                normalizedCurp.length != 18 ||
                 preApplication.alumnoFechaNacimiento.isBlank() ||
                 preApplication.alumnoDomicilio.isBlank() ||
                 preApplication.responsables.isEmpty() ||
@@ -642,10 +763,12 @@ class PreApplicationViewModel {
                 return FamilySubmissionResult.DuplicateFolio(preApplication.folio.trim())
             }
 
-            val duplicateCurp = _sharedPreApplications.value.any { normalizeCurp(it.alumnoCurp) == normalizedCurp } ||
-                _officialStudents.value.any { normalizeCurp(it.curp) == normalizedCurp } ||
-                MockSaseData.students.value.any { normalizeCurp(it.curp) == normalizedCurp }
-            if (duplicateCurp) {
+            val conflict = resolveCurpConflictFromState(
+                currentFolio = "",
+                curp = normalizedCurp,
+                preApplications = _sharedPreApplications.value
+            )
+            if (conflict != null) {
                 return FamilySubmissionResult.DuplicateCurp(normalizedCurp)
             }
 
@@ -658,7 +781,6 @@ class PreApplicationViewModel {
             preApplication: PreApplication
         ): FamilyResubmissionResult {
             val normalizedFolio = preApplication.folio.trim()
-            val normalizedCurp = normalizeCurp(preApplication.alumnoCurp)
             val currentPreApplications = _sharedPreApplications.value
             val storedIndex = currentPreApplications.indexOfFirst { it.folio == normalizedFolio }
             if (storedIndex == -1) {
@@ -670,10 +792,31 @@ class PreApplicationViewModel {
                 return FamilyResubmissionResult.InvalidStatus(stored.folio, stored.status)
             }
 
-            val duplicateCurp = currentPreApplications.any {
-                it.folio != stored.folio && normalizeCurp(it.alumnoCurp) == normalizedCurp
+            val normalizedCurp = when (val validation = CurpCorrectionPolicy.validate(preApplication.alumnoCurp)) {
+                is CurpValidationResult.Invalid ->
+                    return FamilyResubmissionResult.InvalidCurp(validation.message)
+                is CurpValidationResult.Valid -> validation.normalizedCurp
             }
-            if (duplicateCurp) {
+            val storedIsReEnrollment = stored.tramite.trim().uppercase() == "REINSCRIPCION"
+            if (storedIsReEnrollment &&
+                (
+                    normalizedCurp != normalizeCurp(stored.alumnoCurp) ||
+                        preApplication.tramite.trim().uppercase() != "REINSCRIPCION"
+                    )
+            ) {
+                return FamilyResubmissionResult.InstitutionalIdentityLocked(stored.folio)
+            }
+
+            val conflict = if (storedIsReEnrollment) {
+                null
+            } else {
+                resolveCurpConflictFromState(
+                    currentFolio = stored.folio,
+                    curp = normalizedCurp,
+                    preApplications = currentPreApplications
+                )
+            }
+            if (conflict != null) {
                 return FamilyResubmissionResult.DuplicateCurp(normalizedCurp)
             }
 
@@ -719,7 +862,7 @@ class PreApplicationViewModel {
         fun officialEnrollmentPendingItems(preApp: PreApplication): List<String> {
             val photoState = _photos.value[preApp.folio]
             return buildList {
-                curpDuplicateInfo(preApp.folio, preApp.alumnoCurp, preApp.tramite)?.let { add(it) }
+                curpDuplicateInfo(preApp.folio, preApp.alumnoCurp)?.let { add(it) }
                 if (preApp.status != PreApplicationStatus.ACEPTADA) {
                     add("Pre-solicitud aceptada por Secretaría")
                 }
@@ -954,18 +1097,23 @@ class PreApplicationViewModel {
         private fun preApplicationByCurp(curp: String): PreApplication? =
             _sharedPreApplications.value.firstOrNull { normalizeCurp(it.alumnoCurp) == normalizeCurp(curp) }
 
-        fun curpDuplicateInfo(folio: String, curp: String, tramite: String = ""): String? {
-            if (tramite.uppercase() == "REINSCRIPCION") return null
-            val normalized = normalizeCurp(curp)
-            val inMaster = MockSaseData.students.value.firstOrNull {
-                normalizeCurp(it.curp) == normalized && it.preApplicationFolio?.let { p -> normalizeCurp(p) != normalizeCurp(folio) } == true
+        fun resolveCurpConflict(
+            folio: String,
+            curp: String
+        ): CurpConflict? {
+            val normalizedFolio = folio.trim().uppercase()
+            val storedPreApplication = _sharedPreApplications.value.firstOrNull {
+                it.folio.trim().uppercase() == normalizedFolio
             }
-            if (inMaster != null) return "CURP ya registrada en el padrón maestro (${inMaster.fullName})"
-            val inOfficial = _officialStudents.value.firstOrNull {
-                normalizeCurp(it.curp) == normalized && normalizeCurp(it.preApplicationFolio) != normalizeCurp(folio)
-            }
-            if (inOfficial != null) return "CURP ya registrada en alta oficial (${inOfficial.alumnoNombreCompleto})"
-            return null
+            if (storedPreApplication?.tramite?.trim()?.uppercase() == "REINSCRIPCION") return null
+            return resolveCurpConflictFromState(
+                currentFolio = folio,
+                curp = curp
+            )
+        }
+
+        fun curpDuplicateInfo(folio: String, curp: String): String? {
+            return resolveCurpConflict(folio, curp)?.institutionalMessage
         }
 
         fun startOfficialEnrollment(preApp: PreApplication, selectedGroup: String?): OfficialEnrollmentResult {
@@ -1997,7 +2145,9 @@ class PreApplicationViewModel {
             0 -> {
                 if (_apellidoPaterno.value.isBlank()) errs["apellidoPaterno"] = "Apellido paterno obligatorio"
                 if (_nombre.value.isBlank()) errs["nombre"] = "Nombre(s) obligatorio"
-                if (_curp.value.length != 18) errs["curp"] = "CURP debe tener 18 caracteres"
+                (CurpCorrectionPolicy.validate(_curp.value) as? CurpValidationResult.Invalid)?.let {
+                    errs["curp"] = it.message
+                }
                 if (_fechaNacimiento.value.isBlank()) errs["fechaNac"] = "Obligatorio"
                 if (_gradoSolicitado.value == 0) errs["grado"] = "Selecciona un grado"
                 val promedio = _promedioGradoAnterior.value.toDoubleOrNull()
@@ -2052,7 +2202,9 @@ class PreApplicationViewModel {
         val errs = mutableMapOf<String, String>()
         if (_apellidoPaterno.value.isBlank()) errs["apellidoPaterno"] = "Apellido paterno obligatorio"
         if (_nombre.value.isBlank()) errs["nombre"] = "Nombre(s) obligatorio"
-        if (_curp.value.length != 18) errs["curp"] = "CURP debe tener 18 caracteres"
+        (CurpCorrectionPolicy.validate(_curp.value) as? CurpValidationResult.Invalid)?.let {
+            errs["curp"] = it.message
+        }
         if (_fechaNacimiento.value.isBlank()) errs["fechaNac"] = "Obligatorio"
         if (_gradoSolicitado.value == 0) errs["grado"] = "Selecciona un grado"
         val promedio = _promedioGradoAnterior.value.toDoubleOrNull()

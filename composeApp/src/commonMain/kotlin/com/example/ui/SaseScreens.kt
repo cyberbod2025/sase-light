@@ -22,6 +22,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -304,7 +307,15 @@ fun SaseSidebar(
                         .then(if (collapsed) Modifier.width(railWidth) else Modifier.fillMaxWidth())
                         .clip(RoundedCornerShape(borderRadius))
                         .background(if (isActive) Color.White.copy(alpha = 0.12f) else Color.Transparent)
-                        .clickable { onItemClick(name) }
+                        .then(
+                            if (name == "Pre-Solicitudes") {
+                                Modifier.testTag("secretary_sidebar_preapplications")
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .semantics { selected = isActive }
+                        .clickable(role = Role.Button) { onItemClick(name) }
                         .padding(if (collapsed) PaddingValues(vertical = 10.dp) else PaddingValues(horizontal = contentPadding, vertical = 10.dp)),
                     contentAlignment = if (collapsed) Alignment.Center else Alignment.CenterStart
                 ) {

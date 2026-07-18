@@ -7,36 +7,28 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Cobertura D4 para [PreApplicationViewModel.updatePreApplicationCurp].
+ * Contrato de integración de [PreApplicationViewModel.correctPreApplicationCurp].
  *
- * Contrato vigente (documentado, no inventado):
- * - Normaliza con trim().uppercase().
- * - Rechaza EN SILENCIO (Unit, sin señal) toda CURP normalizada de longitud != 18;
- *   el formato completo (regex) se valida SOLO en la UI (CurpCorrectionDialog).
- * - Folio inexistente: no-op silencioso (updatePreApp mapea sin coincidencias;
- *   la reconciliación retorna en indexOfFirst < 0).
- * - No rechaza CURP duplicada: la protección vive en officialEnrollmentPendingItems
- *   (curpDuplicateInfo) + reconcileReadinessAfterRequirementChange, que degrada
- *   READY→BLOCKED, y en las guardas de alta (PENDING_REQUIREMENTS).
- *
- * Nota de fixtures (post-D6): los fixtures READY tienen fotos en
- * demoPhotoStates() y documentos validados, por lo que su readiness es
- * coherente con officialEnrollmentPendingItems. PRE-CONFLICT-001 conserva
- * deliberadamente su único pendiente: la CURP duplicada.
+ * La política pura es la única fuente de normalización, formato y resolución
+ * de duplicados. El ViewModel localiza y protege el registro, construye
+ * candidatos desde las tres fuentes institucionales, muta únicamente ante
+ * éxito y reconcilia readiness después del cambio.
  */
 class PreApplicationCurpCorrectionTest {
 
     private companion object {
         const val FOLIO_NEW = "PRE-NEW-001"
         const val FOLIO_CONFLICT = "PRE-CONFLICT-001"
+        const val FOLIO_CONVERTED = "PRE-X1A2"
+        const val FOLIO_REENROLLMENT = "PRE-REENROLL-001"
         const val CURP_UNIQUE_A = "NEWD020202HDFXYZ88"
         const val CURP_UNIQUE_B = "NEWE030303MDFQRS77"
-        const val CURP_DUPLICATED_MASTER = "DEMA100101HDFABC01"
     }
 
     @BeforeTest
@@ -47,152 +39,342 @@ class PreApplicationCurpCorrectionTest {
     private fun stored(folio: String): PreApplication =
         PreApplicationViewModel.sharedPreApplications.value.single { it.folio == folio }
 
-    // ── Caso A + B — CURP válida nueva, con espacios y minúsculas ─────────
+    private fun duplicate(result: CurpCorrectionResult): CurpCorrectionResult.Duplicate =
+        assertIs<CurpCorrectionResult.Duplicate>(result)
+
+    private fun sources(result: CurpCorrectionResult): Set<CurpConflictSource> =
+        duplicate(result).conflict.matches.map { it.source }.toSet()
 
     @Test
-    fun validCurpWithSpacesAndLowercaseIsNormalizedAndPersisted() {
-        PreApplicationViewModel.updatePreApplicationCurp(FOLIO_NEW, "  newd020202hdfxyz88  ")
+    fun syntheticCurpsAreValidAndDoNotCollideWithInitialFixtures() {
+        val initialCurps = (
+            PreApplicationViewModel.sharedPreApplications.value.map { it.alumnoCurp } +
+                MockSaseData.students.value.map { it.curp } +
+                PreApplicationViewModel.officialStudents.value.map { it.curp }
+            )
+            .map(CurpCorrectionPolicy::normalize)
+            .toSet()
 
+        listOf(CURP_UNIQUE_A, CURP_UNIQUE_B).forEach { curp ->
+            assertIs<CurpValidationResult.Valid>(CurpCorrectionPolicy.validate(curp))
+            assertFalse(curp in initialCurps, "$curp debe ser sintética y no colisionar con fixtures")
+        }
+    }
+
+    @Test
+    fun validCurpIsNormalizedPersistedAndReportedExplicitly() {
+        val result = assertIs<CurpCorrectionResult.Updated>(
+            PreApplicationViewModel.correctPreApplicationCurp(
+                FOLIO_NEW,
+                "  ${CURP_UNIQUE_A.lowercase()}  "
+            )
+        )
+
+        assertEquals(CURP_UNIQUE_A, result.normalizedCurp)
         assertEquals(CURP_UNIQUE_A, stored(FOLIO_NEW).alumnoCurp)
-    }
-
-    @Test
-    fun validCurpUpdateOnCoherentReadyPreservesReadiness() {
-        // Post-D6 el fixture READY no tiene pendientes: una corrección válida
-        // que no introduce bloqueos reconcilia sin degradar (contrato: READY
-        // con pendientes vacíos permanece READY).
         assertEquals(ReadinessStatus.READY, stored(FOLIO_NEW).readinessStatus)
-        assertTrue(PreApplicationViewModel.officialEnrollmentPendingItems(stored(FOLIO_NEW)).isEmpty())
-
-        PreApplicationViewModel.updatePreApplicationCurp(FOLIO_NEW, CURP_UNIQUE_A)
-
-        val after = stored(FOLIO_NEW)
-        assertEquals(CURP_UNIQUE_A, after.alumnoCurp)
-        assertEquals(ReadinessStatus.READY, after.readinessStatus)
     }
 
-    // ── Caso C — Longitud inválida: rechazo silencioso, sin efectos ───────
-
     @Test
-    fun curpWithInvalidLengthLeavesRecordAndReadinessUntouched() {
-        val before = stored(FOLIO_NEW)
+    fun invalidFormatsReturnInvalidFormatWithoutAnyMutation() {
+        val before = PreApplicationViewModel.sharedPreApplications.value
+        val invalidCurps = listOf(
+            CURP_UNIQUE_A.dropLast(1),
+            CURP_UNIQUE_A + "9",
+            CURP_UNIQUE_A.replaceRange(10, 11, "X"),
+            "   "
+        )
 
-        PreApplicationViewModel.updatePreApplicationCurp(FOLIO_NEW, "NEWD020202HDFXYZ8")   // 17
-        PreApplicationViewModel.updatePreApplicationCurp(FOLIO_NEW, "NEWD020202HDFXYZ889") // 19
-        PreApplicationViewModel.updatePreApplicationCurp(FOLIO_NEW, "   ")                 // vacía
-
-        // Sin cambio de CURP, sin reconciliación (readiness intacta) y sin
-        // señal de rechazo: la API retorna Unit (comportamiento actual).
-        assertEquals(before, stored(FOLIO_NEW))
+        invalidCurps.forEach { invalidCurp ->
+            val result = assertIs<CurpCorrectionResult.InvalidFormat>(
+                PreApplicationViewModel.correctPreApplicationCurp(FOLIO_NEW, invalidCurp)
+            )
+            assertTrue(result.message.isNotBlank())
+            assertEquals(before, PreApplicationViewModel.sharedPreApplications.value)
+        }
     }
 
-    // ── Caso D — Folio inexistente: no-op sin excepción ───────────────────
+    @Test
+    fun familySubmissionRejectsAnEighteenCharacterNonCanonicalCurp() {
+        val invalidCurp = "ABCDEFGHIJKLMNOPQR"
+        val candidate = stored(FOLIO_NEW).copy(
+            folio = "PRE-INVALID-CURP",
+            alumnoCurp = invalidCurp
+        )
+        val beforePreApplications = PreApplicationViewModel.sharedPreApplications.value
+        val beforeOfficials = PreApplicationViewModel.officialStudents.value
+        val beforeAnnuals = MockSaseData.annualEnrollments.value
+        val beforeMaster = MockSaseData.students.value
+
+        val result = assertIs<FamilySubmissionResult.InsufficientData>(
+            PreApplicationViewModel.submitFamilyPreApplication(candidate)
+        )
+
+        assertEquals(CurpCorrectionPolicy.INVALID_FORMAT_MESSAGE, result.message)
+        assertEquals(beforePreApplications, PreApplicationViewModel.sharedPreApplications.value)
+        assertEquals(beforeOfficials, PreApplicationViewModel.officialStudents.value)
+        assertEquals(beforeAnnuals, MockSaseData.annualEnrollments.value)
+        assertEquals(beforeMaster, MockSaseData.students.value)
+    }
 
     @Test
-    fun unknownFolioIsASilentNoOpAndTouchesNothing() {
+    fun familyResubmissionRejectsAnEighteenCharacterNonCanonicalCurp() {
+        val correction = assertIs<CorrectionRequestResult.Success>(
+            PreApplicationViewModel.requestCorrection(
+                FOLIO_NEW,
+                "Corregir datos familiares"
+            )
+        )
+        val beforePreApplications = PreApplicationViewModel.sharedPreApplications.value
+        val beforeOfficials = PreApplicationViewModel.officialStudents.value
+        val beforeAnnuals = MockSaseData.annualEnrollments.value
+        val beforeMaster = MockSaseData.students.value
+
+        val result = assertIs<FamilyResubmissionResult.InvalidCurp>(
+            PreApplicationViewModel.resubmitCorrectedPreApplication(
+                correction.preApplication.copy(alumnoCurp = "ABCDEFGHIJKLMNOPQR")
+            )
+        )
+
+        assertEquals(CurpCorrectionPolicy.INVALID_FORMAT_MESSAGE, result.message)
+        assertEquals(beforePreApplications, PreApplicationViewModel.sharedPreApplications.value)
+        assertEquals(beforeOfficials, PreApplicationViewModel.officialStudents.value)
+        assertEquals(beforeAnnuals, MockSaseData.annualEnrollments.value)
+        assertEquals(beforeMaster, MockSaseData.students.value)
+    }
+
+    @Test
+    fun unknownFolioReturnsNotFoundWithoutMutation() {
         val before = PreApplicationViewModel.sharedPreApplications.value
 
-        PreApplicationViewModel.updatePreApplicationCurp("PRE-NO-EXISTE", CURP_UNIQUE_A)
+        assertIs<CurpCorrectionResult.NotFound>(
+            PreApplicationViewModel.correctPreApplicationCurp("PRE-NO-EXISTE", CURP_UNIQUE_A)
+        )
 
         assertEquals(before, PreApplicationViewModel.sharedPreApplications.value)
     }
 
-    // ── Caso E — CURP duplicada por llamada directa ───────────────────────
-
     @Test
-    fun duplicateCurpByDirectCallIsPermittedButReadinessDegrades() {
-        // La API NO rechaza la duplicada (la validación visual solo protege la UI).
-        // La protección de dominio es la degradación de readiness + guardas de alta.
-        assertEquals(ReadinessStatus.READY, stored(FOLIO_NEW).readinessStatus)
+    fun convertedPreApplicationReturnsAlreadyConvertedAndTouchesNoInstitutionalState() {
+        val beforePreApplications = PreApplicationViewModel.sharedPreApplications.value
+        val beforeOfficials = PreApplicationViewModel.officialStudents.value
+        val beforeAnnuals = MockSaseData.annualEnrollments.value
+        val beforeMaster = MockSaseData.students.value
+        assertEquals(ReadinessStatus.CONVERTED, stored(FOLIO_CONVERTED).readinessStatus)
 
-        PreApplicationViewModel.updatePreApplicationCurp(FOLIO_NEW, CURP_DUPLICATED_MASTER)
-
-        val after = stored(FOLIO_NEW)
-        assertEquals(CURP_DUPLICATED_MASTER, after.alumnoCurp, "El guardado directo se permite (documentado)")
-        assertEquals(ReadinessStatus.BLOCKED, after.readinessStatus)
-        assertTrue(
-            after.readinessNotes!!.contains("CURP ya registrada"),
-            "Las notas deben nombrar el conflicto de CURP"
+        assertIs<CurpCorrectionResult.AlreadyConverted>(
+            PreApplicationViewModel.correctPreApplicationCurp(FOLIO_CONVERTED, CURP_UNIQUE_B)
         )
-        assertFalse(PreApplicationViewModel.isReadyForOfficialEnrollment(after))
+
+        assertEquals(beforePreApplications, PreApplicationViewModel.sharedPreApplications.value)
+        assertEquals(beforeOfficials, PreApplicationViewModel.officialStudents.value)
+        assertEquals(beforeAnnuals, MockSaseData.annualEnrollments.value)
+        assertEquals(beforeMaster, MockSaseData.students.value)
     }
 
     @Test
-    fun correctingCurpResolvesTheDuplicateConflict() {
-        // PRE-CONFLICT-001 nace con CURP duplicada del padrón (NUEVO INGRESO).
+    fun duplicateInAnotherPreApplicationIsRejectedWithoutMutation() {
+        val before = PreApplicationViewModel.sharedPreApplications.value
+        val curpFromAnotherPreApplication = stored(FOLIO_NEW).alumnoCurp
+
+        val result = PreApplicationViewModel.correctPreApplicationCurp(
+            FOLIO_CONFLICT,
+            curpFromAnotherPreApplication
+        )
+
+        assertTrue(CurpConflictSource.PRE_APPLICATION in sources(result))
+        assertEquals(before, PreApplicationViewModel.sharedPreApplications.value)
+    }
+
+    @Test
+    fun masterDuplicateWithNullRelatedFolioIsRejectedAndExposesStudentId() {
+        val master = MockSaseData.students.value.single { it.id == "1" }
+        MockSaseData.updateStudent(
+            master.copy(
+                curp = CURP_UNIQUE_B,
+                preApplicationFolio = null
+            )
+        )
+        val before = PreApplicationViewModel.sharedPreApplications.value
+
+        val result = duplicate(
+            PreApplicationViewModel.correctPreApplicationCurp(FOLIO_NEW, CURP_UNIQUE_B)
+        )
+        val masterCandidate = result.conflict.matches.single {
+            it.source == CurpConflictSource.MASTER_STUDENT
+        }
+
+        assertEquals("1", masterCandidate.masterStudentId)
+        assertNull(masterCandidate.relatedFolio)
+        assertEquals(before, PreApplicationViewModel.sharedPreApplications.value)
+    }
+
+    @Test
+    fun duplicatePresentInOfficialStudentsIsRejectedWithoutMutation() {
+        val before = PreApplicationViewModel.sharedPreApplications.value
+        val officialCurp = PreApplicationViewModel.officialStudents.value.first().curp
+
+        val result = PreApplicationViewModel.correctPreApplicationCurp(FOLIO_NEW, officialCurp)
+
+        assertTrue(CurpConflictSource.OFFICIAL_STUDENT in sources(result))
+        assertEquals(before, PreApplicationViewModel.sharedPreApplications.value)
+    }
+
+    @Test
+    fun correctingPreConflictRemovesConflictPreservesReadyAndEnablesEnrollment() {
+        val before = stored(FOLIO_CONFLICT)
+        assertEquals(ReadinessStatus.READY, before.readinessStatus)
         assertNotNull(
             PreApplicationViewModel.curpDuplicateInfo(
-                FOLIO_CONFLICT, stored(FOLIO_CONFLICT).alumnoCurp, stored(FOLIO_CONFLICT).tramite
+                before.folio,
+                before.alumnoCurp
             )
         )
 
-        PreApplicationViewModel.updatePreApplicationCurp(FOLIO_CONFLICT, "  newe030303mdfqrs77 ")
+        val result = assertIs<CurpCorrectionResult.Updated>(
+            PreApplicationViewModel.correctPreApplicationCurp(
+                FOLIO_CONFLICT,
+                "  ${CURP_UNIQUE_B.lowercase()}  "
+            )
+        )
 
         val after = stored(FOLIO_CONFLICT)
+        assertEquals(CURP_UNIQUE_B, result.normalizedCurp)
         assertEquals(CURP_UNIQUE_B, after.alumnoCurp)
+        assertEquals(ReadinessStatus.READY, after.readinessStatus)
         assertNull(
-            PreApplicationViewModel.curpDuplicateInfo(FOLIO_CONFLICT, after.alumnoCurp, after.tramite),
-            "El conflicto debe desaparecer tras la corrección"
+            PreApplicationViewModel.curpDuplicateInfo(after.folio, after.alumnoCurp)
         )
+        assertTrue(PreApplicationViewModel.officialEnrollmentPendingItems(after).isEmpty())
+        assertTrue(PreApplicationViewModel.isReadyForOfficialEnrollment(after))
     }
 
-    // ── Caso F — Reconciliación READY→BLOCKED y corrección parcial ────────
-
     @Test
-    fun readinessDegradesWhenCurpChangeIntroducesBlockAndCurpPendingClearsAfterFix() {
-        // 1) READY + CURP duplicada → BLOCKED con pendiente de CURP.
-        PreApplicationViewModel.updatePreApplicationCurp(FOLIO_NEW, CURP_DUPLICATED_MASTER)
-        val blocked = stored(FOLIO_NEW)
-        assertEquals(ReadinessStatus.BLOCKED, blocked.readinessStatus)
-        assertTrue(blocked.readinessNotes!!.contains("CURP ya registrada"))
+    fun blockedRecordDoesNotAutoPromoteAndMarkReadyRemainsAuthoritative() {
+        val initial = stored(FOLIO_CONFLICT)
+        assertEquals(ReadinessStatus.READY, initial.readinessStatus)
+        assertNotNull(
+            PreApplicationViewModel.curpDuplicateInfo(
+                initial.folio,
+                initial.alumnoCurp
+            )
+        )
+        assertTrue(PreApplicationViewModel.reopenReview(FOLIO_CONFLICT))
+        assertIs<ReadinessResult.NotReady>(
+            PreApplicationViewModel.markReadyForOfficialEnrollment(FOLIO_CONFLICT)
+        )
+        assertEquals(ReadinessStatus.BLOCKED, stored(FOLIO_CONFLICT).readinessStatus)
 
-        // 2) Corrección a CURP única con cero pendientes restantes (post-D6):
-        //    se alcanza la rama del contrato "BLOCKED + pendientes vacíos" —
-        //    permanece BLOCKED y exige declaración institucional explícita.
-        PreApplicationViewModel.updatePreApplicationCurp(FOLIO_NEW, CURP_UNIQUE_A)
-        val corrected = stored(FOLIO_NEW)
-        assertEquals(CURP_UNIQUE_A, corrected.alumnoCurp)
-        assertEquals(ReadinessStatus.BLOCKED, corrected.readinessStatus)
-        assertFalse(corrected.readinessNotes!!.contains("CURP ya registrada"))
-        assertTrue(
-            corrected.readinessNotes!!.contains("Pendientes resueltos"),
-            "Debe exigir la declaración institucional READY, no auto-promoverse"
+        assertIs<CurpCorrectionResult.Updated>(
+            PreApplicationViewModel.correctPreApplicationCurp(FOLIO_CONFLICT, CURP_UNIQUE_A)
+        )
+        val corrected = stored(FOLIO_CONFLICT)
+        assertNull(
+            PreApplicationViewModel.curpDuplicateInfo(
+                corrected.folio,
+                corrected.alumnoCurp
+            )
         )
         assertTrue(PreApplicationViewModel.officialEnrollmentPendingItems(corrected).isEmpty())
-    }
+        assertEquals(ReadinessStatus.BLOCKED, corrected.readinessStatus)
+        assertTrue(corrected.readinessNotes.contains("requiere declaración institucional READY"))
+        assertTrue(
+            PreApplicationViewModel.isReadyForOfficialEnrollment(corrected),
+            "Los requisitos ya están resueltos, pero la declaración READY sigue siendo explícita"
+        )
 
-    // ── D5 — Pre-solicitud CONVERTED: identidad institucional inmutable ──
-
-    @Test
-    fun convertedPreApplicationCurpIsImmutableAndTouchesNoInstitutionalRecord() {
-        // PRE-X1A2 es CONVERTED en el fixture: ya generó alumno oficial y
-        // pertenece al dominio institucional. La corrección de CURP desde la
-        // pre-solicitud debe ser un no-op total (D5).
-        val folioConverted = "PRE-X1A2"
-        val before = stored(folioConverted)
-        assertEquals(ReadinessStatus.CONVERTED, before.readinessStatus)
-        val officialBefore = PreApplicationViewModel.officialStudents.value
-        val annualsBefore = MockSaseData.annualEnrollments.value
-        val masterBefore = MockSaseData.students.value
-
-        PreApplicationViewModel.updatePreApplicationCurp(folioConverted, CURP_UNIQUE_B)
-
-        assertEquals(before, stored(folioConverted), "La pre-solicitud CONVERTED no debe cambiar")
-        assertEquals(officialBefore, PreApplicationViewModel.officialStudents.value, "Alumno oficial intacto")
-        assertEquals(annualsBefore, MockSaseData.annualEnrollments.value, "Anualidad intacta")
-        assertEquals(masterBefore, MockSaseData.students.value, "Padrón maestro intacto")
+        assertIs<ReadinessResult.Success>(
+            PreApplicationViewModel.markReadyForOfficialEnrollment(FOLIO_CONFLICT)
+        )
+        val ready = stored(FOLIO_CONFLICT)
+        assertEquals(ReadinessStatus.READY, ready.readinessStatus)
+        assertTrue(PreApplicationViewModel.isReadyForOfficialEnrollment(ready))
     }
 
     @Test
-    fun pendingItemsReflectCurpStateConsistentlyWithDomainRule() {
-        // La misma regla de dominio (curpDuplicateInfo) alimenta pendingItems:
-        // sin duplicado no hay ítem de CURP; con duplicado sí (NUEVO INGRESO).
-        val pendingsBefore = PreApplicationViewModel.officialEnrollmentPendingItems(stored(FOLIO_NEW))
-        assertFalse(pendingsBefore.any { it.contains("CURP") })
+    fun duplicateConflictPreservesMasterStudentDestinationForNominalFixture() {
+        val current = stored(FOLIO_CONFLICT)
 
-        PreApplicationViewModel.updatePreApplicationCurp(FOLIO_NEW, CURP_DUPLICATED_MASTER)
+        val result = duplicate(
+            PreApplicationViewModel.correctPreApplicationCurp(
+                current.folio,
+                current.alumnoCurp
+            )
+        )
 
-        val pendingsAfter = PreApplicationViewModel.officialEnrollmentPendingItems(stored(FOLIO_NEW))
-        assertTrue(pendingsAfter.any { it.contains("CURP ya registrada") })
+        assertEquals("1", result.conflict.masterStudentId)
+        assertTrue(result.conflict.isNavigable)
+        assertEquals(current, stored(FOLIO_CONFLICT))
+    }
+
+    @Test
+    fun reEnrollmentKeepsItsExistingInstitutionalCurpSemanticsAndRejectsDirectCorrection() {
+        val reEnrollment = stored(FOLIO_REENROLLMENT)
+        val beforePreApplications = PreApplicationViewModel.sharedPreApplications.value
+        val beforeOfficials = PreApplicationViewModel.officialStudents.value
+        val beforeAnnuals = MockSaseData.annualEnrollments.value
+        val beforeMaster = MockSaseData.students.value
+
+        assertNull(
+            PreApplicationViewModel.curpDuplicateInfo(
+                reEnrollment.folio,
+                reEnrollment.alumnoCurp
+            )
+        )
+        assertIs<CurpCorrectionResult.InstitutionalIdentityLocked>(
+            PreApplicationViewModel.correctPreApplicationCurp(
+                reEnrollment.folio,
+                CURP_UNIQUE_A
+            )
+        )
+        assertEquals(beforePreApplications, PreApplicationViewModel.sharedPreApplications.value)
+        assertEquals(beforeOfficials, PreApplicationViewModel.officialStudents.value)
+        assertEquals(beforeAnnuals, MockSaseData.annualEnrollments.value)
+        assertEquals(beforeMaster, MockSaseData.students.value)
+
+        val correction = assertIs<CorrectionRequestResult.Success>(
+            PreApplicationViewModel.requestCorrection(
+                reEnrollment.folio,
+                "Actualizar datos familiares sin cambiar identidad"
+            )
+        )
+        val beforeResubmission = PreApplicationViewModel.sharedPreApplications.value
+        assertIs<FamilyResubmissionResult.InstitutionalIdentityLocked>(
+            PreApplicationViewModel.resubmitCorrectedPreApplication(
+                correction.preApplication.copy(alumnoCurp = CURP_UNIQUE_B)
+            )
+        )
+        assertEquals(beforeResubmission, PreApplicationViewModel.sharedPreApplications.value)
+        assertEquals(beforeOfficials, PreApplicationViewModel.officialStudents.value)
+        assertEquals(beforeAnnuals, MockSaseData.annualEnrollments.value)
+        assertEquals(beforeMaster, MockSaseData.students.value)
+    }
+
+    @Test
+    fun resetRestoresExactInitialStateAndRemovesTestOnlyCurps() {
+        val initialPreApplications = PreApplicationViewModel.sharedPreApplications.value
+        val initialOfficials = PreApplicationViewModel.officialStudents.value
+        val initialMaster = MockSaseData.students.value
+
+        assertIs<CurpCorrectionResult.Updated>(
+            PreApplicationViewModel.correctPreApplicationCurp(FOLIO_NEW, CURP_UNIQUE_A)
+        )
+        MockSaseData.updateStudent(
+            MockSaseData.students.value.first().copy(
+                curp = CURP_UNIQUE_B,
+                preApplicationFolio = null
+            )
+        )
+
+        PreApplicationViewModel.resetSharedStateForTests()
+
+        assertEquals(initialPreApplications, PreApplicationViewModel.sharedPreApplications.value)
+        assertEquals(initialOfficials, PreApplicationViewModel.officialStudents.value)
+        assertEquals(initialMaster, MockSaseData.students.value)
+        assertFalse(
+            PreApplicationViewModel.sharedPreApplications.value.any {
+                it.alumnoCurp == CURP_UNIQUE_A || it.alumnoCurp == CURP_UNIQUE_B
+            }
+        )
     }
 }
