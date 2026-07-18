@@ -1,122 +1,90 @@
-# SASE-310 — AGENTS.md
+# SASE Light — instrucciones operativas
 
-## Project
+## Precedencia
 
-Compose Multiplatform (KMP) app for school administration (SASE = Sistema de Administración de Seguimiento Escolar). Targets Android, Desktop (JVM), iOS.
+1. Solicitud explícita actual de Hugo.
+2. Este `AGENTS.md`.
+3. `00_CONTEXT_FOR_AI/HUGO_SYSTEM_AGENT_INSTRUCTIONS.md`.
+4. Skill específica del entorno.
+5. `CLAUDE.md` u otro adaptador.
+6. `README.md`.
+7. Checkpoints históricos, que no son normativos.
 
-## Build
+Una instrucción inferior no puede autorizar algo prohibido por una superior.
 
-- **Only active module**: `:composeApp` (declared in `settings.gradle.kts`). The `app/` directory is **not** part of the build — it's stale and its plugins (KSP, Roborazzi, Firebase) are not in the version catalog.
-- Version catalog: `gradle/libs.versions.toml` — AGP 8.7.3, Kotlin 2.1.20, Compose Multiplatform 1.7.3.
-- Gradle properties enforce `kotlin.compiler.execution.strategy=in-process` (avoids daemon connection issues on some machines).
+## Identidad y estado
 
-## Data
+SASE significa **Sistema de Acompañamiento y Seguimiento Escolar**. SASE Light es una demo de administración escolar construida con Compose Multiplatform/KMP.
 
-All data is **in-memory mock** (`MockSaseData` singleton, `composeApp/src/commonMain/.../data/`). No backend, no database. Student records, audits, documents etc. are hardcoded lists.
+- Módulo activo: `:composeApp`.
+- Targets: Android, Desktop JVM e iOS.
+- Datos actuales: mock e in-memory.
+- No hay backend, base de datos ni persistencia real.
+- El directorio raíz `app/` es stale y no forma parte del build; no editarlo.
 
+Stack documentado: Kotlin 2.1.20, Compose Multiplatform 1.7.3, Gradle 8.11.1 y AGP 8.7.3.
 
+## Arquitectura actual
 
-## Entrypoints
+La UI común usa dos ViewModels sin DI ni librería de navegación:
 
-| Target   | File |
-|----------|------|
-| Android  | `composeApp/src/androidMain/.../MainActivity.kt` |
-| Desktop  | `composeApp/src/desktopMain/.../Main.kt` (window 1280x800) |
-| iOS      | `composeApp/src/iosMain/.../MainViewController.kt` |
+- `LabViewModel`: navegación, estudiantes y auditorías mediante `StateFlow`.
+- `PreApplicationViewModel`: pre-solicitud familiar, revisión, readiness y conversión.
 
-All three call `SaseAppContent(viewModel = LabViewModel())` from `commonMain`.
+Las rutas estables incluyen dashboard de Secretaría, expedientes, inscripciones, Portal Familia, Pre-Solicitudes, Altas Oficiales, `StudentRecord`, vista previa y dashboard de credencial. Las referencias canónicas están en `composeApp/src/commonMain/kotlin/com/example/viewmodel/` y `ui/`.
 
-## Architecture
+Componentes estables del dominio: repositorios mock, `AnnualEnrollmentFlowCoordinator`, `AnnualEnrollmentPersistenceAdapter`, `InstitutionalStudentRecordResolver`, estados derivados y presentación institucional del expediente.
 
-Simple single-ViewModel (`LabViewModel` in `commonMain`) with a sealed `Screen` class for navigation (`SecretaryDashboard` / `StudentRecord(id)`). No DI framework. No navigation library.
+## Flujo institucional
 
-## Design conventions
-
-- "Liquid Glass" aesthetic — `GlassCard`, `LiquidGlassCard`, `MetricGlassCard` composables with frosted/glossy effects.
-- Custom color palette in `SaseScreens.kt` (top of file): `SaseNavy`, `SaseGreen`, `SaseBlue`, etc.
-- Dark theme is default (`MyApplicationTheme` in `Theme.kt` defaults to `darkTheme = true`).
-- Responsive layout at 850dp and 600dp breakpoints.
-
-## Important gotchas
-
-- The `app/` directory at root is **dead code** — it is not included in `settings.gradle.kts` and references plugins not in the version catalog. Do not edit files there unless explicitly asked.
-- No test suites are wired into the active build (the test files in `app/src/test/` belong to the stale module).
-
-## Environment
-
-- **Current operational environment**: GitHub Codespaces / Linux container
-- All commands assume a Linux shell (bash)
-- Do not use Windows paths (e.g., `C:\HUGO_SYSTEM\Projects\sase-light`) or `.\gradlew.bat`
-
-## Gradle execution
-
-Always use:
-- `./gradlew` (not `.\gradlew.bat`)
-- `--no-daemon` to avoid stale daemon issues
-- No pipes (`|`) during Gradle execution — use `*>` to redirect to log file if needed
-- `tail -n 120 <log>` to inspect output
-
-## Auto commit + CI rule
-
-After any approved microphase execution:
-
-**IF:**
-- build PASS
-- tests PASS
-- scope is clean
-- no risky unexpected files
-- recommendation is commit ready
-
-**THEN automatically execute:**
-1. `git status`
-2. `git add` only scoped files
-3. `git commit` with suggested conventional commit message
-4. `git push origin main`
-5. `gh run list --branch main --limit 3`
-6. `gh run view <latest-run-id>`
-7. wait until workflow completes
-8. report final CI status
-
-**STRICT RULES:**
-- Never add composeApp/build/
-- Never add untracked files outside scope
-- Never commit if build or tests fail
-- Never commit if unexpected files are modified
-- Never commit if scope is unclear
-- Never proceed to next feature until CI is green
-
-**REPORT FORMAT:**
-- files committed
-- commit hash
-- workflow run ID
-- Build Android
-- Test Desktop
-- Build Desktop
-- errors if any
-
-## Agent workflow references
-
-- `00_CONTEXT_FOR_AI/HUGO_SYSTEM_AGENT_INSTRUCTIONS.md` — system instructions for AI agents (architecture, rules, aesthetics, security, communication)
-- `00_CONTEXT_FOR_AI/SKILLS/SASE_LIGHT_CODESPACES_GIT_PR_SKILL.md` — secure Git/PR workflow skill for Codespaces (ritual, branching, validation, commit, PR, CI, conflicts, visual theme, sensitive data)
-
-Before making changes, agents **must** read both files above. These define the current instruction architecture, Git/PR workflow, safety rules, scope rules, Codespaces validation ritual and SASE Light guardrails.
-
-## Local agent state
-
-Do not commit local agent state such as:
-- `.codex/`
-- `.opencode/`
-- `*.patch`
-
-If such files appear in `git status --short`, stop and ask for authorization.
-
-## Scope discipline
-
-If `git status --short` is not clean, stop.
-
-Do not use:
-```
-git add .
+```text
+Pre-solicitud familiar
+→ Revisión de Secretaría
+→ READY
+→ Alta oficial anual
+→ Expediente institucional
+→ Decisión de grupo
+→ Credencial mock
 ```
 
-Use explicit file paths only.
+Fotos, notificaciones, documentos, PDF, impresión, QR y credencial son mock o placeholder cuando el código así lo indica. No presentar la demo como sistema productivo.
+
+## Pruebas y CI
+
+- Tests activos: `composeApp/src/commonTest`.
+- Ejecución local: `:composeApp:desktopTest`.
+- Compilación Android: `:composeApp:assembleDebug`.
+- Compilación Desktop: `:composeApp:compileKotlinDesktop`.
+- CI existente: `.github/workflows/build.yml` en GitHub Actions/Linux.
+
+Las expresiones “implementado”, “disponible” o “demo funcional” describen capacidades presentes en el código. No significan que el build, las pruebas o el recorrido visual hayan sido ejecutados y aprobados en la sesión actual. Cada informe debe distinguir entre implementado, probado, validado visualmente y pendiente de validar. No afirmar PASS si no se ejecutó en la sesión actual.
+
+## Entornos
+
+- Local principal: Windows + PowerShell + `.\gradlew.bat`.
+- Alternativo soportado: GitHub Codespaces/Linux + `./gradlew`.
+- CI: GitHub Actions/Linux.
+
+Consultar la skill correspondiente al entorno. No cambiar de entorno durante una auditoría read-only.
+
+## Git y autorización
+
+### Auditoría read-only
+
+No permite checkout, pull, fetch, cambio de ramas, staging, commit, push, PR, merge, rebase, restore, reset, stash ni clean. Tampoco permite Gradle, instalación o migraciones salvo autorización explícita.
+
+### Implementación autorizada
+
+Solo con autorización explícita de Hugo. Puede usar ramas pequeñas y PR, pero nunca:
+
+- `git add .`;
+- push automático o directo a `main`;
+- force push;
+- archivos fuera de alcance;
+- `.codex/`, `.opencode/`, patches, builds o evidencias no autorizadas.
+
+Si `git status --short` no está limpio: detener mutaciones, diagnosticar, informar y esperar alcance explícito. No limpiar automáticamente.
+
+## Seguridad
+
+No inventar arquitectura ni activar backend, Supabase, IA externa, PDF o impresión sin autorización. No usar ni exponer CURP, teléfonos, domicilios, datos médicos/familiares, credenciales, tokens, API keys o datos reales. Las credenciales mock no deben mostrar información médica, familiar, UDEII ni Trabajo Social.

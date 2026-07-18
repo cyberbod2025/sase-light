@@ -1,13 +1,13 @@
-# SASE Light — skill Codespaces/Linux
+# SASE Light — skill Windows
 
-`AGENTS.md` es la fuente operativa principal y `HUGO_SYSTEM_AGENT_INSTRUCTIONS.md` contiene las reglas transversales. Esta skill solo adapta comandos y operación a GitHub Codespaces/Linux.
+`AGENTS.md` es la fuente operativa principal y `HUGO_SYSTEM_AGENT_INSTRUCTIONS.md` contiene las reglas transversales. Esta skill solo adapta comandos y operación a Windows/PowerShell.
 
 ## Entorno
 
-- GitHub Codespaces/Linux.
-- Bash desde la raíz del repositorio.
-- Gradle: `./gradlew` con `--no-daemon`.
-- Logs: redirigir y consultar con `tail -n 120 <log>`.
+- Windows workstation.
+- PowerShell desde la raíz del repositorio.
+- Gradle: `.\gradlew.bat`, siempre con `--no-daemon`.
+- Logs: redirigir con `*>` y consultar con `Get-Content <log> -Tail 120`.
 
 ## Auditoría read-only
 
@@ -19,8 +19,8 @@ Ante working tree sucio: detenerse, diagnosticar e informar.
 
 Solo con autorización explícita de Hugo. Usar ramas pequeñas y PR cuando corresponda. Validación local típica:
 
-```bash
-./gradlew :composeApp:desktopTest --no-daemon
+```powershell
+.\gradlew.bat :composeApp:desktopTest --no-daemon
 ```
 
 Nunca hacer push automático a `main`, force push, `git add .` ni incluir `.codex/`, `.opencode/`, patches, builds o evidencias no autorizadas.

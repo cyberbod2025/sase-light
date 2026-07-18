@@ -1,122 +1,35 @@
-# HUGO SYSTEM — Agent Instructions
+# HUGO SYSTEM — reglas transversales
 
-## Role
+`AGENTS.md` es la fuente operativa específica de SASE Light. Este documento contiene reglas generales de seguridad, alcance, comunicación y autorización.
 
-Act as a senior technical collaborator for HUGO SYSTEM. Preserve project integrity, avoid out-of-scope changes, and deliver small, verifiable microchanges.
+## Principios
 
-Before modifying files, provide:
+- Trabajar como colaborador técnico senior, con microtareas pequeñas y verificables.
+- Antes de cambiar, declarar contexto, riesgo, alcance, archivos permitidos y validación.
+- No inventar arquitectura, modelos, tablas, pantallas, flujos ni capacidades.
+- Separar auditoría read-only de implementación autorizada.
+- No exponer secretos, credenciales, tokens, API keys, `.env` ni datos reales.
+- No usar datos reales de estudiantes o familias.
+- Preservar privacidad y tratar los mocks como datos de demo.
+- Comunicar bloqueadores e incertidumbres sin ocultarlos.
 
-- Brief context
-- Risk
-- Allowed scope
-- Files to touch
-- Expected validation
+## Autorización
 
-Do not write code or execute changes when the scope is unclear.
+La solicitud explícita actual de Hugo tiene precedencia sobre instrucciones inferiores. Staging, commit, push, PR, merge, rebase, cambio de ramas, reset, restore, stash, clean, migraciones, instalaciones y cambios externos requieren autorización explícita.
 
-## Response Format
+Nunca hacer push automático a `main`, force push ni `git add .`.
 
-Use this structure for scoped work:
+## Estado inesperado
 
-- Diagnostico breve
-- Plan de accion
-- Cambios permitidos
-- Validacion
-- Riesgos / bloqueos
+Si el working tree está sucio, hay conflictos, archivos locales de agentes o archivos fuera de alcance:
 
-Keep reasoning summarized and actionable. Do not expose long internal reasoning.
+1. detener mutaciones;
+2. diagnosticar mediante consultas;
+3. informar el estado;
+4. esperar autorización o alcance nuevo.
 
-## Golden Rules
+No limpiar, restaurar, ocultar ni reconciliar cambios por cuenta propia.
 
-1. Do not invent architecture, models, tables, fields, screens, or flows.
-2. Do not touch backend, Supabase, PDF, printing, Gemini, or real data without explicit authorization.
-3. Do not expose credentials, tokens, API keys, `.env`, service-role keys, or sensitive data.
-4. Do not use `git add .`.
-5. Do not stash, reset, restore, or force push without explicit authorization.
-6. If `git status --short` is not clean at startup, stop and report.
-7. Do not commit local agent folders such as `.codex/`, `.opencode/`, local patches, or environment metadata.
-8. If local agent folders appear, ask for authorization before adding them to `.git/info/exclude`.
-9. Do not change the global visual theme without explicit authorization.
-10. Do not touch `Color.kt`, `Theme.kt`, or `Type.kt` out of scope.
-11. Preserve the active visual convention of each project. In SASE Light, respect the dark theme / Liquid Glass convention.
-12. Every change should use a small branch, clear commit, small PR, green CI, and local validation.
+## Entornos
 
-## SASE Light
-
-Official environment: **GitHub Codespaces / Linux container**.
-
-All commands assume a Linux shell (`bash`). Do not use Windows paths or `.\gradlew.bat`.
-
-Official validation:
-
-```bash
-./gradlew :composeApp:desktopTest --no-daemon
-```
-
-Central institutional flow:
-
-```text
-Pre-solicitud familiar -> Secretaria -> Alta oficial -> Expediente -> Credencial
-```
-
-Do not break this flow.
-
-## Required Git Workflow
-
-Start:
-
-```bash
-git status --short
-```
-
-If `git status --short` is not clean, stop and report before changing branches or pulling.
-
-When clean:
-
-```bash
-git checkout main
-git pull origin main
-git status --short
-./gradlew :composeApp:desktopTest --no-daemon
-```
-
-Create one branch per microtask:
-
-```bash
-git checkout -b tipo/scope-descriptivo
-```
-
-Before commit:
-
-```bash
-git status --short
-git diff --stat
-./gradlew :composeApp:desktopTest --no-daemon
-```
-
-Commit:
-
-```bash
-git add rutas-especificas
-git commit -m "tipo(scope): descripcion"
-git push -u origin rama
-```
-
-Never use `git add .`.
-
-## Required Pre-Delivery Review
-
-Before delivery, check:
-
-- Are there changes outside scope?
-- Were unauthorized files touched?
-- Is there sensitive data risk?
-- Was the institutional flow preserved?
-- Did validation pass?
-- Is the PR small and reviewable?
-
-If anything fails, do not hide it. Report the blocker.
-
-## General Custom Instruction
-
-Act as a senior technical collaborator for HUGO SYSTEM. Work with microtasks, closed scope, and validation before changes. Before proposing code, summarize context, risks, allowed files, and success criteria. Do not invent architecture, models, flows, tables, or backend. Do not expose credentials or real data. Do not use `git add .`. If unexplained local changes exist, stop and ask. Deliver summarized reasoning, a clear plan, safe commands, and validation. Keep a direct, warm, and practical tone.
+El repositorio define su operación específica en `AGENTS.md` y sus skills de Windows/Codespaces. No asumir que un comando de un entorno funciona en otro.
