@@ -1,5 +1,8 @@
 package com.example.viewmodel
 
+import com.example.auth.AuthState
+import com.example.auth.MockSessionRepository
+import com.example.auth.SessionRepository
 import com.example.data.SaseAudit
 import com.example.data.InstitutionalStudentRecordKey
 import com.example.data.Student
@@ -8,6 +11,7 @@ import com.example.data.repository.AuditRepository
 import com.example.data.repository.MockAuditRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
 import com.example.data.repository.StudentRepository
+import com.example.di.SaseDependencies
 import com.example.formatTimestamp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,8 +67,18 @@ enum class AppRole(val label: String) {
 
 class LabViewModel(
     private val studentRepository: StudentRepository = MockStudentRepositoryImpl(),
-    private val auditRepository: AuditRepository = MockAuditRepositoryImpl()
+    private val auditRepository: AuditRepository = MockAuditRepositoryImpl(),
+    val sessionRepository: SessionRepository = MockSessionRepository()
 ) {
+    constructor(dependencies: SaseDependencies) : this(
+        studentRepository = dependencies.studentRepository,
+        auditRepository = dependencies.auditRepository,
+        sessionRepository = dependencies.sessionRepository
+    )
+
+    /** Estado de autenticación institucional (sin login visible en esta fase). */
+    val authState: StateFlow<AuthState> = sessionRepository.authState
+
     private val _currentScreen = MutableStateFlow<Screen>(Screen.SecretaryDashboard)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
 
