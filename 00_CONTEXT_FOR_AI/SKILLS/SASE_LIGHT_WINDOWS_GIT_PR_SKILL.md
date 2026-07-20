@@ -1,16 +1,15 @@
-# SASE Light — Codespaces Git/PR Workflow Skill
+# SASE Light — Windows Git/PR Workflow Skill
 
 **INTERNAL OPERATIONAL CONTEXT — NO SECRETS**
 
-Esta skill define el flujo seguro para trabajar con agentes IA en SASE Light desde GitHub Codespaces.
+Esta skill define el flujo seguro para trabajar con agentes IA en SASE Light desde una estación Windows.
 
 ## Entorno oficial actual
 
-- **GitHub Codespaces / Linux container**
+- **Windows workstation / PowerShell**
 - Trabajar desde la raíz actual del repositorio.
-- NO usar rutas Windows como `C:\HUGO_SYSTEM\Projects\sase-light`.
-- NO usar `.\gradlew.bat`.
-- Usar `./gradlew :composeApp:desktopTest --no-daemon`.
+- Usar rutas Windows y comandos PowerShell.
+- Usar `.\gradlew.bat :composeApp:desktopTest --no-daemon`.
 
 ## Fuente de verdad
 
@@ -37,14 +36,14 @@ No inventar rutas, modelos, pantallas, tablas, campos ni flujos que contradigan 
 11. No usar `git add .`.
 12. No hacer stash, reset, restore, force push ni borrar archivos sin autorización explícita.
 
-## Ritual obligatorio de arranque en Codespaces
+## Ritual obligatorio de arranque en Windows
 
-```
-pwd
+```powershell
+Get-Location
 git checkout main
 git pull origin main
 git status --short
-./gradlew :composeApp:desktopTest --no-daemon
+.\gradlew.bat :composeApp:desktopTest --no-daemon
 ```
 
 Si `git status --short` no está limpio, detenerse y reportar.
@@ -107,10 +106,10 @@ No tocar archivos fuera del scope. Si aparece una necesidad fuera del scope, det
 
 ## Validación antes de commit
 
-```
+```powershell
 git status --short
 git diff --stat
-./gradlew :composeApp:desktopTest --no-daemon
+.\gradlew.bat :composeApp:desktopTest --no-daemon
 ```
 
 Confirmar que solo cambiaron archivos autorizados. Si aparece cualquier archivo inesperado, detenerse.
@@ -166,11 +165,11 @@ Esperar CI. No mergear si:
 
 ## Después de merge
 
-```
+```powershell
 git checkout main
 git pull origin main
 git status --short
-./gradlew :composeApp:desktopTest --no-daemon
+.\gradlew.bat :composeApp:desktopTest --no-daemon
 git log --oneline -6
 ```
 

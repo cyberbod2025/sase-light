@@ -43,14 +43,14 @@ Keep reasoning summarized and actionable. Do not expose long internal reasoning.
 
 ## SASE Light
 
-Official environment: **GitHub Codespaces / Linux container**.
+Official environment: **Windows workstation / PowerShell**.
 
-All commands assume a Linux shell (`bash`). Do not use Windows paths or `.\gradlew.bat`.
+Run commands from the repository root using Windows paths and `.\gradlew.bat`.
 
 Official validation:
 
-```bash
-./gradlew :composeApp:desktopTest --no-daemon
+```powershell
+.\gradlew.bat :composeApp:desktopTest --no-daemon
 ```
 
 Central institutional flow:
@@ -65,7 +65,7 @@ Do not break this flow.
 
 Start:
 
-```bash
+```powershell
 git status --short
 ```
 
@@ -73,30 +73,30 @@ If `git status --short` is not clean, stop and report before changing branches o
 
 When clean:
 
-```bash
+```powershell
 git checkout main
 git pull origin main
 git status --short
-./gradlew :composeApp:desktopTest --no-daemon
+.\gradlew.bat :composeApp:desktopTest --no-daemon
 ```
 
 Create one branch per microtask:
 
-```bash
+```powershell
 git checkout -b tipo/scope-descriptivo
 ```
 
 Before commit:
 
-```bash
+```powershell
 git status --short
 git diff --stat
-./gradlew :composeApp:desktopTest --no-daemon
+.\gradlew.bat :composeApp:desktopTest --no-daemon
 ```
 
 Commit:
 
-```bash
+```powershell
 git add rutas-especificas
 git commit -m "tipo(scope): descripcion"
 git push -u origin rama
