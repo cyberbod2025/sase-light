@@ -54,3 +54,7 @@ evidence/android/launch-dumpsys.log
 !evidence/android/01D/20260714-113801/s20-fe/scenario-f-status-chip.png
 !evidence/android/01D/20260714-113801/s20-fe/scenario-g-menu-card4.png
 !evidence/android/01D/20260714-113801/s20-fe/device-info.txt
+
+# Evidencia local de pruebas Android (capturas/XML pesados)
+evidence/android/*
+!evidence/android/01D/
