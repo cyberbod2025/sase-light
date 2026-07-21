@@ -4,9 +4,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import com.example.ui.SaseAppContent
+import com.example.ui.SaseApp
 import com.example.ui.theme.MyApplicationTheme
-import com.example.viewmodel.LabViewModel
 
 fun main() = application {
     Window(
@@ -15,7 +14,7 @@ fun main() = application {
         state = rememberWindowState(width = 1100.dp, height = 700.dp)
     ) {
         MyApplicationTheme {
-            SaseAppContent(viewModel = LabViewModel())
+            SaseApp()
         }
     }
 }
