@@ -1,4 +1,11 @@
 -- =============================================================================
+-- DESIGN ONLY — DO NOT APPLY AS MIGRATION
+-- -----------------------------------------------------------------------------
+-- Diseño greenfield de referencia. NUNCA debe ejecutarse contra el proyecto
+-- Supabase existente (plyjvvpkaafnkxmmqkbh): crearía un `profiles` distinto al
+-- legado y una política de UPDATE que permitiría auto-elevación de rol.
+-- El esquema realmente vigente es el de supabase/migrations/ (M1 + M2).
+-- =============================================================================
 -- SASE FOUNDATION — FASE 1
 -- Identidad institucional, membresías, roles múltiples, scopes, permisos y
 -- auditoría append-only. Migración LOCAL: no aplicar a remoto en esta fase.
