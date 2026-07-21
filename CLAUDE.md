@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Proyecto
 
-SASE-310 ("SASE Light") — dashboard de administración escolar (Secretaría y Expedientes) construido con Compose Multiplatform (Kotlin 2.1.20, Compose MP 1.7.3), con targets Android, Desktop (JVM) e iOS. Todos los datos son mock en memoria (sin backend, sin base de datos, sin persistencia — todo se reinicia al reiniciar la app). `:composeApp` es el único módulo de Gradle.
+SASE-310 ("SASE Light") — dashboard de administración escolar (Secretaría y Expedientes) construido con Compose Multiplatform (Kotlin 2.1.20, Compose MP 1.7.3), con targets Android, Desktop (JVM) e iOS. Los datos del alumnado son mock en memoria (sin base de datos, sin persistencia — todo se reinicia al reiniciar la app). `:composeApp` es el único módulo de Gradle. La única costura de backend real esbozada hasta ahora es la autenticación de personal (ver `data/auth/` y `supabase/migrations/`), deliberadamente limitada a staff y todavía **no conectada** al cliente.
 
 ## Visión y alcance final de SASE (brújula del proyecto)
 
@@ -63,7 +63,7 @@ Notas sobre la ejecución de Gradle:
 - No usar pipes (`|`) con la salida de Gradle; redirigir a un archivo de log e inspeccionarlo si hace falta.
 - `kotlin.compiler.execution.strategy=in-process` está configurado en `gradle.properties` para evitar errores de conexión con el daemon del compilador — no eliminarlo.
 
-Los tests viven en `composeApp/src/commonTest/kotlin/com/example/` (source set de test común de KMP, ejecutado por `desktopTest`), organizados en `data/` (+ `data/enrollment/`), `integration/` (tests golden-path del flujo institucional completo), `ui/` y `viewmodel/`.
+Los tests viven en `composeApp/src/commonTest/kotlin/com/example/` (source set de test común de KMP, ejecutado por `desktopTest`), organizados en `data/` (+ `data/enrollment/`, `data/auth/`), `integration/` (tests golden-path del flujo institucional completo), `ui/` (+ `ui/presolicitud/`, `ui/student/`) y `viewmodel/`.
 
 El CI (`.github/workflows/build.yml`) ejecuta, en orden: `:composeApp:assembleDebug`, `:composeApp:desktopTest`, `:composeApp:compileKotlinDesktop` — replicar esto localmente antes de dar el trabajo por terminado.
 
@@ -86,12 +86,17 @@ Esto mapea directamente a modelos de datos y pantallas: `PreApplication` → rev
 - `repository/` — interfaces `StudentRepository`/`AuditRepository` con implementaciones `Mock*RepositoryImpl`. `LabViewModel` depende de las interfaces, de modo que un backend real podría conectarse después detrás de las mismas costuras.
 - `enrollment/` — lado de alta oficial: `AnnualEnrollmentPlanner`, `AnnualEnrollmentCommitter`, `AnnualEnrollmentFlowCoordinator` (orquesta planeación + confirmación), `AnnualEnrollmentPersistenceAdapter`, `PermanentEnrollmentIdAllocator`, `SchoolMovementClassifier`.
 - `presolicitud/` — lado de pre-solicitud familiar: `PreApplicationModels`, `MockPreApplicationData`, `PreApplicationAdministrativeUpdate`, más `MockOfficialStudentData`/`OfficialStudentModels` usados para cruzar pre-solicitudes contra registros oficiales (detección de CURP/folio duplicados).
+- `auth/` — costura de autenticación y roles de personal (primera etapa de backend real, **solo staff, sin datos de menores**): interfaz `AuthRepository` con implementación demo `MockAuthRepositoryImpl` (credenciales placeholder `example.invalid`); `StaffModels` (`StaffRole`, `StaffProfile`, `AuthSession`, `AuthResult`); `StaffPermissions` — matriz rol → `SaseArea` que es la fuente de verdad en cliente y que la base replica con RLS. Esta costura existe pero **aún no está cableada** en `LabViewModel`/UI: la navegación sigue usando el selector mock `AppRole`.
 - `DerivedEnrollmentStatus`, `InstitutionalStudentRecordResolver`, `SaseStudentAnalytics` — vistas computadas/derivadas sobre las entidades crudas, no estado almacenado; preferir extender estas clases antes que agregar nuevos campos mutables a `Student`.
+
+**Backend (`supabase/migrations/`):** un solo archivo `0001_staff_auth.sql` — enum `staff_role`, tabla `staff_profiles` (1:1 con `auth.users`), helpers `current_staff_role()`/`is_direccion()` (`security definer`) y políticas RLS que replican la matriz de `StaffPermissions` (cada quien lee su perfil; solo Dirección lee/escribe el directorio completo). Alcance deliberado: **ningún dato de alumnos ni familias entra a la base** hasta que roles y RLS estén probados. No hay proyecto Supabase activo conectado al cliente.
+
+**Utilidades y ViewModels:** `util/ToastUtil.kt` (feedback efímero); en `viewmodel/`, además de `LabViewModel` y `PreApplicationViewModel`, está `InstitutionalAnnualEnrollment`.
 
 **Capa de UI** (`composeApp/src/commonMain/kotlin/com/example/ui/`):
 - `SaseScreens.kt` — pantallas de dashboard de nivel superior; también contiene las constantes de la paleta de colores personalizada (`SaseNavy`, `SaseGreen`, `SaseBlue`, etc.).
 - `components/` — piezas reutilizables del design system por tipo: `buttons/`, `cards/`, `chips/`, `feedback/`, `fields/`, `navigation/`.
-- `dashboard/`, `enrollment/`, `presolicitud/`, `student/` — pantallas específicas de cada etapa del flujo institucional.
+- `dashboard/`, `enrollment/` (con `enrollment/digital/SecretariaEnrollmentDashboard.kt`), `presolicitud/`, `student/` — pantallas específicas de cada etapa del flujo institucional.
 - `theme/` — `Color.kt`, `Theme.kt`, `Type.kt` más `InstitutionalColor.kt`, `InstitutionalType.kt`, `Sase{Dimensions,Shapes,Spacing}.kt`. El tema oscuro es el default (`MyApplicationTheme(darkTheme = true)`). "Liquid Glass" es la estética de la casa — composables con efecto esmerilado/brillante `GlassCard`/`LiquidGlassCard`/`MetricGlassCard`. Breakpoints responsivos en 850dp y 600dp.
 
 ## Reglas específicas del proyecto
@@ -99,7 +104,7 @@ Esto mapea directamente a modelos de datos y pantallas: `PreApplication` → rev
 Provienen de las instrucciones de agentes del propio repo (`AGENTS.md`, `00_CONTEXT_FOR_AI/HUGO_SYSTEM_AGENT_INSTRUCTIONS.md`, `00_CONTEXT_FOR_AI/SKILLS/`) — leer esos archivos antes de cambios grandes o sensibles al flujo de trabajo:
 
 - No inventar arquitectura, modelos, tablas, campos, pantallas o flujos que contradigan el flujo institucional de arriba.
-- No activar un backend real/Supabase, PDF/impresión, ni IA externa (Gemini, etc.) sin autorización explícita.
+- No activar un backend real/Supabase, PDF/impresión, ni IA externa (Gemini, etc.) sin autorización explícita. La costura `data/auth/` + migración `supabase/migrations/0001_staff_auth.sql` está deliberadamente acotada a personal (staff) y sin conectar al cliente; no ampliarla a datos de alumnos/familias ni cablearla a la UI sin autorización.
 - Nunca usar datos reales de estudiantes/familias (CURP, teléfonos, direcciones, datos médicos/familiares). Los mocks son solo demo y usan correos `example.invalid` y valores placeholder — seguir esa convención.
 - Las pantallas de credencial (`StudentCredentialDashboardScreen`/`CredentialPreviewScreen`) nunca deben mostrar información médica, familiar, de UDEII ni de Trabajo Social.
 - No tocar `ui/theme/Color.kt`, `Theme.kt` ni `Type.kt` fuera de una tarea de tema visual explícitamente delimitada.
