@@ -9,7 +9,10 @@ import kotlinx.coroutines.flow.asStateFlow
  * sin contraseñas, sin cuentas reales. Cada instancia es independiente para
  * impedir contaminación entre pruebas (no es un singleton).
  */
-class MockSessionRepository : DemoSessionRepository {
+class MockSessionRepository(
+    private val directory: List<MockStaffCredential> = MockStaffDirectory.DEFAULT,
+    private val persistedIdentity: DemoStaffIdentity? = null
+) : DemoSessionRepository, CredentialSessionRepository {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.NoSession)
     override val authState: StateFlow<AuthState> = _authState.asStateFlow()
@@ -20,12 +23,48 @@ class MockSessionRepository : DemoSessionRepository {
         return next
     }
 
+    /**
+     * Login por credenciales sintéticas. No hay cuentas reales ni contraseñas
+     * de personas: el directorio demo vive en memoria y usa `example.invalid`.
+     * Correo desconocido y contraseña incorrecta devuelven la MISMA razón para
+     * no revelar qué correos existen.
+     */
+    override suspend fun signInWithCredentials(email: String, password: String): StaffSignInResult {
+        val normalized = email.trim().lowercase()
+        val match = directory.firstOrNull { it.email == normalized && it.password == password }
+            ?: return failure(StaffAuthFailure.INVALID_CREDENTIALS)
+        if (!match.active) {
+            return failure(StaffAuthFailure.MEMBERSHIP_INACTIVE)
+        }
+        val session = demoSession(match.identity)
+        _authState.value = AuthState.Active(session)
+        return StaffSignInResult.Success(session)
+    }
+
+    override suspend fun signOutWithRevocation() {
+        signOut()
+    }
+
+    /** Restaura la sesión que el backend demo tuviera "persistida", si la hay. */
+    override suspend fun restoreSession(): AuthState {
+        val next = persistedIdentity
+            ?.let { AuthState.Active(demoSession(it)) }
+            ?: AuthState.NoSession
+        _authState.value = next
+        return next
+    }
+
     override fun signOut() {
         _authState.value = AuthState.NoSession
     }
 
     override fun resetForTests() {
         _authState.value = AuthState.NoSession
+    }
+
+    private fun failure(reason: StaffAuthFailure): StaffSignInResult {
+        _authState.value = AuthState.NoSession
+        return StaffSignInResult.Failure(reason)
     }
 
     companion object {

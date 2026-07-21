@@ -13,6 +13,8 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runDesktopComposeUiTest
+import com.example.auth.DemoSessionRepository
+import com.example.auth.DemoStaffIdentity
 import com.example.data.MockSaseData
 import com.example.data.presolicitud.ReadinessStatus
 import com.example.ui.SaseAppContent
@@ -162,6 +164,10 @@ class CurpCorrectionUiTest {
             PreApplicationViewModel.resetSharedStateForTests()
             try {
                 val viewModel = LabViewModel()
+                // El gate de sesión protege toda la app: estas pruebas de flujo
+                // parten de personal ya autenticado (sesión demo determinista).
+                (viewModel.sessionRepository as DemoSessionRepository)
+                    .signInAsDemo(DemoStaffIdentity.SECRETARIA_DEMO)
                 runDesktopComposeUiTest(width = 1100, height = 700) {
                     setContent {
                         MyApplicationTheme {

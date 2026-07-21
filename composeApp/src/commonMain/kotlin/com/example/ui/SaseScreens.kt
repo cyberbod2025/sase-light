@@ -40,6 +40,11 @@ import com.example.ui.student.StudentRecordScreen
 import com.example.ui.CredentialPreviewScreen
 import com.example.ui.StudentCredentialDashboardScreen
 import com.example.data.StudentAddResult
+import com.example.auth.AuthBackend
+import com.example.auth.AuthState
+import com.example.auth.SessionRepositoryProvision
+import com.example.ui.auth.LoginScreen
+import com.example.viewmodel.StaffLoginViewModel
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
 import com.example.viewmodel.AppRole
@@ -1295,9 +1300,41 @@ fun EnrollmentDashboardScreen(
     }
 }
 
+object SaseAppTestTags {
+    const val SIGN_OUT = "app_sign_out"
+}
+
+/**
+ * Raíz de la aplicación con gate de sesión: sin sesión activa no se compone
+ * ninguna pantalla institucional, ni siquiera detrás de una capa. El backend
+ * por defecto es MOCK; SUPABASE solo entra con configuración explícita.
+ */
+@Composable
+fun SaseAppContent(
+    viewModel: LabViewModel,
+    loginViewModel: StaffLoginViewModel = remember(viewModel) {
+        StaffLoginViewModel(
+            SessionRepositoryProvision.Ready(AuthBackend.MOCK, viewModel.sessionRepository)
+        )
+    }
+) {
+    val authState by viewModel.authState.collectAsState()
+
+    when (authState) {
+        is AuthState.NoSession -> LoginScreen(viewModel = loginViewModel)
+        is AuthState.Active -> SaseAuthenticatedContent(
+            viewModel = viewModel,
+            onSignOut = { loginViewModel.signOut() }
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SaseAppContent(viewModel: LabViewModel) {
+internal fun SaseAuthenticatedContent(
+    viewModel: LabViewModel,
+    onSignOut: suspend () -> Unit
+) {
     val currentScreen by viewModel.currentScreen.collectAsState()
     val currentRole by viewModel.userRole.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -1359,6 +1396,24 @@ fun SaseAppContent(viewModel: LabViewModel) {
                             viewModel = viewModel
                         )
                     }
+                }
+
+                // Cierre de sesión: siempre disponible, en cualquier pantalla.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 12.dp, end = 44.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(SaseNavy2.copy(alpha = 0.35f))
+                        .clickable { scope.launch { onSignOut() } }
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                        .testTag(SaseAppTestTags.SIGN_OUT)
+                ) {
+                    Text(
+                        text = "Salir",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 11.sp
+                    )
                 }
 
                 // Debug role toggle — extremely subtle, for dev testing only
