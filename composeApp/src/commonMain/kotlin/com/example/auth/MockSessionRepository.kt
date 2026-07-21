@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * sin contraseñas, sin cuentas reales. Cada instancia es independiente para
  * impedir contaminación entre pruebas (no es un singleton).
  */
-class MockSessionRepository : SessionRepository {
+class MockSessionRepository : DemoSessionRepository {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.NoSession)
     override val authState: StateFlow<AuthState> = _authState.asStateFlow()

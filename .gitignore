@@ -54,3 +54,9 @@ evidence/android/launch-dumpsys.log
 !evidence/android/01D/20260714-113801/s20-fe/scenario-f-status-chip.png
 !evidence/android/01D/20260714-113801/s20-fe/scenario-g-menu-card4.png
 !evidence/android/01D/20260714-113801/s20-fe/device-info.txt
+
+/android.log
+/compile.log
+/desktopTest.log
+/evidence/android/01G-B/
+/evidence/android/01G-B-FIX-01/

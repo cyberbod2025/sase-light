@@ -3,6 +3,7 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.multiplatform)
   alias(libs.plugins.kotlin.compose)
+  alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
@@ -40,10 +41,13 @@ kotlin {
       implementation(compose.components.resources)
       implementation(compose.materialIconsExtended)
       implementation(libs.kotlinx.coroutines.core)
+      implementation(libs.supabase.auth)
+      implementation(libs.supabase.postgrest)
     }
 
     commonTest.dependencies {
       implementation(kotlin("test"))
+      implementation(libs.kotlinx.coroutines.test)
     }
 
     androidMain.dependencies {
@@ -60,11 +64,13 @@ kotlin {
       implementation(libs.androidx.lifecycle.viewmodel.compose)
       implementation(libs.androidx.lifecycle.runtime.compose)
       implementation(libs.kotlinx.coroutines.android)
+      implementation(libs.ktor.client.okhttp)
     }
 
     val desktopMain by getting
     desktopMain.dependencies {
       implementation(compose.desktop.currentOs)
+      implementation(libs.ktor.client.cio)
     }
 
     val desktopTest by getting
@@ -74,6 +80,7 @@ kotlin {
     }
 
     iosMain.dependencies {
+      implementation(libs.ktor.client.darwin)
     }
   }
 }
@@ -99,9 +106,15 @@ android {
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
+    // supabase-kt/Ktor usan java.time; con minSdk 24 se requiere desugaring.
+    isCoreLibraryDesugaringEnabled = true
   }
 
   buildFeatures {
     compose = true
   }
+}
+
+dependencies {
+  coreLibraryDesugaring(libs.desugar.jdk.libs)
 }

@@ -4,22 +4,43 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Repositorio de sesión con operaciones de dominio (no CRUD genérico).
- * En esta fase solo existe la implementación mock; una implementación real
- * (Supabase Auth) se conectará detrás de esta misma interfaz en fases
- * posteriores sin tocar a los consumidores.
+ * Contrato base común a las implementaciones mock (demo) y real (Supabase);
+ * los consumidores (LabViewModel, DI) solo dependen de este contrato.
  */
 interface SessionRepository {
     /** Estado de autenticación observable. */
     val authState: StateFlow<AuthState>
 
-    /** Inicia una sesión demo determinista por identidad institucional. */
-    fun signInAsDemo(identity: DemoStaffIdentity): AuthState
-
-    /** Cierra la sesión activa. */
+    /** Cierra la sesión activa localmente (revocación remota: ver [CredentialSessionRepository]). */
     fun signOut()
 
     /** Restaura el estado inicial (sin sesión) para aislamiento entre pruebas. */
     fun resetForTests()
+}
+
+/**
+ * Capacidad de sesión demo: exclusiva de implementaciones mock. El backend
+ * real nunca la ofrece — así no existe una vía "demo" hacia datos reales.
+ */
+interface DemoSessionRepository : SessionRepository {
+    /** Inicia una sesión demo determinista por identidad institucional. */
+    fun signInAsDemo(identity: DemoStaffIdentity): AuthState
+}
+
+/**
+ * Capacidad de autenticación real por credenciales del personal. La
+ * implementación concreta vive en la capa de infraestructura (Supabase);
+ * este contrato solo expone modelos de dominio y errores tipados.
+ */
+interface CredentialSessionRepository : SessionRepository {
+    /** Autentica personal con email y contraseña. Denegaciones como valores, no excepciones. */
+    suspend fun signInWithCredentials(email: String, password: String): StaffSignInResult
+
+    /** Cierra sesión revocándola también en el backend. */
+    suspend fun signOutWithRevocation()
+
+    /** Intenta restaurar una sesión previa persistida por el backend. */
+    suspend fun restoreSession(): AuthState
 }
 
 /**
