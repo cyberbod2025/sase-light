@@ -44,17 +44,17 @@ Simple single-ViewModel (`LabViewModel` in `commonMain`) with a sealed `Screen` 
 
 ## Environment
 
-- **Current operational environment**: GitHub Codespaces / Linux container
-- All commands assume a Linux shell (bash)
-- Do not use Windows paths (e.g., `C:\HUGO_SYSTEM\Projects\sase-light`) or `.\gradlew.bat`
+- **Current operational environment**: Windows workstation
+- All commands assume PowerShell from the repository root
+- Use Windows paths and `.\gradlew.bat`
 
 ## Gradle execution
 
 Always use:
-- `./gradlew` (not `.\gradlew.bat`)
+- `.\gradlew.bat`
 - `--no-daemon` to avoid stale daemon issues
 - No pipes (`|`) during Gradle execution — use `*>` to redirect to log file if needed
-- `tail -n 120 <log>` to inspect output
+- `Get-Content <log> -Tail 120` to inspect output
 
 ## Auto commit + CI rule
 
@@ -97,9 +97,9 @@ After any approved microphase execution:
 ## Agent workflow references
 
 - `00_CONTEXT_FOR_AI/HUGO_SYSTEM_AGENT_INSTRUCTIONS.md` — system instructions for AI agents (architecture, rules, aesthetics, security, communication)
-- `00_CONTEXT_FOR_AI/SKILLS/SASE_LIGHT_CODESPACES_GIT_PR_SKILL.md` — secure Git/PR workflow skill for Codespaces (ritual, branching, validation, commit, PR, CI, conflicts, visual theme, sensitive data)
+- `00_CONTEXT_FOR_AI/SKILLS/SASE_LIGHT_WINDOWS_GIT_PR_SKILL.md` — secure Git/PR workflow skill for Windows (ritual, branching, validation, commit, PR, CI, conflicts, visual theme, sensitive data)
 
-Before making changes, agents **must** read both files above. These define the current instruction architecture, Git/PR workflow, safety rules, scope rules, Codespaces validation ritual and SASE Light guardrails.
+Before making changes, agents **must** read both files above. These define the current instruction architecture, Git/PR workflow, safety rules, scope rules, Windows validation ritual and SASE Light guardrails.
 
 ## Local agent state
 
