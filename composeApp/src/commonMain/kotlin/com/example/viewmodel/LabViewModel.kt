@@ -9,6 +9,7 @@ import com.example.data.auth.AuthRepository
 import com.example.data.auth.AuthResult
 import com.example.data.auth.AuthSession
 import com.example.data.auth.MockAuthRepositoryImpl
+import com.example.data.auth.institutionalLabel
 import com.example.data.repository.AuditRepository
 import com.example.data.repository.MockAuditRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
@@ -148,8 +149,17 @@ class LabViewModel(
         return studentRepository.addStudent(student)
     }
 
+    /**
+     * Registra una accion en la bitacora institucional. Cuando hay sesion, el
+     * autor (rol y nombre) se toma de la sesion autenticada — la trazabilidad
+     * no puede ser autodeclarada por el caller. El parametro [role] queda solo
+     * como respaldo para contextos sin sesion.
+     */
     fun logSaseAudit(action: String, role: String, detail: String) {
         val timestamp = "Hoy ${formatTimestamp("hh:mm a")}"
-        auditRepository.logAudit(action, role, timestamp, detail)
+        val profile = session.value?.profile
+        val recordedRole = profile?.role?.institutionalLabel() ?: role
+        val recordedDetail = if (profile != null) "$detail — ${profile.fullName}" else detail
+        auditRepository.logAudit(action, recordedRole, timestamp, recordedDetail)
     }
 }
