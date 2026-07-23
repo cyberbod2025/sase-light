@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,6 +38,7 @@ import com.example.ui.student.StudentRecordScreen
 import com.example.ui.CredentialPreviewScreen
 import com.example.ui.StudentCredentialDashboardScreen
 import com.example.data.StudentAddResult
+import com.example.ui.auth.LoginScreen
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
 import com.example.viewmodel.AppRole
@@ -1289,10 +1291,17 @@ fun EnrollmentDashboardScreen(
 fun SaseAppContent(viewModel: LabViewModel) {
     val currentScreen by viewModel.currentScreen.collectAsState()
     val currentRole by viewModel.userRole.collectAsState()
+    val session by viewModel.session.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val toast: (String) -> Unit = { msg ->
         scope.launch { snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short) }
+    }
+
+    // Compuerta de acceso: sin sesion no se muestra ningun contenido institucional.
+    if (session == null) {
+        LoginScreen(viewModel = viewModel)
+        return
     }
 
     CompositionLocalProvider(LocalToast provides toast) {
@@ -1350,25 +1359,55 @@ fun SaseAppContent(viewModel: LabViewModel) {
                     }
                 }
 
-                // Debug role toggle — extremely subtle, for dev testing only
-                Box(
+                Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(16.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(SaseNavy2.copy(alpha = 0.12f))
-                        .clickable {
-                            val roles = AppRole.entries.toTypedArray()
-                            val nextIndex = (roles.indexOf(currentRole) + 1) % roles.size
-                            viewModel.setRole(roles[nextIndex])
-                        }
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "${currentRole.label.take(1)}",
-                        color = Color.White.copy(alpha = 0.25f),
-                        fontSize = 7.sp
-                    )
+                    // Cerrar sesion — accion visible
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.White.copy(alpha = 0.12f))
+                            .clickable { viewModel.signOut() }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Logout,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "Cerrar sesión",
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    // Debug role toggle — extremely subtle, for dev testing only
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(SaseNavy2.copy(alpha = 0.12f))
+                            .clickable {
+                                val roles = AppRole.entries.toTypedArray()
+                                val nextIndex = (roles.indexOf(currentRole) + 1) % roles.size
+                                viewModel.setRole(roles[nextIndex])
+                            }
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "${currentRole.label.take(1)}",
+                            color = Color.White.copy(alpha = 0.25f),
+                            fontSize = 7.sp
+                        )
+                    }
                 }
             }
         }
