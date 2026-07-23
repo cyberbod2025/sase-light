@@ -14,6 +14,19 @@ enum class StaffRole {
 }
 
 /**
+ * Etiqueta institucional del rol para mostrar en la interfaz. Solo presentacion:
+ * no altera permisos ni sustituye a [StaffRole] como identidad del rol.
+ */
+fun StaffRole.institutionalLabel(): String = when (this) {
+    StaffRole.DIRECCION -> "Dirección"
+    StaffRole.SECRETARIA -> "Secretaría"
+    StaffRole.TRABAJO_SOCIAL -> "Trabajo Social"
+    StaffRole.MEDICO_ESCOLAR -> "Médico Escolar"
+    StaffRole.UDEII -> "UDEII"
+    StaffRole.DOCENTE -> "Docente"
+}
+
+/**
  * Perfil de personal. No contiene datos de alumnos ni de familias: es la
  * primera etapa del backend real (staff antes que datos de menores).
  */

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.*
+import com.example.data.auth.institutionalLabel
 import com.example.util.LocalToast
 import com.example.ui.enrollment.SmartEnrollmentTable
 import com.example.ui.enrollment.digital.SecretariaEnrollmentDashboard
@@ -1366,6 +1367,16 @@ fun SaseAppContent(viewModel: LabViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Identidad de la sesion — quien es el usuario autorizado
+                    session?.profile?.let { profile ->
+                        Text(
+                            text = "${profile.fullName} · ${profile.role.institutionalLabel()}",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
                     // Cerrar sesion — accion visible
                     Row(
                         modifier = Modifier
