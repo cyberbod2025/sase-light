@@ -1,6 +1,7 @@
 package com.example.viewmodel
 
 import com.example.data.InstitutionalStudentRecordKey
+import com.example.data.auth.StaffRole
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -10,7 +11,7 @@ import kotlin.test.assertFailsWith
 class LabViewModelNavigationTest {
     @Test
     fun expedientesNavigatesToRealStudentRecordsDestination() {
-        val viewModel = LabViewModel()
+        val viewModel = labViewModelWithRole(StaffRole.SECRETARIA)
 
         viewModel.navigateFromSecretarySidebar("Expedientes")
 
@@ -19,7 +20,7 @@ class LabViewModelNavigationTest {
 
     @Test
     fun validarInscripcionOpensExistingAdministrativeReviewFlow() {
-        val viewModel = LabViewModel()
+        val viewModel = labViewModelWithRole(StaffRole.SECRETARIA)
 
         viewModel.navigateTo(enrollmentValidationDestination())
 
@@ -38,7 +39,7 @@ class LabViewModelNavigationTest {
 
     @Test
     fun institutionalRecordRouteKeepsStudentIdAndExactResolutionContext() {
-        val viewModel = LabViewModel()
+        val viewModel = labViewModelWithRole(StaffRole.SECRETARIA)
         val key = InstitutionalStudentRecordKey(
             studentId = "MASTER-V2-PRE-TEST",
             schoolYear = "2026-2027",

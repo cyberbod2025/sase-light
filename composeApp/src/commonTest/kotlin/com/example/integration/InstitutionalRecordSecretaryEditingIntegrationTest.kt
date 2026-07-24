@@ -22,7 +22,8 @@ import com.example.ui.student.InstitutionalStudentRecordPresentation
 import com.example.ui.student.institutionalStudentRecordPresentation
 import com.example.ui.student.resolveInstitutionalStudentRecordForRoute
 import com.example.viewmodel.FamilySubmissionResult
-import com.example.viewmodel.LabViewModel
+import com.example.data.auth.StaffRole
+import com.example.viewmodel.labViewModelWithRole
 import com.example.viewmodel.PreApplicationViewModel
 import com.example.viewmodel.OfficialEnrollmentResult
 import com.example.viewmodel.ReadinessResult
@@ -329,7 +330,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
         )
         assertIs<StudentAddResult.Added>(MockSaseData.addStudent(student))
 
-        val viewModel = LabViewModel()
+        val viewModel = labViewModelWithRole(StaffRole.SECRETARIA)
         viewModel.navigateTo(
             Screen.StudentRecord(
                 studentId = id,

@@ -27,14 +27,15 @@ import com.example.ui.presolicitud.institutionalEnrollmentRecordAction
 import com.example.ui.student.InstitutionalStudentRecordPresentation
 import com.example.ui.student.institutionalStudentRecordPresentation
 import com.example.ui.student.resolveInstitutionalStudentRecordForRoute
+import com.example.data.auth.StaffRole
 import com.example.viewmodel.FamilySubmissionResult
 import com.example.viewmodel.InstitutionalAnnualEnrollmentResult
 import com.example.viewmodel.InstitutionalEnrollmentGuardCause
-import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.PreApplicationSynchronizationCause
 import com.example.viewmodel.PreApplicationViewModel
 import com.example.viewmodel.ReadinessResult
 import com.example.viewmodel.Screen
+import com.example.viewmodel.labViewModelWithRole
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -300,7 +301,7 @@ class InstitutionalGoldenPathTest {
         studentId: String,
         key: com.example.data.InstitutionalStudentRecordKey
     ): Screen.StudentRecord {
-        val viewModel = LabViewModel()
+        val viewModel = labViewModelWithRole(StaffRole.SECRETARIA)
         viewModel.navigateTo(
             Screen.StudentRecord(
                 studentId = studentId,

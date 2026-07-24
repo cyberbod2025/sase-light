@@ -122,8 +122,15 @@ class LabViewModel(
     private val _userRole = MutableStateFlow(AppRole.SECRETARIA)
     val userRole: StateFlow<AppRole> = _userRole.asStateFlow()
 
+    /**
+     * Solo navega si [canOpenScreen] autoriza el destino para la sesion
+     * actual (M2). Una navegacion no autorizada conserva la pantalla vigente
+     * en silencio: sin excepcion y sin redirigir a otra ruta.
+     */
     fun navigateTo(screen: Screen) {
-        _currentScreen.value = screen
+        if (canOpenScreen(session.value, screen)) {
+            _currentScreen.value = screen
+        }
     }
 
     fun navigateFromSecretarySidebar(item: String) {
