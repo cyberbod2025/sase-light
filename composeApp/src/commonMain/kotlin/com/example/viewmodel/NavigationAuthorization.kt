@@ -6,10 +6,10 @@ import com.example.data.auth.StaffPermissions
 import com.example.data.auth.StaffRole
 
 /**
- * Politica pura Screen -> SaseArea -> StaffRole. `canOpenScreen` ya gatea
- * `LabViewModel.navigateTo` (M3): una navegacion no autorizada se ignora en
- * silencio y conserva la pantalla vigente. SaseSidebar, SaseAppContent y el
- * selector mock (AppRole) todavia no consumen esta politica.
+ * Politica pura Screen -> SaseArea -> StaffRole. `canOpenScreen` gatea
+ * `LabViewModel.navigateTo` (M3) y `visibleSidebarItems` gatea que items del
+ * sidebar se muestran (M1). SaseAppContent y el selector mock (AppRole)
+ * todavia no consumen esta politica.
  */
 
 /**
@@ -43,6 +43,32 @@ fun canOpenScreen(session: AuthSession?, screen: Screen): Boolean {
     val area = screenArea(screen) ?: return false
     return StaffPermissions.canAccess(session, area)
 }
+
+/**
+ * Orden canonico y claves de autorizacion del sidebar de Secretaria.
+ */
+val secretarySidebarItemNames: List<String> = listOf(
+    "Inicio",
+    "Expedientes",
+    "Inscripciones",
+    "Portal Familia",
+    "Pre-Solicitudes",
+    "Altas Oficiales",
+    "Credenciales"
+)
+
+/**
+ * Items del sidebar autorizados para la sesion actual: se resuelven a su
+ * Screen destino (via [secretarySidebarDestination]) y se filtran con
+ * [canOpenScreen]. "Portal Familia" no tiene area de staff ([screenArea]
+ * retorna null para [Screen.PreApplicationFamilyPortal]) y por tanto nunca
+ * aparece aqui, para ningun rol: coincide con que su navegacion ya esta
+ * bloqueada por el guard de M3, no es una restriccion nueva de este item.
+ */
+fun visibleSidebarItems(session: AuthSession?): List<String> =
+    secretarySidebarItemNames.filter { item ->
+        secretarySidebarDestination(item)?.let { screen -> canOpenScreen(session, screen) } ?: false
+    }
 
 // Candidatas a pantalla de inicio, en orden de prioridad. Un rol recibe la
 // primera cuya area le pertenezca segun StaffPermissions.areasFor. Lista

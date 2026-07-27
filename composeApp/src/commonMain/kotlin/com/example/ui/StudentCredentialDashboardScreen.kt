@@ -31,6 +31,7 @@ import com.example.data.presolicitud.OfficialStudentStatus
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.PreApplicationViewModel
 import com.example.viewmodel.Screen
+import com.example.viewmodel.visibleSidebarItems
 
 private val credentialOfficialEnrollmentPattern = Regex("^S310-[A-Z0-9]{10}-\\d{2}$")
 
@@ -50,6 +51,8 @@ private fun visibleCredentialEnrollment(official: OfficialStudent): String =
 fun StudentCredentialDashboardScreen(viewModel: LabViewModel) {
     val officialStudents by PreApplicationViewModel.officialStudents.collectAsState()
     val masterStudents by viewModel.saseStudents.collectAsState()
+    val session by viewModel.session.collectAsState()
+    val sidebarItems = visibleSidebarItems(session)
     var selectedId by remember { mutableStateOf<String?>(null) }
 
     val graduated = remember(officialStudents) { credentialEligibleStudents(officialStudents) }
@@ -95,6 +98,7 @@ fun StudentCredentialDashboardScreen(viewModel: LabViewModel) {
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
                     activeItem = "Credenciales",
+                    visibleItems = sidebarItems,
                     collapsed = sidebarCollapsed,
                     onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
                     modifier = Modifier.fillMaxHeight(),

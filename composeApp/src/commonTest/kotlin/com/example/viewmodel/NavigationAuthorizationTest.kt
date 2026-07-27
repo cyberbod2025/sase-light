@@ -7,6 +7,7 @@ import com.example.data.auth.StaffRole
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -84,6 +85,79 @@ class NavigationAuthorizationTest {
         // tiene politica de staff bajo la que autorizarse.
         val session = sessionFor(StaffRole.SECRETARIA)
         assertFalse(canOpenScreen(session, Screen.PreApplicationFamilyPortal))
+    }
+
+    // --- visibleSidebarItems: visibilidad exacta por permisos ---
+
+    @Test
+    fun sidebarIsEmptyWithoutActiveSession() {
+        assertEquals(emptyList(), visibleSidebarItems(null))
+        assertEquals(
+            emptyList(),
+            visibleSidebarItems(sessionFor(StaffRole.SECRETARIA, active = false))
+        )
+    }
+
+    @Test
+    fun secretariaSidebarContainsOnlyItsAuthorizedDestinations() {
+        assertEquals(
+            listOf(
+                "Inicio",
+                "Expedientes",
+                "Inscripciones",
+                "Pre-Solicitudes",
+                "Altas Oficiales",
+                "Credenciales"
+            ),
+            visibleSidebarItems(sessionFor(StaffRole.SECRETARIA))
+        )
+    }
+
+    @Test
+    fun direccionSidebarExcludesPreApplicationsAndFamilyPortal() {
+        assertEquals(
+            listOf(
+                "Inicio",
+                "Expedientes",
+                "Inscripciones",
+                "Altas Oficiales",
+                "Credenciales"
+            ),
+            visibleSidebarItems(sessionFor(StaffRole.DIRECCION))
+        )
+    }
+
+    @Test
+    fun expedienteRolesSeeOnlyExpedientesInSidebar() {
+        listOf(StaffRole.TRABAJO_SOCIAL, StaffRole.UDEII, StaffRole.DOCENTE).forEach { role ->
+            assertEquals(
+                listOf("Expedientes"),
+                visibleSidebarItems(sessionFor(role)),
+                "$role solo debe ver Expedientes"
+            )
+        }
+    }
+
+    @Test
+    fun medicoSidebarIsEmptyUntilSaludHasDestination() {
+        assertEquals(
+            emptyList(),
+            visibleSidebarItems(sessionFor(StaffRole.MEDICO_ESCOLAR))
+        )
+    }
+
+    @Test
+    fun everyVisibleSidebarItemResolvesToAnAuthorizedScreen() {
+        StaffRole.entries.forEach { role ->
+            val session = sessionFor(role)
+            visibleSidebarItems(session).forEach { item ->
+                val destination = assertNotNull(
+                    secretarySidebarDestination(item),
+                    "$item debe tener destino"
+                )
+                assertTrue(canOpenScreen(session, destination), "$role debe poder abrir $item")
+            }
+        }
     }
 
     // --- canOpenScreen: rol autorizado / no autorizado por rol ---

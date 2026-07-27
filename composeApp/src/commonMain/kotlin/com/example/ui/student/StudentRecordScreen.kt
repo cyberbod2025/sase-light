@@ -125,6 +125,7 @@ import com.example.data.presolicitud.ReadinessStatus
 import com.example.viewmodel.ReadinessResult
 import com.example.data.presolicitud.UpdatePreApplicationAdministrativeDataRequest
 import com.example.viewmodel.Screen
+import com.example.viewmodel.visibleSidebarItems
 import kotlinx.coroutines.launch
 
 private val officialEnrollmentPattern = Regex("^S310-[A-Z0-9]{10}-\\d{2}$")
@@ -839,6 +840,8 @@ fun StudentRecordScreen(
     viewModel: LabViewModel,
     userRole: AppRole = AppRole.SECRETARIA
 ) {
+    val session by viewModel.session.collectAsState()
+    val sidebarItems = visibleSidebarItems(session)
     val annualEnrollments by MockSaseData.annualEnrollments.collectAsState()
     if (institutionalKey != null || annualEnrollments.any { it.studentId == studentId }) {
         InstitutionalStudentRecordRoute(
@@ -2120,6 +2123,7 @@ fun StudentRecordScreen(
                     ) {
                         SaseSidebar(
                             activeItem = "Expedientes",
+                            visibleItems = sidebarItems,
                             modifier = Modifier.fillMaxHeight(),
                             collapsed = false,
                             onItemClick = navigateFromSidebar
@@ -2133,6 +2137,7 @@ fun StudentRecordScreen(
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
                     activeItem = "Expedientes",
+                    visibleItems = sidebarItems,
                     collapsed = sidebarCollapsed,
                     onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
                     modifier = Modifier.fillMaxHeight(),
