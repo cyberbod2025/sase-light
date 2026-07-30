@@ -132,7 +132,7 @@ object MockSaseData {
             orientationResponsible = "SECRETARIA DEMO",
             documents = pendingDocuments(),
             observations = listOf(SaseObservation("DATOS ACEPTADOS; FALTAN DOCUMENTOS Y FOTOS PARA ALTA OFICIAL.", "SECRETARIA DEMO", "AYER", "Académica")),
-            schoolIncidents = listOf(SaseIncident("HOY", "Documentación pendiente", "SECRETARIA DEMO", "En seguimiento")),
+            schoolIncidents = listOf(SaseIncident("HOY", "Documentación pendiente", "SECRETARIA DEMO", "En seguimiento", id = "INC-SEED-01")),
             audits = listOf(SaseAudit("Pendientes detectados", "Sistema", "AYER 08:30", "DOCUMENTOS Y FOTOS")),
             preApplicationFolio = "PRE-C9Z3"
         ),

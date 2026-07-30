@@ -17,7 +17,11 @@ data class SaseIncident(
     val date: String,
     val type: String,
     val reporter: String,
-    val status: String
+    val status: String,
+    val id: String = "",
+    val reportedByStaffId: String? = null,
+    val agreementNotes: String? = null,
+    val followUps: List<String> = emptyList()
 )
 
 data class SaseAudit(

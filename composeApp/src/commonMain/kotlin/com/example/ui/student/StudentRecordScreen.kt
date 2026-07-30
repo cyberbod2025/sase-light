@@ -81,7 +81,6 @@ import androidx.compose.ui.window.Dialog
 import com.example.data.InstitutionalRecordDataQuality
 import com.example.data.InstitutionalStudentRecordKey
 import com.example.data.MockSaseData
-import com.example.data.SaseIncident
 import com.example.data.SaseObservation
 import com.example.data.Student
 import com.example.data.enrollment.AnnualEnrollmentRecord
@@ -1657,14 +1656,32 @@ fun StudentRecordScreen(
                                                 Column {
                                                     Text(incident.type, fontWeight = FontWeight.Bold, color = SaseText, fontSize = 13.sp)
                                                     Text("Reportado por: ${incident.reporter} · Fecha: ${incident.date}", color = SaseMuted, fontSize = 11.sp)
+                                                    if (incident.agreementNotes != null) {
+                                                        Text("Nota: ${incident.agreementNotes}", color = SaseMuted, fontSize = 10.sp)
+                                                    }
                                                 }
-                                                Box(
-                                                    modifier = Modifier
-                                                        .clip(RoundedCornerShape(8.dp))
-                                                        .background(if (incident.status == "Atendida") SaseGreen.copy(alpha = 0.12f) else SaseOrange.copy(alpha = 0.12f))
-                                                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                                                ) {
-                                                    Text(incident.status, color = if (incident.status == "Atendida") SaseGreenDark else SaseOrange, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                            .background(if (incident.status == "Atendida") SaseGreen.copy(alpha = 0.12f) else SaseOrange.copy(alpha = 0.12f))
+                                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                                    ) {
+                                                        Text(incident.status, color = if (incident.status == "Atendida") SaseGreenDark else SaseOrange, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                                    }
+                                                    if (incident.status != "Atendida") {
+                                                        Text(
+                                                            "Avanzar",
+                                                            color = SaseBlue,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 10.sp,
+                                                            modifier = Modifier.clickable {
+                                                                if (!viewModel.advanceIncident(student.id, incident.id, "")) {
+                                                                    toast("No se pudo avanzar la incidencia")
+                                                                }
+                                                            }
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -1868,14 +1885,13 @@ fun StudentRecordScreen(
                             text = "Registrar",
                             onClick = {
                                 if (incDesc.isNotBlank()) {
-                                    val incs = student.schoolIncidents.toMutableList()
-                                    incs.add(0, SaseIncident("Hoy", incType, "Secretaría", "En seguimiento"))
-                                    val updated = student.copy(schoolIncidents = incs)
-                                    viewModel.updateStudent(updated)
-                                    viewModel.logSaseAudit("Incidencia reportada", "Secretaría", "${student.fullName} - $incType")
-                                    showIncidentDialog = false
-                                    incDesc = ""
-                                    toast("Incidencia registrada")
+                                    if (viewModel.reportIncident(student.id, incType, incDesc)) {
+                                        showIncidentDialog = false
+                                        incDesc = ""
+                                        toast("Incidencia registrada")
+                                    } else {
+                                        toast("No hay sesión activa para registrar la incidencia")
+                                    }
                                 } else {
                                     toast("Favor de agregar descripción")
                                 }

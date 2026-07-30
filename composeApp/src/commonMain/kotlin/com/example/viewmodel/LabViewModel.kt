@@ -1,7 +1,10 @@
 package com.example.viewmodel
 
 import com.example.data.SaseAudit
+import com.example.data.IncidentTransitionResult
+import com.example.data.IncidentWorkflow
 import com.example.data.InstitutionalStudentRecordKey
+import com.example.data.SaseIncident
 import com.example.data.Student
 import com.example.data.StudentAddResult
 import com.example.data.auth.AuthFailureReason
@@ -21,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 sealed class Screen {
     data object SecretaryDashboard : Screen()
@@ -163,5 +167,53 @@ class LabViewModel(
         val recordedRole = profile?.role?.institutionalLabel() ?: role
         val recordedDetail = if (profile != null) "$detail — ${profile.fullName}" else detail
         auditRepository.logAudit(action, recordedRole, timestamp, recordedDetail)
+    }
+
+    /**
+     * Reporta una incidencia con autoria real (id + nombre de la sesion
+     * autenticada), nunca autodeclarada por la pantalla que llama. Sin
+     * sesion activa no reporta nada — devuelve false para que la UI avise.
+     */
+    fun reportIncident(studentId: String, type: String, description: String): Boolean {
+        val profile = session.value?.profile?.takeIf { it.active } ?: return false
+        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return false
+
+        val incident = IncidentWorkflow.report(
+            type = type,
+            description = description,
+            date = "Hoy",
+            reportedByStaffId = profile.id,
+            reportedByName = profile.fullName,
+            idGenerator = { "INC-${Random.nextInt(100000, 999999)}" }
+        )
+        updateStudent(student.copy(schoolIncidents = listOf(incident) + student.schoolIncidents))
+        logSaseAudit("Incidencia reportada", profile.role.institutionalLabel(), "${student.fullName} - $type")
+        return true
+    }
+
+    /**
+     * Avanza una incidencia al siguiente estado legal de [IncidentWorkflow]
+     * (reporte -> citatorio -> acuerdo -> cierre). Una transicion ilegal
+     * (incidencia ya cerrada, o sin sesion activa) no muta nada y devuelve
+     * false para que la UI lo comunique.
+     */
+    fun advanceIncident(studentId: String, incidentId: String, note: String): Boolean {
+        val profile = session.value?.profile?.takeIf { it.active } ?: return false
+        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return false
+        val incident = student.schoolIncidents.firstOrNull { it.id == incidentId } ?: return false
+
+        val result = IncidentWorkflow.advance(incident, note)
+        val updated = when (result) {
+            is IncidentTransitionResult.IllegalTransition -> return false
+            is IncidentTransitionResult.Success -> result.incident
+        }
+        val updatedIncidents = student.schoolIncidents.map { if (it.id == incidentId) updated else it }
+        updateStudent(student.copy(schoolIncidents = updatedIncidents))
+        logSaseAudit(
+            "Incidencia avanzada a ${updated.status}",
+            profile.role.institutionalLabel(),
+            "${student.fullName} - ${updated.type}"
+        )
+        return true
     }
 }
