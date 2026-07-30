@@ -506,6 +506,7 @@ private fun PreApplicationDetailTabs(
             OfficialEnrollmentContextualPanel(
                 preApp = preApp,
                 officialStudent = officialStudent,
+                staffName = viewModel.session.value?.profile?.fullName ?: "Secretaría",
                 onOpenStudentRecord = { key ->
                     viewModel.navigateTo(
                         Screen.StudentRecord(
@@ -1203,7 +1204,8 @@ private fun OfficialEnrollmentContextualPanel(
     onOpenStudentRecord: (InstitutionalStudentRecordKey) -> Unit,
     onOpenStudentRecordById: (String) -> Unit,
     onClose: () -> Unit,
-    scope: CoroutineScope
+    scope: CoroutineScope,
+    staffName: String = "Secretaría"
 ) {
     val grade = preApp.gradoSolicitado
     val groupOptions = PreApplicationViewModel.groupOptionsForGrade(grade)
@@ -1423,7 +1425,8 @@ private fun OfficialEnrollmentContextualPanel(
                             requestedGrade = requestedGrade,
                             previousGroup = selectedGroup,
                             schoolYear = preApp.cicloEscolar,
-                            studentFullName = preApp.alumnoNombreCompleto
+                            studentFullName = preApp.alumnoNombreCompleto,
+                            actor = staffName
                         )
                         institutionalResult = v2Result
                         resultMessage = institutionalEnrollmentMessage(v2Result)
