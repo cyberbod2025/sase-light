@@ -87,6 +87,45 @@ class NavigationAuthorizationTest {
         assertFalse(canOpenScreen(session, Screen.PreApplicationFamilyPortal))
     }
 
+    // --- authorizedScreenFor: render fail-closed y home por sesion ---
+
+    @Test
+    fun authorizedScreenForKeepsAnAuthorizedRequestedScreen() {
+        val session = sessionFor(StaffRole.SECRETARIA)
+
+        assertEquals(
+            Screen.OfficialEnrollmentDashboard,
+            authorizedScreenFor(session, Screen.OfficialEnrollmentDashboard)
+        )
+    }
+
+    @Test
+    fun authorizedScreenForReplacesUnauthorizedInitialScreenWithRoleHome() {
+        val session = sessionFor(StaffRole.TRABAJO_SOCIAL)
+
+        assertEquals(
+            Screen.StudentRecordsDashboard,
+            authorizedScreenFor(session, Screen.SecretaryDashboard)
+        )
+    }
+
+    @Test
+    fun authorizedScreenForReturnsNullWithoutActiveSessionOrAvailableHome() {
+        assertNull(authorizedScreenFor(null, Screen.SecretaryDashboard))
+        assertNull(
+            authorizedScreenFor(
+                sessionFor(StaffRole.SECRETARIA, active = false),
+                Screen.SecretaryDashboard
+            )
+        )
+        assertNull(
+            authorizedScreenFor(
+                sessionFor(StaffRole.MEDICO_ESCOLAR),
+                Screen.SecretaryDashboard
+            )
+        )
+    }
+
     // --- visibleSidebarItems: visibilidad exacta por permisos ---
 
     @Test

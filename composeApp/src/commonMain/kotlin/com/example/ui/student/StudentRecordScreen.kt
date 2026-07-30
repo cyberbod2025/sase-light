@@ -112,7 +112,6 @@ import com.example.ui.components.fields.SaseTextField
 import com.example.ui.components.navigation.SaseSectionTabs
 import com.example.ui.theme.SaseColors
 import com.example.util.LocalToast
-import com.example.viewmodel.AppRole
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.OfficialEnrollmentResult
 import com.example.viewmodel.PreApplicationViewModel
@@ -837,8 +836,7 @@ fun StudentRecordScreen(
     studentId: String,
     institutionalKey: InstitutionalStudentRecordKey? = null,
     returnTo: Screen = Screen.SecretaryDashboard,
-    viewModel: LabViewModel,
-    userRole: AppRole = AppRole.SECRETARIA
+    viewModel: LabViewModel
 ) {
     val session by viewModel.session.collectAsState()
     val sidebarItems = visibleSidebarItems(session)

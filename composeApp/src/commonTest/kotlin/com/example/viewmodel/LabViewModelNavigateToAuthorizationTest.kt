@@ -14,7 +14,7 @@ import kotlin.test.assertIs
 /**
  * M2: navigateTo() consulta canOpenScreen(session.value, destino) antes de
  * mutar currentScreen. Una navegacion no autorizada conserva la pantalla
- * vigente, sin excepcion y sin redirigir. No participa AppRole en ningun caso.
+ * vigente, sin excepcion y sin redirigir. Solo la sesion autenticada decide.
  */
 class LabViewModelNavigateToAuthorizationTest {
 
@@ -105,6 +105,16 @@ class LabViewModelNavigateToAuthorizationTest {
 
         // Trabajo Social no tiene ALTA_OFICIAL: el intento se ignora en silencio.
         vm.navigateTo(Screen.OfficialEnrollmentDashboard)
+
+        assertIs<Screen.StudentRecordsDashboard>(vm.currentScreen.value)
+    }
+
+    @Test
+    fun navigateBackReturnsToTheAuthenticatedRoleHome() {
+        val vm = viewModelWithSession(sessionFor(StaffRole.TRABAJO_SOCIAL))
+        vm.navigateTo(Screen.StudentRecord(studentId = "STU-001"))
+
+        vm.navigateBack()
 
         assertIs<Screen.StudentRecordsDashboard>(vm.currentScreen.value)
     }

@@ -40,10 +40,11 @@ import com.example.ui.CredentialPreviewScreen
 import com.example.ui.StudentCredentialDashboardScreen
 import com.example.data.StudentAddResult
 import com.example.ui.auth.LoginScreen
+import com.example.ui.components.buttons.SasePrimaryButton
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
-import com.example.viewmodel.AppRole
 import com.example.viewmodel.PreApplicationViewModel
+import com.example.viewmodel.authorizedScreenFor
 import com.example.viewmodel.enrollmentValidationDestination
 import com.example.viewmodel.secretarySidebarItemNames
 import com.example.viewmodel.visibleSidebarItems
@@ -1306,7 +1307,6 @@ fun EnrollmentDashboardScreen(
 @Composable
 fun SaseAppContent(viewModel: LabViewModel) {
     val currentScreen by viewModel.currentScreen.collectAsState()
-    val currentRole by viewModel.userRole.collectAsState()
     val session by viewModel.session.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -1315,8 +1315,22 @@ fun SaseAppContent(viewModel: LabViewModel) {
     }
 
     // Compuerta de acceso: sin sesion no se muestra ningun contenido institucional.
-    if (session == null) {
+    val activeSession = session
+    if (activeSession == null) {
         LoginScreen(viewModel = viewModel)
+        return
+    }
+
+    // Segunda compuerta (M4): incluso con sesion, solo se renderiza una Screen
+    // autorizada para el rol. Sin destino autorizado (rol sin pantalla propia
+    // aun, p.ej. Medico Escolar), se cae a NoAuthorizedAreaScreen en vez de
+    // fingir acceso.
+    val screenToRender = authorizedScreenFor(activeSession, currentScreen)
+    if (screenToRender == null) {
+        NoAuthorizedAreaScreen(
+            staffName = activeSession.profile.fullName,
+            onSignOut = viewModel::signOut
+        )
         return
     }
 
@@ -1331,7 +1345,7 @@ fun SaseAppContent(viewModel: LabViewModel) {
                     .padding(innerPadding)
             ) {
                 AnimatedContent(
-                    targetState = currentScreen,
+                    targetState = screenToRender,
                     transitionSpec = {
                         fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(220))
                     },
@@ -1349,8 +1363,7 @@ fun SaseAppContent(viewModel: LabViewModel) {
                             studentId = screen.studentId,
                             institutionalKey = screen.institutionalKey,
                             returnTo = screen.returnTo,
-                            viewModel = viewModel,
-                            userRole = currentRole
+                            viewModel = viewModel
                         )
                         is Screen.EnrollmentDashboard -> EnrollmentDashboardScreen(
                             viewModel = viewModel
@@ -1383,14 +1396,13 @@ fun SaseAppContent(viewModel: LabViewModel) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Identidad de la sesion — quien es el usuario autorizado
-                    session?.profile?.let { profile ->
-                        Text(
-                            text = "${profile.fullName} · ${profile.role.institutionalLabel()}",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+                    val profile = activeSession.profile
+                    Text(
+                        text = "${profile.fullName} · ${profile.role.institutionalLabel()}",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
 
                     // Cerrar sesion — accion visible
                     Row(
@@ -1415,27 +1427,41 @@ fun SaseAppContent(viewModel: LabViewModel) {
                             fontWeight = FontWeight.SemiBold
                         )
                     }
-
-                    // Debug role toggle — extremely subtle, for dev testing only
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(SaseNavy2.copy(alpha = 0.12f))
-                            .clickable {
-                                val roles = AppRole.entries.toTypedArray()
-                                val nextIndex = (roles.indexOf(currentRole) + 1) % roles.size
-                                viewModel.setRole(roles[nextIndex])
-                            }
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "${currentRole.label.take(1)}",
-                            color = Color.White.copy(alpha = 0.25f),
-                            fontSize = 7.sp
-                        )
-                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun NoAuthorizedAreaScreen(
+    staffName: String,
+    onSignOut: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(SaseNavy),
+        contentAlignment = Alignment.Center
+    ) {
+        GlassCard(modifier = Modifier.widthIn(max = 440.dp).padding(24.dp)) {
+            Text(
+                text = "Sin área disponible",
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 20.sp,
+                color = SaseNavy
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "$staffName inició sesión correctamente, pero su rol aún no tiene una pantalla autorizada.",
+                color = SaseMuted,
+                fontSize = 13.sp
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            SasePrimaryButton(
+                text = "Cerrar sesión",
+                onClick = onSignOut
+            )
         }
     }
 }

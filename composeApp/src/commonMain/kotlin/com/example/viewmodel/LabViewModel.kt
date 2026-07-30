@@ -70,17 +70,6 @@ sealed interface LoginUiState {
     data class Error(val reason: AuthFailureReason) : LoginUiState
 }
 
-// Roles MOCK
-enum class AppRole(val label: String) {
-    FAMILIA("Familia"),
-    SECRETARIA("Secretaría"),
-    DIRECCION("Dirección"),
-    MEDICO("Médico Escolar"),
-    TRABAJO_SOCIAL("Trabajo Social"),
-    UDEII("UDEII"),
-    DOCENTE("Docente")
-}
-
 class LabViewModel(
     private val studentRepository: StudentRepository = MockStudentRepositoryImpl(),
     private val auditRepository: AuditRepository = MockAuditRepositoryImpl(),
@@ -102,12 +91,23 @@ class LabViewModel(
     private val _loginState = MutableStateFlow<LoginUiState>(LoginUiState.Idle)
     val loginState: StateFlow<LoginUiState> = _loginState.asStateFlow()
 
+    /**
+     * Login exitoso navega directo al home autorizado del rol (M4): la
+     * sesion real reemplaza al selector mock como fuente de la pantalla
+     * inicial. Sin home disponible (p.ej. rol sin pantalla propia aun),
+     * currentScreen no se toca — SaseAppContent cae a NoAuthorizedAreaScreen.
+     */
     fun signIn(email: String, password: String) {
         if (_loginState.value is LoginUiState.Loading) return
         _loginState.value = LoginUiState.Loading
         authScope.launch {
             _loginState.value = when (val result = authRepository.signIn(email, password)) {
-                is AuthResult.Success -> LoginUiState.Idle
+                is AuthResult.Success -> {
+                    homeScreenFor(result.session.profile.role)?.let { home ->
+                        _currentScreen.value = home
+                    }
+                    LoginUiState.Idle
+                }
                 is AuthResult.Failure -> LoginUiState.Error(result.reason)
             }
         }
@@ -117,10 +117,6 @@ class LabViewModel(
         authScope.launch { authRepository.signOut() }
         _loginState.value = LoginUiState.Idle
     }
-
-    // Mock global role selector para testing UI
-    private val _userRole = MutableStateFlow(AppRole.SECRETARIA)
-    val userRole: StateFlow<AppRole> = _userRole.asStateFlow()
 
     /**
      * Solo navega si [canOpenScreen] autoriza el destino para la sesion
@@ -137,12 +133,11 @@ class LabViewModel(
         secretarySidebarDestination(item)?.let(::navigateTo)
     }
 
+    /** Vuelve al home autorizado del rol de la sesion actual (M4); sin sesion
+     * activa o sin home disponible, no hace nada. */
     fun navigateBack() {
-        _currentScreen.value = Screen.SecretaryDashboard
-    }
-
-    fun setRole(role: AppRole) {
-        _userRole.value = role
+        val role = session.value?.profile?.takeIf { it.active }?.role ?: return
+        homeScreenFor(role)?.let(::navigateTo)
     }
 
     val saseStudents: StateFlow<List<Student>> = studentRepository.students

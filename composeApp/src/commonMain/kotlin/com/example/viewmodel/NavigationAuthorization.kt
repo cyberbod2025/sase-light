@@ -7,9 +7,10 @@ import com.example.data.auth.StaffRole
 
 /**
  * Politica pura Screen -> SaseArea -> StaffRole. `canOpenScreen` gatea
- * `LabViewModel.navigateTo` (M3) y `visibleSidebarItems` gatea que items del
- * sidebar se muestran (M1). SaseAppContent y el selector mock (AppRole)
- * todavia no consumen esta politica.
+ * `LabViewModel.navigateTo` (M3), `visibleSidebarItems` gatea que items del
+ * sidebar se muestran (M1), y [authorizedScreenFor] impide renderizar una
+ * pantalla no autorizada en SaseAppContent (M4). Toda decision parte de
+ * [AuthSession]: no existe selector de rol mock en la app.
  */
 
 /**
@@ -37,11 +38,23 @@ fun screenArea(screen: Screen): SaseArea? = when (screen) {
 /**
  * Autoriza una Screen exclusivamente a partir de la sesion autenticada: sin
  * sesion, con perfil inactivo, o sin area mapeada en [screenArea], se niega.
- * No consulta AppRole en ningun caso.
+ * No consulta ningun selector de rol paralelo a la sesion.
  */
 fun canOpenScreen(session: AuthSession?, screen: Screen): Boolean {
     val area = screenArea(screen) ?: return false
     return StaffPermissions.canAccess(session, area)
+}
+
+/**
+ * Resuelve la unica pantalla que la UI puede renderizar. Conserva el destino
+ * solicitado cuando esta autorizado; en caso contrario usa el home del rol.
+ * Si no hay sesion activa o el rol aun no tiene home, retorna null para que la
+ * UI falle cerrada sin mostrar contenido institucional.
+ */
+fun authorizedScreenFor(session: AuthSession?, requestedScreen: Screen): Screen? {
+    val profile = session?.profile?.takeIf { it.active } ?: return null
+    if (canOpenScreen(session, requestedScreen)) return requestedScreen
+    return homeScreenFor(profile.role)?.takeIf { canOpenScreen(session, it) }
 }
 
 /**

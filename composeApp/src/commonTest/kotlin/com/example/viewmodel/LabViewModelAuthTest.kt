@@ -2,6 +2,7 @@ package com.example.viewmodel
 
 import com.example.data.auth.AuthFailureReason
 import com.example.data.auth.MockAuthRepositoryImpl
+import com.example.data.auth.StaffRole
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -33,6 +34,37 @@ class LabViewModelAuthTest {
 
         assertEquals("secretaria@example.invalid", vm.session.value?.profile?.email)
         assertIs<LoginUiState.Idle>(vm.loginState.value)
+    }
+
+    @Test
+    fun successfulLoginSelectsTheHomeAuthorizedForEachRole() = runTest {
+        val cases = listOf(
+            Triple("direccion@example.invalid", StaffRole.DIRECCION, Screen.SecretaryDashboard),
+            Triple("secretaria@example.invalid", StaffRole.SECRETARIA, Screen.SecretaryDashboard),
+            Triple("trabajosocial@example.invalid", StaffRole.TRABAJO_SOCIAL, Screen.StudentRecordsDashboard),
+            Triple("udeii@example.invalid", StaffRole.UDEII, Screen.StudentRecordsDashboard),
+            Triple("docente@example.invalid", StaffRole.DOCENTE, Screen.StudentRecordsDashboard)
+        )
+
+        cases.forEach { (email, expectedRole, expectedHome) ->
+            val vm = viewModel()
+
+            vm.signIn(email, "demo1234")
+
+            assertEquals(expectedRole, vm.session.value?.profile?.role)
+            assertEquals(expectedHome, vm.currentScreen.value)
+            assertEquals(expectedHome, authorizedScreenFor(vm.session.value, vm.currentScreen.value))
+        }
+    }
+
+    @Test
+    fun successfulLoginWithoutAvailableHomeDoesNotAuthorizeSecretaryDashboard() = runTest {
+        val vm = viewModel()
+
+        vm.signIn("medico@example.invalid", "demo1234")
+
+        assertEquals(StaffRole.MEDICO_ESCOLAR, vm.session.value?.profile?.role)
+        assertNull(authorizedScreenFor(vm.session.value, vm.currentScreen.value))
     }
 
     @Test
