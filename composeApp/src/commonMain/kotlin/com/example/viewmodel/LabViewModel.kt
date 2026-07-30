@@ -5,6 +5,7 @@ import com.example.data.IncidentTransitionResult
 import com.example.data.IncidentWorkflow
 import com.example.data.InstitutionalStudentRecordKey
 import com.example.data.SaseIncident
+import com.example.data.SaseObservation
 import com.example.data.Student
 import com.example.data.StudentAddResult
 import com.example.data.auth.AuthFailureReason
@@ -153,6 +154,21 @@ class LabViewModel(
 
     fun addStudent(student: Student): StudentAddResult {
         return studentRepository.addStudent(student)
+    }
+
+    /**
+     * Agrega una observacion pedagogica con autor real (nombre de la sesion
+     * autenticada), en vez de un string fijo elegido por la pantalla. Sin
+     * sesion activa no agrega nada — devuelve false para que la UI avise.
+     */
+    fun addObservation(studentId: String, text: String, category: String): Boolean {
+        val profile = session.value?.profile?.takeIf { it.active } ?: return false
+        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return false
+
+        val observation = SaseObservation(text = text, author = profile.fullName, date = "Hoy", category = category)
+        updateStudent(student.copy(observations = listOf(observation) + student.observations))
+        logSaseAudit("Observación registrada", profile.role.institutionalLabel(), student.fullName)
+        return true
     }
 
     /**

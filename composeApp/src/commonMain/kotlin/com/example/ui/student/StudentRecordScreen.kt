@@ -81,7 +81,6 @@ import androidx.compose.ui.window.Dialog
 import com.example.data.InstitutionalRecordDataQuality
 import com.example.data.InstitutionalStudentRecordKey
 import com.example.data.MockSaseData
-import com.example.data.SaseObservation
 import com.example.data.Student
 import com.example.data.enrollment.AnnualEnrollmentRecord
 import com.example.ui.DataRow
@@ -1971,14 +1970,13 @@ fun StudentRecordScreen(
                             text = "Agregar",
                             onClick = {
                                 if (obsText.isNotBlank()) {
-                                    val obs = student.observations.toMutableList()
-                                    obs.add(0, SaseObservation(obsText, "Secretaría", "Hoy", obsCategory))
-                                    val updated = student.copy(observations = obs)
-                                    viewModel.updateStudent(updated)
-                                    viewModel.logSaseAudit("Observación registrada", "Secretaría", student.fullName)
-                                    showObsDialog = false
-                                    obsText = ""
-                                    toast("Observación registrada")
+                                    if (viewModel.addObservation(student.id, obsText, obsCategory)) {
+                                        showObsDialog = false
+                                        obsText = ""
+                                        toast("Observación registrada")
+                                    } else {
+                                        toast("No hay sesión activa para registrar la observación")
+                                    }
                                 } else {
                                     toast("Favor de agregar observaciones")
                                 }
