@@ -742,17 +742,6 @@ fun SecretaryDashboardScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Abrir Inscripciones", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
                     }
-                    Button(
-                        onClick = { viewModel.navigateTo(Screen.PreApplicationFamilyPortal) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = SaseNavy),
-                        border = BorderStroke(1.dp, SaseBorder),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.weight(1f).height(44.dp)
-                    ) {
-                        Icon(Icons.Default.Groups, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Portal Familia", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))

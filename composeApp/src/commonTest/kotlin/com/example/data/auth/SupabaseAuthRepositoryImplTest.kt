@@ -23,6 +23,7 @@ import kotlin.test.assertNull
  */
 private const val TOKEN_PATH = "/auth/v1/token"
 private const val MEMBERSHIPS_PATH = "/rest/v1/institutional_memberships"
+private const val LOGOUT_PATH = "/auth/v1/logout"
 
 private fun tokenBody(userId: String, email: String) = """
     {"access_token":"token-$userId","token_type":"bearer","user":{"id":"$userId","email":"$email"}}
@@ -60,6 +61,11 @@ private fun repositoryWith(
                 status = membershipsStatus,
                 headers = headersOf(HttpHeaders.ContentType, "application/json")
             )
+            request.url.encodedPath == LOGOUT_PATH -> {
+                assertEquals("local", request.url.parameters["scope"])
+                assertEquals("Bearer token-user-1", request.headers[HttpHeaders.Authorization])
+                respond(content = ByteReadChannel.Empty, status = HttpStatusCode.NoContent)
+            }
             else -> error("Ruta no esperada en el test: ${request.url}")
         }
     }
@@ -175,6 +181,15 @@ class SupabaseAuthRepositoryImplTest {
     fun signOutClearsSession() = runTest {
         val repo = repositoryWith()
         repo.signIn("secretaria@example.invalid", "demo1234")
+
+        repo.signOut()
+
+        assertNull(repo.session.value)
+    }
+
+    @Test
+    fun signOutWithoutSessionDoesNotTouchNetwork() = runTest {
+        val repo = repositoryWith()
 
         repo.signOut()
 

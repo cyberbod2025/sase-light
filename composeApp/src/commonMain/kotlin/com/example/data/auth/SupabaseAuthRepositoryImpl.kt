@@ -135,7 +135,33 @@ class SupabaseAuthRepositoryImpl(
     }
 
     override suspend fun signOut() {
-        _session.value = null
+        val accessToken = _session.value?.accessToken
+        try {
+            if (accessToken != null) {
+                requestLogout(accessToken)
+            }
+        } finally {
+            // El cliente siempre deja de exponer la sesion local, incluso si
+            // el backend no esta disponible. Nunca se conserva una identidad
+            // anterior mientras se procesa un nuevo acceso.
+            _session.value = null
+        }
+    }
+
+    /**
+     * Cierra unicamente la sesion actual. Supabase conserva los access tokens
+     * como JWT validos hasta su expiracion, pero elimina la sesion/refresh
+     * token asociados a este dispositivo.
+     */
+    private suspend fun requestLogout(accessToken: String) {
+        val response: HttpResponse = httpClient.post("$baseUrl/auth/v1/logout") {
+            header("apikey", apiKey)
+            header("Authorization", "Bearer $accessToken")
+            url { parameters.append("scope", "local") }
+        }
+        if (response.status != HttpStatusCode.NoContent) {
+            error("GoTrue respondio ${response.status} en /auth/v1/logout")
+        }
     }
 
     /** null = credenciales invalidas (400/401/403 de GoTrue); excepcion = fallo de red/servidor. */
