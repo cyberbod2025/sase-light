@@ -1,12 +1,13 @@
 package com.example
 
 import androidx.compose.ui.window.ComposeUIViewController
-import com.example.ui.SaseAppContent
+import androidx.compose.runtime.remember
+import com.example.ui.SaseBootstrapContent
 import com.example.ui.theme.MyApplicationTheme
-import com.example.viewmodel.LabViewModel
 
 fun MainViewController() = ComposeUIViewController {
+    val bootstrap = remember { SaseCompositionRoot.create() }
     MyApplicationTheme {
-        SaseAppContent(viewModel = LabViewModel())
+        SaseBootstrapContent(bootstrap)
     }
 }

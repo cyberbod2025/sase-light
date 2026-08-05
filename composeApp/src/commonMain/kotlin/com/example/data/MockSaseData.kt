@@ -1,5 +1,7 @@
 package com.example.data
 
+import com.example.audit.InstitutionalAuditEvent
+import com.example.audit.InstitutionalAuditValidator
 import com.example.data.enrollment.AnnualEnrollmentRecord
 import com.example.formatTimestamp
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,11 +18,13 @@ object MockSaseData {
     private val _annualEnrollments = MutableStateFlow<List<AnnualEnrollmentRecord>>(emptyList())
     val annualEnrollments: StateFlow<List<AnnualEnrollmentRecord>> = _annualEnrollments.asStateFlow()
 
-    fun resetForTests() {
+    fun resetDemoData() {
         _students.value = createInitialStudents()
         _audits.value = createInitialAudits()
         _annualEnrollments.value = emptyList()
     }
+
+    fun resetForTests() = resetDemoData()
 
     fun addAnnualEnrollment(record: AnnualEnrollmentRecord) {
         _annualEnrollments.value = _annualEnrollments.value + record
@@ -252,14 +256,31 @@ object MockSaseData {
         val added = student.copy(curp = cleanCurp, enrollmentId = cleanEnrollmentId)
         currentList.add(added)
         _students.value = currentList
-        logAudit("Alumno registrado", "Secretaría", "HOY " + getFormattedTime(), added.fullName)
         return StudentAddResult.Added(added)
     }
 
-    fun logAudit(action: String, role: String, timestamp: String, detail: String) {
+    private fun legacyAuditProjection(action: String, role: String, timestamp: String, detail: String) {
+        return
         val currentList = _audits.value.toMutableList()
         currentList.add(0, SaseAudit(action, role, timestamp, detail))
         _audits.value = currentList
+    }
+
+    /**
+     * Persiste en memoria una proyeccion de lectura solo despues de validar el
+     * contexto institucional completo. Un evento invalido nunca modifica el
+     * flujo y el error no reproduce sus valores.
+     */
+    fun logAudit(event: InstitutionalAuditEvent) {
+        val validation = InstitutionalAuditValidator.validate(event)
+        require(validation.isValid) {
+            val codes = validation.violations.joinToString(separator = ",") {
+                "${it.field}:${it.code}"
+            }
+            "Evento institucional rechazado ($codes)"
+        }
+
+        _audits.value = listOf(SaseAudit.fromInstitutionalEvent(event)) + _audits.value
     }
 
     private fun getFormattedTime(): String = formatTimestamp("hh:mm a")

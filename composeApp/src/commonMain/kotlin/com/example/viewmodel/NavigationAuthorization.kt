@@ -6,11 +6,12 @@ import com.example.data.auth.StaffPermissions
 import com.example.data.auth.StaffRole
 
 /**
- * Politica pura Screen -> SaseArea -> StaffRole. `canOpenScreen` gatea
+ * Politica pura Screen -> SaseArea -> AuthSession. `canOpenScreen` gatea
  * `LabViewModel.navigateTo` (M3), `visibleSidebarItems` gatea que items del
  * sidebar se muestran (M1), y [authorizedScreenFor] impide renderizar una
  * pantalla no autorizada en SaseAppContent (M4). Toda decision parte de
- * [AuthSession]: no existe selector de rol mock en la app.
+ * [AuthSession]: el rol activo y sus permisos efectivos viajan juntos en la
+ * sesion institucional; no existe un selector de rol paralelo en la UI.
  */
 
 /**
@@ -19,6 +20,7 @@ import com.example.data.auth.StaffRole
  * esa pantalla.
  */
 fun screenArea(screen: Screen): SaseArea? = when (screen) {
+    is Screen.SessionHome -> SaseArea.SESSION
     is Screen.SecretaryDashboard -> SaseArea.SECRETARIA
     is Screen.StudentRecordsDashboard -> SaseArea.EXPEDIENTE
     is Screen.StudentRecord -> SaseArea.EXPEDIENTE
@@ -52,9 +54,9 @@ fun canOpenScreen(session: AuthSession?, screen: Screen): Boolean {
  * UI falle cerrada sin mostrar contenido institucional.
  */
 fun authorizedScreenFor(session: AuthSession?, requestedScreen: Screen): Screen? {
-    val profile = session?.profile?.takeIf { it.active } ?: return null
+    val activeSession = session?.takeIf { it.profile.active } ?: return null
     if (canOpenScreen(session, requestedScreen)) return requestedScreen
-    return homeScreenFor(profile.role)?.takeIf { canOpenScreen(session, it) }
+    return homeScreenFor(activeSession)
 }
 
 /**
@@ -83,22 +85,20 @@ fun visibleSidebarItems(session: AuthSession?): List<String> =
         secretarySidebarDestination(item)?.let { screen -> canOpenScreen(session, screen) } ?: false
     }
 
-// Candidatas a pantalla de inicio, en orden de prioridad. Un rol recibe la
-// primera cuya area le pertenezca segun StaffPermissions.areasFor. Lista
-// deliberadamente corta hoy: crecera cuando existan pantallas dedicadas a
-// otras areas (p. ej. una futura pantalla de Salud para MEDICO_ESCOLAR).
-private val homeScreenCandidates: List<Screen> = listOf(
-    Screen.SecretaryDashboard,
-    Screen.StudentRecordsDashboard
-)
+/**
+ * Home seguro para cualquier rol institucional. No presupone acceso a
+ * expedientes, secretaria, salud u otra area operativa.
+ */
+fun homeScreenFor(role: StaffRole): Screen? =
+    Screen.SessionHome.takeIf { StaffPermissions.canAccess(role, SaseArea.SESSION) }
 
 /**
- * Pantalla de inicio autorizada para un rol. `null` es una decision
- * explicita: el rol no tiene ninguna Screen candidata dentro de sus areas
- * permitidas (hoy es el caso de MEDICO_ESCOLAR, cuya unica area es SALUD y
- * que todavia no tiene pantalla propia).
+ * Variante autoritativa durante ejecucion: parte de la sesion efectiva y
+ * valida el permiso SESSION que corresponde a su rol activo. Un perfil
+ * inactivo o una sesion inconsistente falla cerrada.
  */
-fun homeScreenFor(role: StaffRole): Screen? {
-    val areas = StaffPermissions.areasFor(role)
-    return homeScreenCandidates.firstOrNull { candidate -> screenArea(candidate) in areas }
+fun homeScreenFor(session: AuthSession?): Screen? {
+    val activeSession = session?.takeIf { it.profile.active } ?: return null
+    val home = homeScreenFor(activeSession.activeRole) ?: return null
+    return home.takeIf { canOpenScreen(activeSession, it) }
 }

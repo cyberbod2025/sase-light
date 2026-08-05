@@ -14,7 +14,9 @@ class StaffAuthTest {
         val repo = MockAuthRepositoryImpl()
         val result = repo.signIn("secretaria@example.invalid", "demo1234")
         assertTrue(result is AuthResult.Success)
-        assertEquals(StaffRole.SECRETARIA, result.session.profile.role)
+        assertEquals(StaffRole.SECRETARIA, result.session.activeRole)
+        assertEquals("membership-secretary-demo", result.session.membershipId)
+        assertEquals(MockStaffDirectory.INSTITUTION_ID, result.session.institutionId)
         assertEquals(result.session, repo.session.value)
     }
 
@@ -87,8 +89,23 @@ class StaffAuthTest {
 
     @Test
     fun inactiveSessionGrantsNothing() {
+        val institutional = InstitutionalSession.create(
+            userId = "user-x",
+            profileId = "profile-x",
+            membershipId = "membership-x",
+            institutionId = "institution-x",
+            institutionName = "Institución ficticia de prueba",
+            roleAssignments = listOf(
+                InstitutionalRoleAssignment("role-direccion", StaffRole.DIRECCION)
+            ),
+            activeRoleId = "role-direccion",
+            schoolCycleId = "cycle-test",
+            sessionStartedAt = 1_000L,
+            expiresAt = 2_000L
+        )
         val session = AuthSession(
-            profile = StaffProfile("x", "x@example.invalid", "X", StaffRole.DIRECCION, active = false),
+            profile = StaffProfile("profile-x", "x@example.invalid", "X", active = false),
+            institutional = institutional,
             accessToken = "t"
         )
         SaseArea.entries.forEach { assertFalse(StaffPermissions.canAccess(session, it)) }

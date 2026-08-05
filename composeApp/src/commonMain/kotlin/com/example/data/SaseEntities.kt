@@ -1,5 +1,8 @@
 package com.example.data
 
+import com.example.audit.InstitutionalAuditEvent
+import com.example.data.auth.institutionalLabel
+
 data class SaseDocument(
     val name: String,
     val date: String,
@@ -28,8 +31,24 @@ data class SaseAudit(
     val action: String,
     val userRole: String,
     val timestamp: String,
-    val detail: String = ""
-)
+    val detail: String = "",
+    val institutionalEvent: InstitutionalAuditEvent? = null
+) {
+    companion object {
+        /**
+         * Adapta el evento tipado a la proyeccion historica que consume la UI.
+         * Ningun actor, rol o detalle libre se recibe por separado: todo se
+         * deriva del evento institucional previamente validado.
+         */
+        fun fromInstitutionalEvent(event: InstitutionalAuditEvent): SaseAudit = SaseAudit(
+            action = event.action,
+            userRole = event.activeRole.institutionalLabel(),
+            timestamp = event.timestamp,
+            detail = "${event.entityType}:${event.entityId} [${event.result.name}]",
+            institutionalEvent = event
+        )
+    }
+}
 
 data class Student(
     val id: String,

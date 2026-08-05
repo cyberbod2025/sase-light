@@ -6,6 +6,12 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
 }
 
+val saseEnvironment = providers.gradleProperty("sase.environment").orElse("DEMO_LOCAL")
+val saseSupabaseUrl = providers.gradleProperty("sase.supabaseUrl").orElse("")
+val saseSupabasePublishableKey = providers.gradleProperty("sase.supabasePublishableKey").orElse("")
+
+fun buildConfigString(value: String): String = "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
 kotlin {
   androidTarget {
     compilations.all {
@@ -98,6 +104,19 @@ android {
     targetSdk = 35
     versionCode = 1
     versionName = "1.0"
+    buildConfigField("String", "SASE_APP_ENVIRONMENT", buildConfigString(saseEnvironment.get()))
+    buildConfigField("String", "SASE_SUPABASE_URL", buildConfigString(saseSupabaseUrl.get()))
+    buildConfigField(
+      "String",
+      "SASE_SUPABASE_PUBLISHABLE_KEY",
+      buildConfigString(saseSupabasePublishableKey.get())
+    )
+  }
+
+  buildTypes {
+    getByName("release") {
+      buildConfigField("String", "SASE_APP_ENVIRONMENT", buildConfigString("PRODUCTION"))
+    }
   }
 
   compileOptions {
@@ -107,5 +126,6 @@ android {
 
   buildFeatures {
     compose = true
+    buildConfig = true
   }
 }

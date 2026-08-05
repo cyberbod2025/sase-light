@@ -26,7 +26,7 @@ private const val MEMBERSHIPS_PATH = "/rest/v1/institutional_memberships"
 private const val LOGOUT_PATH = "/auth/v1/logout"
 
 private fun tokenBody(userId: String, email: String) = """
-    {"access_token":"token-$userId","token_type":"bearer","user":{"id":"$userId","email":"$email"}}
+    {"access_token":"token-$userId","token_type":"bearer","expires_in":3600,"user":{"id":"$userId","email":"$email"}}
 """.trimIndent()
 
 private fun membershipsBody(
@@ -36,10 +36,15 @@ private fun membershipsBody(
     displayName: String? = null,
     roleCodes: List<String> = listOf("SECRETARIA")
 ): String {
-    val roles = roleCodes.joinToString(",") { """{"roles":{"code":"$it"}}""" }
+    val roles = roleCodes.joinToString(",") {
+        """{"role_id":"role-${it.lowercase()}","roles":{"id":"role-${it.lowercase()}","code":"$it"}}"""
+    }
     val displayNameJson = if (displayName != null) "\"$displayName\"" else "null"
     return """
-        [{"active":$active,"profiles":{"full_name":"$fullName","active":$profileActive,"display_name":$displayNameJson},"membership_roles":[$roles]}]
+        [{"id":"membership-1","institution_id":"institution-fictitious-staging","active":$active,
+          "institutions":{"name":"INSTITUCIÓN FICTICIA STAGING"},
+          "profiles":{"full_name":"$fullName","active":$profileActive,"display_name":$displayNameJson},
+          "membership_roles":[$roles]}]
     """.trimIndent()
 }
 
@@ -92,8 +97,10 @@ class SupabaseAuthRepositoryImplTest {
 
         val success = assertIs<AuthResult.Success>(result)
         assertEquals("user-42", success.session.profile.id)
-        assertEquals(StaffRole.SECRETARIA, success.session.profile.role)
+        assertEquals(StaffRole.SECRETARIA, success.session.activeRole)
         assertEquals("Demo Secretaria", success.session.profile.fullName)
+        assertEquals("membership-1", success.session.membershipId)
+        assertEquals("institution-fictitious-staging", success.session.institutionId)
         assertEquals(success.session, repo.session.value)
     }
 
@@ -122,12 +129,12 @@ class SupabaseAuthRepositoryImplTest {
     }
 
     @Test
-    fun noActiveMembershipIsNoStaffProfile() = runTest {
+    fun noActiveMembershipIsRejected() = runTest {
         val repo = repositoryWith(membershipsBody = "[]")
 
         val result = repo.signIn("familia@example.invalid", "demo1234")
 
-        assertEquals(AuthFailureReason.NO_STAFF_PROFILE, assertIs<AuthResult.Failure>(result).reason)
+        assertEquals(AuthFailureReason.NO_MEMBERSHIP, assertIs<AuthResult.Failure>(result).reason)
         assertNull(repo.session.value)
     }
 
@@ -137,7 +144,23 @@ class SupabaseAuthRepositoryImplTest {
 
         val result = repo.signIn("familia@example.invalid", "demo1234")
 
-        assertEquals(AuthFailureReason.NO_STAFF_PROFILE, assertIs<AuthResult.Failure>(result).reason)
+        assertEquals(AuthFailureReason.NO_ROLE, assertIs<AuthResult.Failure>(result).reason)
+    }
+
+    @Test
+    fun multipleAssignedRolesRequireAnExplicitSelection() = runTest {
+        val repo = repositoryWith(
+            membershipsBody = membershipsBody(roleCodes = listOf("DIRECCION", "SECRETARIA"))
+        )
+
+        val pending = assertIs<AuthResult.RoleSelectionRequired>(
+            repo.signIn("direccion@example.invalid", "demo1234")
+        )
+        assertNull(repo.session.value)
+        assertEquals(2, pending.context.availableRoles.size)
+
+        val selected = assertIs<AuthResult.Success>(repo.selectRole("role-direccion"))
+        assertEquals(StaffRole.DIRECCION, selected.session.activeRole)
     }
 
     @Test

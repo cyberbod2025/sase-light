@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.*
-import com.example.data.auth.institutionalLabel
 import com.example.util.LocalToast
 import com.example.ui.enrollment.SmartEnrollmentTable
 import com.example.ui.enrollment.digital.SecretariaEnrollmentDashboard
@@ -40,6 +39,8 @@ import com.example.ui.CredentialPreviewScreen
 import com.example.ui.StudentCredentialDashboardScreen
 import com.example.data.StudentAddResult
 import com.example.ui.auth.LoginScreen
+import com.example.ui.auth.SessionHomeScreen
+import com.example.ui.auth.SessionIdentityHeader
 import com.example.ui.components.buttons.SasePrimaryButton
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
@@ -919,7 +920,6 @@ fun SecretaryDashboardScreen(
                                         )
                                         when (val addResult = viewModel.addStudent(std)) {
                                             is StudentAddResult.Added -> {
-                                                viewModel.logSaseAudit("Expediente creado", "Secretaría", addResult.student.fullName)
                                                 showNewStudentDialog = false
                                                 newStudentName = ""
                                                 newStudentCurp = ""
@@ -1297,16 +1297,46 @@ fun EnrollmentDashboardScreen(
 fun SaseAppContent(viewModel: LabViewModel) {
     val currentScreen by viewModel.currentScreen.collectAsState()
     val session by viewModel.session.collectAsState()
+    val sessionTransitioning by viewModel.sessionTransitioning.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val toast: (String) -> Unit = { msg ->
         scope.launch { snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short) }
     }
 
+    // Durante logout o cambio de rol se oculta de inmediato la identidad y
+    // pantalla anteriores; solo se vuelve a renderizar tras revalidar sesión.
+    if (sessionTransitioning) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(SaseNavy),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = Color.White)
+                Spacer(Modifier.height(12.dp))
+                Text("Validando sesión…", color = Color.White, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        return
+    }
+
     // Compuerta de acceso: sin sesion no se muestra ningun contenido institucional.
     val activeSession = session
     if (activeSession == null) {
         LoginScreen(viewModel = viewModel)
+        return
+    }
+
+    if (!viewModel.sessionIsValid()) {
+        LaunchedEffect(activeSession.membershipId, activeSession.expiresAt) {
+            viewModel.revalidateSession()
+        }
+        Box(
+            modifier = Modifier.fillMaxSize().background(SaseNavy),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = Color.White)
+        }
         return
     }
 
@@ -1326,6 +1356,9 @@ fun SaseAppContent(viewModel: LabViewModel) {
     CompositionLocalProvider(LocalToast provides toast) {
         Scaffold(
             containerColor = SaseNavy,
+            topBar = {
+                SessionIdentityHeader(viewModel = viewModel, session = activeSession)
+            },
             snackbarHost = { SnackbarHost(snackbarHostState) }
         ) { innerPadding ->
             Box(
@@ -1341,6 +1374,10 @@ fun SaseAppContent(viewModel: LabViewModel) {
                     label = "ScreenTransition"
                 ) { screen ->
                     when (screen) {
+                        is Screen.SessionHome -> SessionHomeScreen(
+                            viewModel = viewModel,
+                            session = activeSession
+                        )
                         is Screen.SecretaryDashboard -> SecretaryDashboardScreen(
                             viewModel = viewModel
                         )
@@ -1373,47 +1410,6 @@ fun SaseAppContent(viewModel: LabViewModel) {
                         )
                         is Screen.StudentCredentialDashboard -> StudentCredentialDashboardScreen(
                             viewModel = viewModel
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Identidad de la sesion — quien es el usuario autorizado
-                    val profile = activeSession.profile
-                    Text(
-                        text = "${profile.fullName} · ${profile.role.institutionalLabel()}",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-
-                    // Cerrar sesion — accion visible
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White.copy(alpha = 0.12f))
-                            .clickable { viewModel.signOut() }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Logout,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.85f),
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = "Cerrar sesión",
-                            color = Color.White.copy(alpha = 0.85f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }

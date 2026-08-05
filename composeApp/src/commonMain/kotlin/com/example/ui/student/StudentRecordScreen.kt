@@ -265,10 +265,9 @@ private fun InstitutionalStudentRecordRoute(
                     )
                 }
             }
-            viewModel.logSaseAudit("Expediente actualizado", "Secretaría", updatedStudent.fullName)
         },
-        onLogAudit = { action, detail ->
-            viewModel.logSaseAudit(action, "Secretaría", detail)
+        onLogAudit = { action, _ ->
+            viewModel.logSaseAudit(action, "student_record", studentId)
         }
     )
 }
@@ -2025,10 +2024,13 @@ fun StudentRecordScreen(
                             text = "Escalar Caso",
                             onClick = {
                                 if (escalarNotes.isNotBlank()) {
-                                    viewModel.logSaseAudit("Caso escalado", "Dirección", "${student.fullName} - Canalización")
-                                    showEscalarDialog = false
-                                    escalarNotes = ""
-                                    toast("Caso escalado con éxito.")
+                                    if (viewModel.escalateCase(student.id)) {
+                                        showEscalarDialog = false
+                                        escalarNotes = ""
+                                        toast("Caso escalado con éxito.")
+                                    } else {
+                                        toast("Tu sesión no autoriza escalar este caso.")
+                                    }
                                 } else {
                                     toast("Favor de agregar motivo")
                                 }

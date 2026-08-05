@@ -3,6 +3,7 @@ package com.example.viewmodel
 import com.example.data.auth.AuthFailureReason
 import com.example.data.auth.MockAuthRepositoryImpl
 import com.example.data.auth.StaffRole
+import com.example.environment.AppEnvironment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -23,7 +24,11 @@ class LabViewModelAuthTest {
 
     private fun TestScope.viewModel(): LabViewModel {
         val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
-        return LabViewModel(authRepository = MockAuthRepositoryImpl(), coroutineScope = scope)
+        return LabViewModel(
+            appEnvironment = AppEnvironment.demoLocal("test"),
+            authRepository = MockAuthRepositoryImpl(),
+            coroutineScope = scope
+        )
     }
 
     @Test
@@ -39,32 +44,43 @@ class LabViewModelAuthTest {
     @Test
     fun successfulLoginSelectsTheHomeAuthorizedForEachRole() = runTest {
         val cases = listOf(
-            Triple("direccion@example.invalid", StaffRole.DIRECCION, Screen.SecretaryDashboard),
-            Triple("secretaria@example.invalid", StaffRole.SECRETARIA, Screen.SecretaryDashboard),
-            Triple("trabajosocial@example.invalid", StaffRole.TRABAJO_SOCIAL, Screen.StudentRecordsDashboard),
-            Triple("udeii@example.invalid", StaffRole.UDEII, Screen.StudentRecordsDashboard),
-            Triple("docente@example.invalid", StaffRole.DOCENTE, Screen.StudentRecordsDashboard)
+            "direccion@example.invalid" to StaffRole.DIRECCION,
+            "secretaria@example.invalid" to StaffRole.SECRETARIA,
+            "trabajosocial@example.invalid" to StaffRole.TRABAJO_SOCIAL,
+            "udeii@example.invalid" to StaffRole.UDEII,
+            "docente@example.invalid" to StaffRole.DOCENTE
         )
 
-        cases.forEach { (email, expectedRole, expectedHome) ->
+        cases.forEach { (email, expectedRole) ->
             val vm = viewModel()
 
             vm.signIn(email, "demo1234")
+            val roleSelection = vm.loginState.value as? LoginUiState.RoleSelectionRequired
+            if (roleSelection != null) {
+                val assignedRoleId = roleSelection.context.availableRoles
+                    .single { it.role == expectedRole }
+                    .roleId
+                vm.selectRole(assignedRoleId)
+            }
 
-            assertEquals(expectedRole, vm.session.value?.profile?.role)
-            assertEquals(expectedHome, vm.currentScreen.value)
-            assertEquals(expectedHome, authorizedScreenFor(vm.session.value, vm.currentScreen.value))
+            assertEquals(expectedRole, vm.session.value?.activeRole)
+            assertEquals(Screen.SessionHome, vm.currentScreen.value)
+            assertEquals(
+                Screen.SessionHome,
+                authorizedScreenFor(vm.session.value, vm.currentScreen.value)
+            )
         }
     }
 
     @Test
-    fun successfulLoginWithoutAvailableHomeDoesNotAuthorizeSecretaryDashboard() = runTest {
+    fun roleWithoutStudentRecordAccessStaysInSafeSessionHome() = runTest {
         val vm = viewModel()
 
         vm.signIn("medico@example.invalid", "demo1234")
 
-        assertEquals(StaffRole.MEDICO_ESCOLAR, vm.session.value?.profile?.role)
-        assertNull(authorizedScreenFor(vm.session.value, vm.currentScreen.value))
+        assertEquals(StaffRole.MEDICO_ESCOLAR, vm.session.value?.activeRole)
+        assertEquals(Screen.SessionHome, vm.currentScreen.value)
+        assertNull(authorizedScreenFor(vm.session.value, Screen.StudentRecordsDashboard))
     }
 
     @Test
@@ -92,8 +108,8 @@ class LabViewModelAuthTest {
     @Test
     fun signOutClearsSessionAndResetsStateToIdle() = runTest {
         val vm = viewModel()
-        vm.signIn("direccion@example.invalid", "demo1234")
-        assertEquals("direccion@example.invalid", vm.session.value?.profile?.email)
+        vm.signIn("secretaria@example.invalid", "demo1234")
+        assertEquals("secretaria@example.invalid", vm.session.value?.profile?.email)
 
         vm.signOut()
 

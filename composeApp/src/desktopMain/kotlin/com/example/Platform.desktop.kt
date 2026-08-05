@@ -9,3 +9,5 @@ actual fun getPlatformName(): String = "Desktop (${System.getProperty("os.name")
 actual fun formatTimestamp(pattern: String): String {
     return SimpleDateFormat(pattern, Locale.getDefault()).format(Date())
 }
+
+actual fun currentEpochMillis(): Long = System.currentTimeMillis()
