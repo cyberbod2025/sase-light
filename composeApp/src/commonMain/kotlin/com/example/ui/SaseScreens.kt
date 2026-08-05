@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.*
+import com.example.data.auth.institutionalLabel
 import com.example.util.LocalToast
 import com.example.ui.enrollment.SmartEnrollmentTable
 import com.example.ui.enrollment.digital.SecretariaEnrollmentDashboard
@@ -37,11 +39,15 @@ import com.example.ui.student.StudentRecordScreen
 import com.example.ui.CredentialPreviewScreen
 import com.example.ui.StudentCredentialDashboardScreen
 import com.example.data.StudentAddResult
+import com.example.ui.auth.LoginScreen
+import com.example.ui.components.buttons.SasePrimaryButton
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
-import com.example.viewmodel.AppRole
 import com.example.viewmodel.PreApplicationViewModel
+import com.example.viewmodel.authorizedScreenFor
 import com.example.viewmodel.enrollmentValidationDestination
+import com.example.viewmodel.secretarySidebarItemNames
+import com.example.viewmodel.visibleSidebarItems
 import com.example.ui.presolicitud.SecretariaPreApplicationDashboardScreen
 import com.example.ui.presolicitud.SectionHeader
 import com.example.ui.presolicitud.DetailRow
@@ -218,20 +224,25 @@ fun ReturnToDashboardButton(
 @Composable
 fun SaseSidebar(
     activeItem: String,
+    visibleItems: List<String>,
     modifier: Modifier = Modifier,
     collapsed: Boolean = false,
     onItemClick: (String) -> Unit = {},
     onToggleCollapse: () -> Unit = {}
 ) {
-    val items = listOf(
-        "Inicio" to Icons.Default.Home,
-        "Expedientes" to Icons.Default.Folder,
-        "Inscripciones" to Icons.Default.School,
-        "Portal Familia" to Icons.Default.Groups,
-        "Pre-Solicitudes" to Icons.AutoMirrored.Filled.Assignment,
-        "Altas Oficiales" to Icons.Default.AssignmentTurnedIn,
-        "Credenciales" to Icons.Default.Badge
-    )
+    val allItems = secretarySidebarItemNames.map { name ->
+        name to when (name) {
+            "Inicio" -> Icons.Default.Home
+            "Expedientes" -> Icons.Default.Folder
+            "Inscripciones" -> Icons.Default.School
+            "Portal Familia" -> Icons.Default.Groups
+            "Pre-Solicitudes" -> Icons.AutoMirrored.Filled.Assignment
+            "Altas Oficiales" -> Icons.Default.AssignmentTurnedIn
+            "Credenciales" -> Icons.Default.Badge
+            else -> error("Item de sidebar sin icono: $name")
+        }
+    }
+    val items = allItems.filter { it.first in visibleItems }
     val railWidth = 72.dp
     val fullWidth = 260.dp
     val width = if (collapsed) railWidth else fullWidth
@@ -632,6 +643,8 @@ fun SecretaryDashboardScreen(
 ) {
     val toast = LocalToast.current
     val students by viewModel.saseStudents.collectAsState()
+    val session by viewModel.session.collectAsState()
+    val sidebarItems = visibleSidebarItems(session)
 
     var showNewStudentDialog by remember { mutableStateOf(false) }
     var newStudentName by remember { mutableStateOf("") }
@@ -800,6 +813,7 @@ fun SecretaryDashboardScreen(
                             activeItem = if (recordsOnly) "Expedientes" else "Inicio",
                             modifier = Modifier.fillMaxHeight(),
                             collapsed = false,
+                            visibleItems = sidebarItems,
                             onItemClick = { item ->
                                 navigateFromSidebarDash(item)
                                 scope.launch { drawerState.close() }
@@ -815,6 +829,7 @@ fun SecretaryDashboardScreen(
                 SaseSidebar(
                     activeItem = if (recordsOnly) "Expedientes" else "Inicio",
                     collapsed = sidebarCollapsed,
+                    visibleItems = sidebarItems,
                     onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
                     modifier = Modifier.fillMaxHeight(),
                     onItemClick = navigateFromSidebarDash
@@ -1191,6 +1206,8 @@ fun EnrollmentDashboardScreen(
         val isMobile = maxWidth < 850.dp
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         val scope = rememberCoroutineScope()
+        val session by viewModel.session.collectAsState()
+        val sidebarItems = visibleSidebarItems(session)
 
         val navigateFromSidebar: (String) -> Unit = { item ->
             viewModel.navigateFromSecretarySidebar(item)
@@ -1257,6 +1274,7 @@ fun EnrollmentDashboardScreen(
                             activeItem = "Inscripciones",
                             modifier = Modifier.fillMaxHeight(),
                             collapsed = false,
+                            visibleItems = sidebarItems,
                             onItemClick = { item ->
                                 navigateFromSidebar(item)
                                 scope.launch { drawerState.close() }
@@ -1272,6 +1290,7 @@ fun EnrollmentDashboardScreen(
                 SaseSidebar(
                     activeItem = "Inscripciones",
                     collapsed = sidebarCollapsed,
+                    visibleItems = sidebarItems,
                     onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
                     modifier = Modifier.fillMaxHeight(),
                     onItemClick = navigateFromSidebar
@@ -1288,11 +1307,31 @@ fun EnrollmentDashboardScreen(
 @Composable
 fun SaseAppContent(viewModel: LabViewModel) {
     val currentScreen by viewModel.currentScreen.collectAsState()
-    val currentRole by viewModel.userRole.collectAsState()
+    val session by viewModel.session.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val toast: (String) -> Unit = { msg ->
         scope.launch { snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short) }
+    }
+
+    // Compuerta de acceso: sin sesion no se muestra ningun contenido institucional.
+    val activeSession = session
+    if (activeSession == null) {
+        LoginScreen(viewModel = viewModel)
+        return
+    }
+
+    // Segunda compuerta (M4): incluso con sesion, solo se renderiza una Screen
+    // autorizada para el rol. Sin destino autorizado (rol sin pantalla propia
+    // aun, p.ej. Medico Escolar), se cae a NoAuthorizedAreaScreen en vez de
+    // fingir acceso.
+    val screenToRender = authorizedScreenFor(activeSession, currentScreen)
+    if (screenToRender == null) {
+        NoAuthorizedAreaScreen(
+            staffName = activeSession.profile.fullName,
+            onSignOut = viewModel::signOut
+        )
+        return
     }
 
     CompositionLocalProvider(LocalToast provides toast) {
@@ -1306,7 +1345,7 @@ fun SaseAppContent(viewModel: LabViewModel) {
                     .padding(innerPadding)
             ) {
                 AnimatedContent(
-                    targetState = currentScreen,
+                    targetState = screenToRender,
                     transitionSpec = {
                         fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(220))
                     },
@@ -1324,8 +1363,7 @@ fun SaseAppContent(viewModel: LabViewModel) {
                             studentId = screen.studentId,
                             institutionalKey = screen.institutionalKey,
                             returnTo = screen.returnTo,
-                            viewModel = viewModel,
-                            userRole = currentRole
+                            viewModel = viewModel
                         )
                         is Screen.EnrollmentDashboard -> EnrollmentDashboardScreen(
                             viewModel = viewModel
@@ -1350,27 +1388,80 @@ fun SaseAppContent(viewModel: LabViewModel) {
                     }
                 }
 
-                // Debug role toggle — extremely subtle, for dev testing only
-                Box(
+                Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(16.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(SaseNavy2.copy(alpha = 0.12f))
-                        .clickable {
-                            val roles = AppRole.entries.toTypedArray()
-                            val nextIndex = (roles.indexOf(currentRole) + 1) % roles.size
-                            viewModel.setRole(roles[nextIndex])
-                        }
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Identidad de la sesion — quien es el usuario autorizado
+                    val profile = activeSession.profile
                     Text(
-                        text = "${currentRole.label.take(1)}",
-                        color = Color.White.copy(alpha = 0.25f),
-                        fontSize = 7.sp
+                        text = "${profile.fullName} · ${profile.role.institutionalLabel()}",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
                     )
+
+                    // Cerrar sesion — accion visible
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.White.copy(alpha = 0.12f))
+                            .clickable { viewModel.signOut() }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Logout,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "Cerrar sesión",
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun NoAuthorizedAreaScreen(
+    staffName: String,
+    onSignOut: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(SaseNavy),
+        contentAlignment = Alignment.Center
+    ) {
+        GlassCard(modifier = Modifier.widthIn(max = 440.dp).padding(24.dp)) {
+            Text(
+                text = "Sin área disponible",
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 20.sp,
+                color = SaseNavy
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "$staffName inició sesión correctamente, pero su rol aún no tiene una pantalla autorizada.",
+                color = SaseMuted,
+                fontSize = 13.sp
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            SasePrimaryButton(
+                text = "Cerrar sesión",
+                onClick = onSignOut
+            )
         }
     }
 }
@@ -1379,6 +1470,8 @@ fun SaseAppContent(viewModel: LabViewModel) {
 fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
     val toast = LocalToast.current
     val officialStudents by PreApplicationViewModel.officialStudents.collectAsState()
+    val session by viewModel.session.collectAsState()
+    val sidebarItems = visibleSidebarItems(session)
     val masterStudents = MockSaseData.students
     var searchQuery by remember { mutableStateOf("") }
     var selectedOfficialId by remember { mutableStateOf<String?>(null) }
@@ -1580,6 +1673,7 @@ fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
                     ) {
                         SaseSidebar(
                             activeItem = "Altas Oficiales",
+                            visibleItems = sidebarItems,
                             modifier = Modifier.fillMaxHeight(),
                             collapsed = false,
                             onItemClick = { item ->
@@ -1596,6 +1690,7 @@ fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
                     activeItem = "Altas Oficiales",
+                    visibleItems = sidebarItems,
                     collapsed = sidebarCollapsed,
                     onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
                     modifier = Modifier.fillMaxHeight(),

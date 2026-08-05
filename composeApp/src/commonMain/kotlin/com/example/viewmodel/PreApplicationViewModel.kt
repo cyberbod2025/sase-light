@@ -1240,7 +1240,8 @@ class PreApplicationViewModel {
             requestedGrade: Int,
             previousGroup: String?,
             schoolYear: String,
-            studentFullName: String
+            studentFullName: String,
+            actor: String = "Secretaría"
         ): InstitutionalAnnualEnrollmentResult = processAnnualEnrollmentV2WithSynchronizer(
             declaredMovement = declaredMovement,
             normalizedCurp = normalizedCurp,
@@ -1249,7 +1250,8 @@ class PreApplicationViewModel {
             previousGroup = previousGroup,
             schoolYear = schoolYear,
             studentFullName = studentFullName,
-            conversionSynchronizer = InstitutionalPreApplicationSynchronizer(::synchronizePreApplicationConversion)
+            conversionSynchronizer = InstitutionalPreApplicationSynchronizer(::synchronizePreApplicationConversion),
+            actor = actor
         )
 
         internal fun processAnnualEnrollmentV2WithSynchronizer(
@@ -1260,7 +1262,8 @@ class PreApplicationViewModel {
             previousGroup: String?,
             schoolYear: String,
             studentFullName: String,
-            conversionSynchronizer: InstitutionalPreApplicationSynchronizer
+            conversionSynchronizer: InstitutionalPreApplicationSynchronizer,
+            actor: String = "Secretaría"
         ): InstitutionalAnnualEnrollmentResult {
             fun reject(
                 cause: InstitutionalEnrollmentGuardCause,
@@ -1342,7 +1345,7 @@ class PreApplicationViewModel {
                 schoolYear = source.cicloEscolar,
                 newStudentId = newStudentId,
                 studentFullName = source.alumnoNombreCompleto,
-                actor = "Secretaría",
+                actor = actor,
                 occurredAt = "HOY ${com.example.formatTimestamp("hh:mm a")}"
             )
             val annualResult = AnnualEnrollmentFlowCoordinator.process(request)

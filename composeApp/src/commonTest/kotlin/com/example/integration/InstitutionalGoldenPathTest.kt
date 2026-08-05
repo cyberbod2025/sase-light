@@ -27,14 +27,15 @@ import com.example.ui.presolicitud.institutionalEnrollmentRecordAction
 import com.example.ui.student.InstitutionalStudentRecordPresentation
 import com.example.ui.student.institutionalStudentRecordPresentation
 import com.example.ui.student.resolveInstitutionalStudentRecordForRoute
+import com.example.data.auth.StaffRole
 import com.example.viewmodel.FamilySubmissionResult
 import com.example.viewmodel.InstitutionalAnnualEnrollmentResult
 import com.example.viewmodel.InstitutionalEnrollmentGuardCause
-import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.PreApplicationSynchronizationCause
 import com.example.viewmodel.PreApplicationViewModel
 import com.example.viewmodel.ReadinessResult
 import com.example.viewmodel.Screen
+import com.example.viewmodel.labViewModelWithRole
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -208,6 +209,47 @@ class InstitutionalGoldenPathTest {
         }
     }
 
+    @Test
+    fun realStaffActorIsRecordedInTheInstitutionalAuditTrail() {
+        val ready = prepareReadyPreApplication(
+            folio = "PRE-L7-ACTOR",
+            curp = "LSEA100101HDFABC09",
+            movement = "NUEVO INGRESO"
+        )
+
+        PreApplicationViewModel.processAnnualEnrollmentV2(
+            declaredMovement = ready.tramite,
+            normalizedCurp = ready.alumnoCurp,
+            folio = ready.folio,
+            requestedGrade = ready.gradoSolicitado,
+            previousGroup = null,
+            schoolYear = ready.cicloEscolar,
+            studentFullName = ready.alumnoNombreCompleto,
+            actor = "Demo Secretaria Real"
+        )
+
+        assertTrue(
+            MockSaseData.audits.value.any { it.userRole == "Demo Secretaria Real" },
+            "la bitacora institucional debe registrar el actor real de la sesion, no un generico 'Secretaría'"
+        )
+    }
+
+    @Test
+    fun defaultActorStaysBackwardCompatibleWhenCallerOmitsIt() {
+        val ready = prepareReadyPreApplication(
+            folio = "PRE-L7-ACTORDEF",
+            curp = "LSEA100101HDFABC10",
+            movement = "NUEVO INGRESO"
+        )
+
+        process(ready)
+
+        assertTrue(
+            MockSaseData.audits.value.any { it.userRole == "Secretaría" },
+            "sin actor explicito, el default 'Secretaría' debe conservarse (compatibilidad hacia atras)"
+        )
+    }
+
     private fun prepareReadyPreApplication(
         folio: String,
         curp: String,
@@ -300,7 +342,7 @@ class InstitutionalGoldenPathTest {
         studentId: String,
         key: com.example.data.InstitutionalStudentRecordKey
     ): Screen.StudentRecord {
-        val viewModel = LabViewModel()
+        val viewModel = labViewModelWithRole(StaffRole.SECRETARIA)
         viewModel.navigateTo(
             Screen.StudentRecord(
                 studentId = studentId,

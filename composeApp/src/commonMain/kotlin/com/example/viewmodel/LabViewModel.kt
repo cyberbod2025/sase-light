@@ -1,17 +1,31 @@
 package com.example.viewmodel
 
 import com.example.data.SaseAudit
+import com.example.data.IncidentTransitionResult
+import com.example.data.IncidentWorkflow
 import com.example.data.InstitutionalStudentRecordKey
+import com.example.data.SaseIncident
+import com.example.data.SaseObservation
 import com.example.data.Student
 import com.example.data.StudentAddResult
+import com.example.data.auth.AuthFailureReason
+import com.example.data.auth.AuthRepository
+import com.example.data.auth.AuthResult
+import com.example.data.auth.AuthSession
+import com.example.data.auth.MockAuthRepositoryImpl
+import com.example.data.auth.institutionalLabel
 import com.example.data.repository.AuditRepository
 import com.example.data.repository.MockAuditRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
 import com.example.data.repository.StudentRepository
 import com.example.formatTimestamp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 sealed class Screen {
     data object SecretaryDashboard : Screen()
@@ -50,42 +64,85 @@ internal fun secretarySidebarDestination(item: String): Screen? = when (item) {
 internal fun enrollmentValidationDestination(): Screen =
     Screen.SecretariaPreApplicationDashboard
 
-// Roles MOCK
-enum class AppRole(val label: String) {
-    FAMILIA("Familia"),
-    SECRETARIA("Secretaría"),
-    DIRECCION("Dirección"),
-    MEDICO("Médico Escolar"),
-    TRABAJO_SOCIAL("Trabajo Social"),
-    UDEII("UDEII"),
-    DOCENTE("Docente")
+/**
+ * Estado de la compuerta de acceso. `Success` no se representa aqui: cuando el
+ * login funciona, la sesion pasa a no-nula y el estado vuelve a [Idle]; la
+ * sesion (no este estado) es la que decide que se muestra.
+ */
+sealed interface LoginUiState {
+    data object Idle : LoginUiState
+    data object Loading : LoginUiState
+    data class Error(val reason: AuthFailureReason) : LoginUiState
 }
 
 class LabViewModel(
     private val studentRepository: StudentRepository = MockStudentRepositoryImpl(),
-    private val auditRepository: AuditRepository = MockAuditRepositoryImpl()
+    private val auditRepository: AuditRepository = MockAuditRepositoryImpl(),
+    private val authRepository: AuthRepository = MockAuthRepositoryImpl(),
+    coroutineScope: CoroutineScope? = null
 ) {
+    // Perezoso a proposito: construir MainScope() tocaria Dispatchers.Main, que
+    // no existe en desktopTest. Solo se materializa si se usa signIn/signOut, de
+    // modo que los tests que no autentican pueden construir LabViewModel() libre.
+    private val providedScope = coroutineScope
+    private val authScope: CoroutineScope by lazy { providedScope ?: MainScope() }
+
     private val _currentScreen = MutableStateFlow<Screen>(Screen.SecretaryDashboard)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
 
-    // Mock global role selector para testing UI
-    private val _userRole = MutableStateFlow(AppRole.SECRETARIA)
-    val userRole: StateFlow<AppRole> = _userRole.asStateFlow()
+    // --- Autenticacion (mock) ---
+    val session: StateFlow<AuthSession?> = authRepository.session
 
+    private val _loginState = MutableStateFlow<LoginUiState>(LoginUiState.Idle)
+    val loginState: StateFlow<LoginUiState> = _loginState.asStateFlow()
+
+    /**
+     * Login exitoso navega directo al home autorizado del rol (M4): la
+     * sesion real reemplaza al selector mock como fuente de la pantalla
+     * inicial. Sin home disponible (p.ej. rol sin pantalla propia aun),
+     * currentScreen no se toca — SaseAppContent cae a NoAuthorizedAreaScreen.
+     */
+    fun signIn(email: String, password: String) {
+        if (_loginState.value is LoginUiState.Loading) return
+        _loginState.value = LoginUiState.Loading
+        authScope.launch {
+            _loginState.value = when (val result = authRepository.signIn(email, password)) {
+                is AuthResult.Success -> {
+                    homeScreenFor(result.session.profile.role)?.let { home ->
+                        _currentScreen.value = home
+                    }
+                    LoginUiState.Idle
+                }
+                is AuthResult.Failure -> LoginUiState.Error(result.reason)
+            }
+        }
+    }
+
+    fun signOut() {
+        authScope.launch { authRepository.signOut() }
+        _loginState.value = LoginUiState.Idle
+    }
+
+    /**
+     * Solo navega si [canOpenScreen] autoriza el destino para la sesion
+     * actual (M2). Una navegacion no autorizada conserva la pantalla vigente
+     * en silencio: sin excepcion y sin redirigir a otra ruta.
+     */
     fun navigateTo(screen: Screen) {
-        _currentScreen.value = screen
+        if (canOpenScreen(session.value, screen)) {
+            _currentScreen.value = screen
+        }
     }
 
     fun navigateFromSecretarySidebar(item: String) {
         secretarySidebarDestination(item)?.let(::navigateTo)
     }
 
+    /** Vuelve al home autorizado del rol de la sesion actual (M4); sin sesion
+     * activa o sin home disponible, no hace nada. */
     fun navigateBack() {
-        _currentScreen.value = Screen.SecretaryDashboard
-    }
-
-    fun setRole(role: AppRole) {
-        _userRole.value = role
+        val role = session.value?.profile?.takeIf { it.active }?.role ?: return
+        homeScreenFor(role)?.let(::navigateTo)
     }
 
     val saseStudents: StateFlow<List<Student>> = studentRepository.students
@@ -99,8 +156,80 @@ class LabViewModel(
         return studentRepository.addStudent(student)
     }
 
+    /**
+     * Agrega una observacion pedagogica con autor real (nombre de la sesion
+     * autenticada), en vez de un string fijo elegido por la pantalla. Sin
+     * sesion activa no agrega nada — devuelve false para que la UI avise.
+     */
+    fun addObservation(studentId: String, text: String, category: String): Boolean {
+        val profile = session.value?.profile?.takeIf { it.active } ?: return false
+        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return false
+
+        val observation = SaseObservation(text = text, author = profile.fullName, date = "Hoy", category = category)
+        updateStudent(student.copy(observations = listOf(observation) + student.observations))
+        logSaseAudit("Observación registrada", profile.role.institutionalLabel(), student.fullName)
+        return true
+    }
+
+    /**
+     * Registra una accion en la bitacora institucional. Cuando hay sesion, el
+     * autor (rol y nombre) se toma de la sesion autenticada — la trazabilidad
+     * no puede ser autodeclarada por el caller. El parametro [role] queda solo
+     * como respaldo para contextos sin sesion.
+     */
     fun logSaseAudit(action: String, role: String, detail: String) {
         val timestamp = "Hoy ${formatTimestamp("hh:mm a")}"
-        auditRepository.logAudit(action, role, timestamp, detail)
+        val profile = session.value?.profile
+        val recordedRole = profile?.role?.institutionalLabel() ?: role
+        val recordedDetail = if (profile != null) "$detail — ${profile.fullName}" else detail
+        auditRepository.logAudit(action, recordedRole, timestamp, recordedDetail)
+    }
+
+    /**
+     * Reporta una incidencia con autoria real (id + nombre de la sesion
+     * autenticada), nunca autodeclarada por la pantalla que llama. Sin
+     * sesion activa no reporta nada — devuelve false para que la UI avise.
+     */
+    fun reportIncident(studentId: String, type: String, description: String): Boolean {
+        val profile = session.value?.profile?.takeIf { it.active } ?: return false
+        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return false
+
+        val incident = IncidentWorkflow.report(
+            type = type,
+            description = description,
+            date = "Hoy",
+            reportedByStaffId = profile.id,
+            reportedByName = profile.fullName,
+            idGenerator = { "INC-${Random.nextInt(100000, 999999)}" }
+        )
+        updateStudent(student.copy(schoolIncidents = listOf(incident) + student.schoolIncidents))
+        logSaseAudit("Incidencia reportada", profile.role.institutionalLabel(), "${student.fullName} - $type")
+        return true
+    }
+
+    /**
+     * Avanza una incidencia al siguiente estado legal de [IncidentWorkflow]
+     * (reporte -> citatorio -> acuerdo -> cierre). Una transicion ilegal
+     * (incidencia ya cerrada, o sin sesion activa) no muta nada y devuelve
+     * false para que la UI lo comunique.
+     */
+    fun advanceIncident(studentId: String, incidentId: String, note: String): Boolean {
+        val profile = session.value?.profile?.takeIf { it.active } ?: return false
+        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return false
+        val incident = student.schoolIncidents.firstOrNull { it.id == incidentId } ?: return false
+
+        val result = IncidentWorkflow.advance(incident, note)
+        val updated = when (result) {
+            is IncidentTransitionResult.IllegalTransition -> return false
+            is IncidentTransitionResult.Success -> result.incident
+        }
+        val updatedIncidents = student.schoolIncidents.map { if (it.id == incidentId) updated else it }
+        updateStudent(student.copy(schoolIncidents = updatedIncidents))
+        logSaseAudit(
+            "Incidencia avanzada a ${updated.status}",
+            profile.role.institutionalLabel(),
+            "${student.fullName} - ${updated.type}"
+        )
+        return true
     }
 }

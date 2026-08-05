@@ -38,6 +38,7 @@ import com.example.viewmodel.OfficialEnrollmentResult
 import com.example.viewmodel.PreApplicationViewModel
 import com.example.viewmodel.ReadinessResult
 import com.example.viewmodel.Screen
+import com.example.viewmodel.visibleSidebarItems
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -45,6 +46,8 @@ import kotlinx.coroutines.launch
 fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
     val toast = LocalToast.current
     val preApps by PreApplicationViewModel.sharedPreApplications.collectAsState()
+    val session by viewModel.session.collectAsState()
+    val sidebarItems = visibleSidebarItems(session)
     var searchQuery by remember { mutableStateOf("") }
     var showAll by remember { mutableStateOf(false) }
     var selectedFolio by remember { mutableStateOf<String?>(null) }
@@ -244,6 +247,7 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                     ) {
                         SaseSidebar(
                             activeItem = "Pre-Solicitudes",
+                            visibleItems = sidebarItems,
                             modifier = Modifier.fillMaxHeight(),
                             collapsed = false,
                             onItemClick = { item ->
@@ -260,6 +264,7 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
                     activeItem = "Pre-Solicitudes",
+                    visibleItems = sidebarItems,
                     collapsed = sidebarCollapsed,
                     onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
                     modifier = Modifier.fillMaxHeight(),
@@ -501,6 +506,7 @@ private fun PreApplicationDetailTabs(
             OfficialEnrollmentContextualPanel(
                 preApp = preApp,
                 officialStudent = officialStudent,
+                staffName = viewModel.session.value?.profile?.fullName ?: "Secretaría",
                 onOpenStudentRecord = { key ->
                     viewModel.navigateTo(
                         Screen.StudentRecord(
@@ -1198,7 +1204,8 @@ private fun OfficialEnrollmentContextualPanel(
     onOpenStudentRecord: (InstitutionalStudentRecordKey) -> Unit,
     onOpenStudentRecordById: (String) -> Unit,
     onClose: () -> Unit,
-    scope: CoroutineScope
+    scope: CoroutineScope,
+    staffName: String = "Secretaría"
 ) {
     val grade = preApp.gradoSolicitado
     val groupOptions = PreApplicationViewModel.groupOptionsForGrade(grade)
@@ -1418,7 +1425,8 @@ private fun OfficialEnrollmentContextualPanel(
                             requestedGrade = requestedGrade,
                             previousGroup = selectedGroup,
                             schoolYear = preApp.cicloEscolar,
-                            studentFullName = preApp.alumnoNombreCompleto
+                            studentFullName = preApp.alumnoNombreCompleto,
+                            actor = staffName
                         )
                         institutionalResult = v2Result
                         resultMessage = institutionalEnrollmentMessage(v2Result)
