@@ -11,6 +11,4 @@ class MockAuditRepositoryImpl : AuditRepository {
     override fun logAudit(event: InstitutionalAuditEvent) {
         MockSaseData.logAudit(event)
     }
-
-    @Deprecated("Use logAudit(InstitutionalAuditEvent) for authenticated actions")
 }

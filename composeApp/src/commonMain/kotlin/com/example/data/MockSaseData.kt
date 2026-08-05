@@ -259,11 +259,14 @@ object MockSaseData {
         return StudentAddResult.Added(added)
     }
 
-    private fun legacyAuditProjection(action: String, role: String, timestamp: String, detail: String) {
-        return
-        val currentList = _audits.value.toMutableList()
-        currentList.add(0, SaseAudit(action, role, timestamp, detail))
-        _audits.value = currentList
+    /**
+     * Proyeccion libre para integraciones que aun no cargan una sesion
+     * institucional completa (alta oficial vía [AnnualEnrollmentPersistenceAdapter]).
+     * No usar para nuevas rutas autenticadas: esas pasan por [logAudit] con
+     * [InstitutionalAuditEvent].
+     */
+    fun logAudit(action: String, role: String, timestamp: String, detail: String) {
+        _audits.value = listOf(SaseAudit(action, role, timestamp, detail)) + _audits.value
     }
 
     /**
