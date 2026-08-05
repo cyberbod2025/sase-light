@@ -1,9 +1,11 @@
 package com.example.viewmodel
 
+import com.example.audit.InstitutionalAuditResult
 import com.example.data.MockSaseData
 import com.example.data.Student
 import com.example.data.StudentAddResult
 import com.example.data.auth.MockAuthRepositoryImpl
+import com.example.data.auth.StaffRole
 import com.example.environment.AppEnvironment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -76,5 +78,22 @@ class LabViewModelObservationTest {
         assertFalse(ok)
         val updated = vm.saseStudents.value.single { it.id == student.id }
         assertTrue(updated.observations.isEmpty())
+    }
+
+    @Test
+    fun addObservationDeniedForRoleWithoutTheActionStillRecordsAuditAndDoesNotMutate() = runTest {
+        val vm = viewModel()
+        vm.signInDemo(StaffRole.DOCENTE)
+        val student = seedStudent("MASTER-OBS-03")
+
+        val ok = vm.addObservation(student.id, "Nota no autorizada", "Académica")
+
+        assertFalse(ok)
+        val updated = vm.saseStudents.value.single { it.id == student.id }
+        assertTrue(updated.observations.isEmpty())
+        val audit = vm.saseAudits.value.first()
+        assertEquals("authorization.denied.add_observation", audit.action)
+        val event = requireNotNull(audit.institutionalEvent)
+        assertEquals(InstitutionalAuditResult.DENIED, event.result)
     }
 }

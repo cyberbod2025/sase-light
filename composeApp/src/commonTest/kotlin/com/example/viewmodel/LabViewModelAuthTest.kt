@@ -2,6 +2,7 @@ package com.example.viewmodel
 
 import com.example.data.auth.AuthFailureReason
 import com.example.data.auth.MockAuthRepositoryImpl
+import com.example.data.auth.StaffPermissions
 import com.example.data.auth.StaffRole
 import com.example.environment.AppEnvironment
 import kotlinx.coroutines.CoroutineScope
@@ -106,6 +107,39 @@ class LabViewModelAuthTest {
         assertNull(vm.session.value)
         val state = assertIs<LoginUiState.Error>(vm.loginState.value)
         assertEquals(AuthFailureReason.INACTIVE_ACCOUNT, state.reason)
+    }
+
+    @Test
+    fun switchRoleRebuildsPermissionsAndReturnsToSafeSessionHome() = runTest {
+        val vm = viewModel()
+        vm.signInDemo(StaffRole.DIRECCION)
+        vm.navigateTo(Screen.StudentRecordsDashboard)
+        assertEquals(Screen.StudentRecordsDashboard, vm.currentScreen.value)
+        val direccionAssignment = vm.session.value!!.roleAssignments
+            .single { it.role == StaffRole.SECRETARIA }
+
+        vm.switchRole(direccionAssignment.roleId)
+
+        assertEquals(StaffRole.SECRETARIA, vm.session.value?.activeRole)
+        assertEquals(
+            StaffPermissions.areasFor(StaffRole.SECRETARIA),
+            vm.session.value?.permissions
+        )
+        // Cambiar de rol reinicia a un destino siempre autorizado; no arrastra
+        // la pantalla del rol anterior bajo los permisos nuevos.
+        assertEquals(Screen.SessionHome, vm.currentScreen.value)
+    }
+
+    @Test
+    fun switchRoleToUnassignedRoleFailsClosedAndKeepsThePreviousRole() = runTest {
+        val vm = viewModel()
+        vm.signInDemo(StaffRole.SECRETARIA)
+
+        vm.switchRole("role-docente")
+
+        assertEquals(StaffRole.SECRETARIA, vm.session.value?.activeRole)
+        val state = assertIs<LoginUiState.Error>(vm.loginState.value)
+        assertEquals(AuthFailureReason.ROLE_NOT_ASSIGNED, state.reason)
     }
 
     @Test
