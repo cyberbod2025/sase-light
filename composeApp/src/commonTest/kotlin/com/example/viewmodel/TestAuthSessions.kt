@@ -20,13 +20,15 @@ import kotlinx.coroutines.flow.asStateFlow
 internal class FixedSessionAuthRepository(
     fixedSession: AuthSession?
 ) : AuthRepository {
-    override val session: StateFlow<AuthSession?> = MutableStateFlow(fixedSession).asStateFlow()
+    private val _session = MutableStateFlow(fixedSession)
+    override val session: StateFlow<AuthSession?> = _session.asStateFlow()
 
     override suspend fun signIn(email: String, password: String): AuthResult =
         throw UnsupportedOperationException("FixedSessionAuthRepository solo fija sesion, no inicia sesion")
 
+    /** LabViewModel.expireSession()/signOut() la invocan de verdad; solo limpia la sesion fijada. */
     override suspend fun signOut() {
-        throw UnsupportedOperationException("FixedSessionAuthRepository no cierra sesion")
+        _session.value = null
     }
 }
 

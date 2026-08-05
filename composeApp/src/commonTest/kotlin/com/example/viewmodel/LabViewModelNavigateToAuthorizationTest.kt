@@ -1,13 +1,10 @@
 package com.example.viewmodel
 
-import com.example.data.auth.AuthRepository
-import com.example.data.auth.AuthResult
 import com.example.data.auth.AuthSession
 import com.example.data.auth.StaffRole
 import com.example.environment.AppEnvironment
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlin.test.Test
 import kotlin.test.assertIs
 
@@ -22,26 +19,21 @@ class LabViewModelNavigateToAuthorizationTest {
     // de la politica de gating, no del flujo de login (ya cubierto en
     // LabViewModelAuthTest). Tambien permite fijar un perfil inactivo, algo
     // que el signIn real de MockAuthRepositoryImpl nunca deja pasar.
-    private class FixedSessionAuthRepository(
-        fixedSession: AuthSession?
-    ) : AuthRepository {
-        override val session: StateFlow<AuthSession?> = MutableStateFlow(fixedSession).asStateFlow()
-
-        override suspend fun signIn(email: String, password: String): AuthResult =
-            throw UnsupportedOperationException("FixedSessionAuthRepository solo fija sesion, no inicia sesion")
-
-        override suspend fun signOut() {
-            throw UnsupportedOperationException("FixedSessionAuthRepository no cierra sesion")
-        }
-    }
+    // FixedSessionAuthRepository/testSessionFor viven en TestAuthSessions.kt.
 
     private fun sessionFor(role: StaffRole, active: Boolean = true): AuthSession =
         testSessionFor(role = role, active = active)
 
+    // Dispatchers.Unconfined: estas pruebas no son runTest (no hay
+    // testScheduler); revalidateSession() puede expirar la sesion inactiva y
+    // lanzar authScope.launch { ... } de verdad (expireSession -> signOut),
+    // lo que con el MainScope() por defecto fallaria por falta de
+    // Dispatchers.Main en un test JVM plano.
     private fun viewModelWithSession(session: AuthSession?): LabViewModel =
         LabViewModel(
             appEnvironment = AppEnvironment.demoLocal("test"),
-            authRepository = FixedSessionAuthRepository(session)
+            authRepository = FixedSessionAuthRepository(session),
+            coroutineScope = CoroutineScope(Dispatchers.Unconfined)
         )
 
     @Test

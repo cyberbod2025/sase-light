@@ -80,7 +80,10 @@ class LabViewModelAuthTest {
 
         assertEquals(StaffRole.MEDICO_ESCOLAR, vm.session.value?.activeRole)
         assertEquals(Screen.SessionHome, vm.currentScreen.value)
-        assertNull(authorizedScreenFor(vm.session.value, Screen.StudentRecordsDashboard))
+        assertEquals(
+            Screen.SessionHome,
+            authorizedScreenFor(vm.session.value, Screen.StudentRecordsDashboard)
+        )
     }
 
     @Test
