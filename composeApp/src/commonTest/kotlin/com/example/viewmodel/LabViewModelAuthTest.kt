@@ -5,6 +5,7 @@ import com.example.data.auth.MockAuthRepositoryImpl
 import com.example.data.auth.StaffPermissions
 import com.example.data.auth.StaffRole
 import com.example.environment.AppEnvironment
+import com.example.environment.AppEnvironmentMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -27,6 +28,23 @@ class LabViewModelAuthTest {
         val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
         return LabViewModel(
             appEnvironment = AppEnvironment.demoLocal("test"),
+            authRepository = MockAuthRepositoryImpl(),
+            coroutineScope = scope
+        )
+    }
+
+    private fun TestScope.stagingViewModel(): LabViewModel {
+        val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
+        val stagingEnvironment = AppEnvironment.from(
+            mapOf(
+                AppEnvironment.ENVIRONMENT_KEY to AppEnvironmentMode.SUPABASE_STAGING.name,
+                AppEnvironment.APP_VERSION_KEY to "test",
+                AppEnvironment.SUPABASE_URL_KEY to "https://project-ref.supabase.co",
+                AppEnvironment.SUPABASE_PUBLISHABLE_KEY to "publishable-test-key"
+            )
+        )
+        return LabViewModel(
+            appEnvironment = stagingEnvironment,
             authRepository = MockAuthRepositoryImpl(),
             coroutineScope = scope
         )
@@ -175,5 +193,48 @@ class LabViewModelAuthTest {
 
         assertIs<LoginUiState.Idle>(vm.loginState.value)
         assertEquals("secretaria@example.invalid", vm.session.value?.profile?.email)
+    }
+
+    @Test
+    fun resetDemoInDemoLocalClearsTheActiveSessionAndReturnsToTheGuidedEntry() = runTest {
+        val vm = viewModel()
+        vm.signInDemo(StaffRole.SECRETARIA)
+        vm.navigateTo(Screen.StudentRecordsDashboard)
+        assertEquals(Screen.StudentRecordsDashboard, vm.currentScreen.value)
+
+        vm.resetDemo()
+
+        assertNull(vm.session.value)
+        assertEquals(Screen.SessionHome, vm.currentScreen.value)
+        assertIs<LoginUiState.Idle>(vm.loginState.value)
+    }
+
+    @Test
+    fun resetDemoInDemoLocalDoesNotCarryTheUserOrRoleOfThePreviousSessionIntoTheNextEntry() = runTest {
+        val vm = viewModel()
+        vm.signInDemo(StaffRole.DIRECCION)
+
+        vm.resetDemo()
+        vm.signInDemo(StaffRole.DOCENTE)
+
+        assertEquals(StaffRole.DOCENTE, vm.session.value?.activeRole)
+        assertEquals(
+            StaffPermissions.areasFor(StaffRole.DOCENTE),
+            vm.session.value?.permissions
+        )
+    }
+
+    @Test
+    fun resetDemoOutsideDemoLocalIsANoOpAndPreservesTheActiveSession() = runTest {
+        val vm = stagingViewModel()
+        vm.signIn("secretaria@example.invalid", "demo1234")
+        vm.navigateTo(Screen.StudentRecordsDashboard)
+        val sessionBeforeReset = vm.session.value
+        assertEquals(Screen.StudentRecordsDashboard, vm.currentScreen.value)
+
+        vm.resetDemo()
+
+        assertEquals(sessionBeforeReset, vm.session.value)
+        assertEquals(Screen.StudentRecordsDashboard, vm.currentScreen.value)
     }
 }

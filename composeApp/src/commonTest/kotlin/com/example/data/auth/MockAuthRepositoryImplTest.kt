@@ -103,6 +103,37 @@ class MockAuthRepositoryImplTest {
     }
 
     @Test
+    fun resetDemoClearsTheActiveSessionAndTheNextEntryStartsFromCleanState() = runTest {
+        val repo = MockAuthRepositoryImpl(nowMillis = { STARTED_AT })
+        repo.signInDemo(StaffRole.DIRECCION)
+        assertEquals(StaffRole.DIRECCION, repo.session.value?.activeRole)
+
+        repo.resetDemo()
+
+        assertNull(repo.session.value)
+
+        val nextEntry = repo.signInDemo(StaffRole.DOCENTE)
+        assertTrue(nextEntry is AuthResult.Success)
+        assertEquals(StaffRole.DOCENTE, repo.session.value?.activeRole)
+    }
+
+    @Test
+    fun resetDemoAfterAPendingMultiRoleSelectionDiscardsThatPendingSelection() = runTest {
+        val repo = MockAuthRepositoryImpl(nowMillis = { STARTED_AT })
+        val pendingSelection = repo.signIn("direccion@example.invalid", "demo1234")
+        assertTrue(pendingSelection is AuthResult.RoleSelectionRequired)
+
+        repo.resetDemo()
+
+        val orphanedSelection = repo.selectRole("role-secretaria")
+        assertEquals(
+            AuthFailureReason.ROLE_NOT_ASSIGNED,
+            (orphanedSelection as AuthResult.Failure).reason
+        )
+        assertNull(repo.session.value)
+    }
+
+    @Test
     fun issuedDemoSessionExpiresAtTheEightHourBoundary() = runTest {
         var now = STARTED_AT
         val repo = MockAuthRepositoryImpl(nowMillis = { now })
