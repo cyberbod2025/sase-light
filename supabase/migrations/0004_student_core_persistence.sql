@@ -1,11 +1,12 @@
 -- SASE-310 — M1-B: persistencia institucional del nucleo del expediente.
 --
--- ESTADO: ESCRITA Y **NO APLICADA** contra el proyecto remoto "SASE-Light"
--- (ref plyjvvpkaafnkxmmqkbh). La autorizacion para mutar el backend fue
--- denegada explicitamente en la sesion que la escribio: se implemento el
--- cliente y sus pruebas contra MockEngine, y este archivo queda para revision
--- humana previa. Aplicar con `supabase db push` o el MCP (apply_migration)
--- SOLO cuando exista autorizacion expresa.
+-- ESTADO: **APLICADA** al proyecto remoto "SASE-Light" (ref plyjvvpkaafnkxmmqkbh)
+-- el 2026-08-05, con autorizacion explicita y acotada de Hugo, mediante el
+-- mecanismo de migraciones (registrada como 0004_student_core_persistence).
+-- Verificado tras aplicarla: ambas tablas creadas, RLS habilitado, las cinco
+-- politicas presentes, aislamiento por institution_id efectivo bajo el rol
+-- `authenticated` y advisors de seguridad sin hallazgos criticos.
+-- Ninguna tabla, funcion, trigger o politica preexistente fue modificada.
 --
 -- NO APLICAR `0003_seed_reference_data.sql`: su catalogo de roles/permisos
 -- (6 roles, 11 permisos) contradice el catalogo real del remoto (10 roles, 18
