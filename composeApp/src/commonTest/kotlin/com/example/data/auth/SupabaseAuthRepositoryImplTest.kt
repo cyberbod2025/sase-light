@@ -87,6 +87,39 @@ private fun repositoryWith(
 class SupabaseAuthRepositoryImplTest {
 
     @Test
+    fun ambienteQueRechazaElFlujoSeReportaComoConfiguracionNoComoFalloDeRed() = runTest {
+        // Caso real de staging: el proveedor de correo estaba deshabilitado y
+        // GoTrue respondio 422 `email_provider_disabled`. Antes caia en el
+        // `else` generico y la pantalla decia "Error de conexion", mandando al
+        // personal a revisar su internet en vez de la configuracion del proyecto.
+        val repo = repositoryWith(
+            tokenStatus = HttpStatusCode.UnprocessableEntity,
+            tokenBody = """{"error_code":"email_provider_disabled","msg":"Email logins are disabled"}"""
+        )
+
+        val result = repo.signIn("secretaria@example.invalid", "cualquiera")
+
+        val failure = assertIs<AuthResult.Failure>(result)
+        assertEquals(AuthFailureReason.CONFIGURATION, failure.reason)
+        assertNull(repo.session.value, "un rechazo de ambiente no puede abrir sesion")
+    }
+
+    @Test
+    fun unFalloDeRedRealSiSeReportaComoRed() = runTest {
+        val engine = MockEngine { throw RuntimeException("sin conectividad") }
+        val repo = SupabaseAuthRepositoryImpl(
+            baseUrl = "https://test.invalid",
+            apiKey = "test-key",
+            httpClient = HttpClient(engine) {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+        )
+
+        val failure = assertIs<AuthResult.Failure>(repo.signIn("secretaria@example.invalid", "x"))
+        assertEquals(AuthFailureReason.NETWORK, failure.reason)
+    }
+
+    @Test
     fun signInWithValidCredentialsMapsRoleAndOpensSession() = runTest {
         val repo = repositoryWith(
             tokenBody = tokenBody("user-42", "secretaria@example.invalid"),

@@ -120,6 +120,12 @@ class SupabaseAuthRepositoryImpl(
 
         val tokenResponse = try {
             requestToken(normalized, password)
+        } catch (e: GoTrueConfigurationException) {
+            // El servidor respondio y rechazo el flujo por como esta configurado
+            // el proyecto (p.ej. proveedor de correo deshabilitado). Presentarlo
+            // como fallo de red mandaria al personal a revisar su internet en
+            // lugar de la configuracion del ambiente.
+            return AuthResult.Failure(AuthFailureReason.CONFIGURATION)
         } catch (e: Exception) {
             return AuthResult.Failure(AuthFailureReason.NETWORK)
         } ?: return AuthResult.Failure(AuthFailureReason.INVALID_CREDENTIALS)
@@ -251,7 +257,11 @@ class SupabaseAuthRepositoryImpl(
         }
     }
 
-    /** null = credenciales invalidas (400/401/403 de GoTrue); excepcion = fallo de red/servidor. */
+    /**
+     * null = credenciales invalidas (400/401/403 de GoTrue).
+     * [GoTrueConfigurationException] = el ambiente rechaza el flujo (422).
+     * Cualquier otra excepcion = fallo de red o de servidor.
+     */
     private suspend fun requestToken(email: String, password: String): GoTrueTokenResponse? {
         val response: HttpResponse = httpClient.post("$baseUrl/auth/v1/token") {
             url { parameters.append("grant_type", "password") }
@@ -262,6 +272,11 @@ class SupabaseAuthRepositoryImpl(
         return when (response.status) {
             HttpStatusCode.OK -> response.body()
             HttpStatusCode.BadRequest, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden -> null
+            // 422: la peticion es valida pero el proyecto no admite este flujo
+            // (p.ej. `email_provider_disabled`). No es un fallo de conectividad.
+            HttpStatusCode.UnprocessableEntity -> throw GoTrueConfigurationException(
+                "GoTrue rechazo el acceso con contrasena por la configuracion del proyecto."
+            )
             else -> error("GoTrue respondio ${response.status} en /auth/v1/token")
         }
     }
@@ -289,6 +304,9 @@ class SupabaseAuthRepositoryImpl(
         val rows: List<MembershipRow> = response.body()
         return rows.firstOrNull()
     }
+
+    /** El ambiente rechazo el flujo de acceso; no es un problema de conectividad. */
+    private class GoTrueConfigurationException(message: String) : Exception(message)
 
     private data class PendingSupabaseIdentity(
         val token: GoTrueTokenResponse,
