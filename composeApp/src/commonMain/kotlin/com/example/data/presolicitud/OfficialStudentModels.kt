@@ -14,6 +14,9 @@ enum class OfficialStudentStatus(val label: String) {
     CERRADO("Cerrado")
 }
 
+internal fun isSyntheticCurp(curp: String): Boolean =
+    curp.trim().uppercase().endsWith("XXX00")
+
 data class OfficialStudent(
     val id: String, // UUID interno
     val preApplicationFolio: String, // Referencia a la pre-solicitud de origen
@@ -42,9 +45,10 @@ data class OfficialStudent(
 ) {
     companion object {
         fun generateMatricula(curp: String, ingresoAnioCorto: Int): String? {
-            if (curp.length < 10) return null // Inválida o incompleta
+            val normalizedCurp = curp.trim().uppercase()
+            if (normalizedCurp.length < 10 || isSyntheticCurp(normalizedCurp)) return null
             if (ingresoAnioCorto !in 0..99) return null
-            val prefix = curp.substring(0, 10).uppercase()
+            val prefix = normalizedCurp.substring(0, 10)
             return "S310-$prefix-${ingresoAnioCorto.toString().padStart(2, '0')}"
         }
     }
