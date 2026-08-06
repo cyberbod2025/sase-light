@@ -4,13 +4,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -19,11 +21,13 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -36,6 +40,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -45,6 +52,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.auth.AuthFailureReason
+import com.example.data.auth.StaffRole
+import com.example.data.auth.institutionalLabel
 import com.example.ui.SaseNavy
 import com.example.ui.components.buttons.SasePrimaryButton
 import com.example.ui.components.feedback.SaseAlertCard
@@ -53,26 +62,20 @@ import com.example.ui.theme.SaseColors
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.LoginUiState
 
-/**
- * Compuerta de acceso del personal. Formulario correo + contrasena contra el
- * [com.example.data.auth.AuthRepository] mock. No expone el directorio de
- * credenciales demo: solo una nota discreta con una credencial de prueba.
- */
 @Composable
 fun LoginScreen(viewModel: LabViewModel) {
     val loginState by viewModel.loginState.collectAsState()
+    val transitioning by viewModel.sessionTransitioning.collectAsState()
+    val environment = viewModel.appEnvironment
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
-    val loading = loginState is LoginUiState.Loading
+    val loading = loginState is LoginUiState.Loading || transitioning
     val canSubmit = email.isNotBlank() && password.isNotBlank() && !loading
-
     val submit: () -> Unit = {
-        if (email.isNotBlank() && password.isNotBlank()) {
-            viewModel.signIn(email.trim(), password)
-        }
+        if (canSubmit) viewModel.signIn(email.trim(), password)
     }
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
@@ -97,25 +100,24 @@ fun LoginScreen(viewModel: LabViewModel) {
     )
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SaseNavy),
+        modifier = Modifier.fillMaxSize().background(SaseNavy),
         contentAlignment = Alignment.Center
     ) {
         Card(
             modifier = Modifier
                 .padding(24.dp)
-                .widthIn(max = 420.dp)
+                .widthIn(max = 520.dp)
                 .fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = SaseColors.Surface)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
                     text = "SASE-310",
@@ -124,75 +126,163 @@ fun LoginScreen(viewModel: LabViewModel) {
                     fontSize = 22.sp
                 )
                 Text(
-                    text = "Acceso de personal",
+                    text = "Acceso de personal · ${environment.mode.visibleLabel()} · v${environment.appVersion}",
                     color = SaseColors.TextSecondary,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(Modifier.height(2.dp))
-
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Correo institucional") },
-                    singleLine = true,
-                    enabled = !loading,
-                    isError = loginState is LoginUiState.Error,
-                    leadingIcon = { Icon(Icons.Filled.Email, contentDescription = null) },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Email,
-                        imeAction = ImeAction.Next
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = fieldColors
-                )
-
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Contrasena") },
-                    singleLine = true,
-                    enabled = !loading,
-                    isError = loginState is LoginUiState.Error,
-                    leadingIcon = { Icon(Icons.Filled.Lock, contentDescription = null) },
-                    trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(
-                                imageVector = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                contentDescription = if (passwordVisible) "Ocultar contrasena" else "Mostrar contrasena"
-                            )
-                        }
-                    },
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(onDone = { submit() }),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = fieldColors
-                )
-
-                (loginState as? LoginUiState.Error)?.let { error ->
+                if (environment.usesSyntheticData) {
+                    val institution = environment.demo?.institutionDisplayName
+                        ?: "ENTORNO STAGING CON DATOS OPERATIVOS SINTÉTICOS"
                     SaseAlertCard(
-                        title = "No se pudo iniciar sesion",
-                        description = error.reason.toMessage(),
-                        variant = SaseAlertVariant.ERROR
+                        title = "DATOS SINTÉTICOS · ${environment.mode.visibleLabel()}",
+                        description = "$institution. No usar para operación institucional real.",
+                        variant = SaseAlertVariant.WARNING
                     )
                 }
 
-                Spacer(Modifier.height(2.dp))
+                when (val state = loginState) {
+                    is LoginUiState.RoleSelectionRequired -> {
+                        Text(
+                            text = "Selecciona un rol asignado",
+                            color = SaseColors.TextPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = state.context.institutionName,
+                            color = SaseColors.TextSecondary,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        state.context.availableRoles.forEach { assignment ->
+                            Button(
+                                onClick = { viewModel.selectRole(assignment.roleId) },
+                                enabled = !loading,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(assignment.role.institutionalLabel())
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = viewModel::signOut,
+                            enabled = !loading,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Cancelar acceso")
+                        }
+                    }
 
-                SasePrimaryButton(
-                    text = if (loading) "Ingresando..." else "Iniciar sesion",
-                    onClick = submit,
-                    icon = Icons.AutoMirrored.Filled.Login,
-                    enabled = canSubmit,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                    else -> {
+                        if (viewModel.demoAccessAvailable) {
+                            Text(
+                                text = "Entradas guiadas",
+                                color = SaseColors.TextPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(
+                                    StaffRole.DIRECCION to "Dirección",
+                                    StaffRole.SECRETARIA to "Secretaría",
+                                    StaffRole.DOCENTE to "Docente"
+                                ).forEach { (role, label) ->
+                                    Button(
+                                        onClick = { viewModel.signInDemo(role) },
+                                        enabled = !loading,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(label, fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = if (viewModel.demoAccessAvailable) {
+                                "Acceso con credenciales para validar casos de sesión"
+                            } else {
+                                "Credenciales institucionales"
+                            },
+                            color = SaseColors.TextSecondary,
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center
+                        )
+
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Correo institucional") },
+                            singleLine = true,
+                            enabled = !loading,
+                            isError = state is LoginUiState.Error,
+                            leadingIcon = { Icon(Icons.Filled.Email, contentDescription = null) },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Email,
+                                imeAction = ImeAction.Next
+                            ),
+                            colors = fieldColors
+                        )
+
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Contraseña") },
+                            singleLine = true,
+                            enabled = !loading,
+                            isError = state is LoginUiState.Error,
+                            leadingIcon = { Icon(Icons.Filled.Lock, contentDescription = null) },
+                            trailingIcon = {
+                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                    Icon(
+                                        imageVector = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                        contentDescription = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña"
+                                    )
+                                }
+                            },
+                            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(onDone = { submit() }),
+                            colors = fieldColors
+                        )
+
+                        (state as? LoginUiState.Error)?.let { error ->
+                            Box(modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
+                                SaseAlertCard(
+                                    title = "No se pudo iniciar sesión",
+                                    description = error.reason.toMessage(),
+                                    variant = SaseAlertVariant.ERROR
+                                )
+                            }
+                        }
+
+                        SasePrimaryButton(
+                            text = if (loading) "Ingresando..." else "Iniciar sesión",
+                            onClick = submit,
+                            icon = Icons.AutoMirrored.Filled.Login,
+                            enabled = canSubmit,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        if (viewModel.demoAccessAvailable) {
+                            OutlinedButton(
+                                onClick = viewModel::resetDemo,
+                                enabled = !loading,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Reiniciar demo")
+                            }
+                        }
+                    }
+                }
 
                 if (loading) {
                     CircularProgressIndicator(
@@ -201,24 +291,20 @@ fun LoginScreen(viewModel: LabViewModel) {
                         strokeWidth = 2.dp
                     )
                 }
-
-                Spacer(Modifier.height(2.dp))
-
-                // Nota de desarrollo — solo demo, una credencial.
-                Text(
-                    text = "Demo: secretaria@example.invalid / demo1234",
-                    color = SaseColors.TextDisabled,
-                    fontSize = 10.sp,
-                    textAlign = TextAlign.Center
-                )
             }
         }
     }
 }
 
 private fun AuthFailureReason.toMessage(): String = when (this) {
-    AuthFailureReason.INVALID_CREDENTIALS -> "Correo o contrasena incorrectos."
-    AuthFailureReason.INACTIVE_ACCOUNT -> "Tu cuenta esta inactiva. Contacta a Direccion."
-    AuthFailureReason.NO_STAFF_PROFILE -> "No se encontro un perfil de personal para este correo."
-    AuthFailureReason.NETWORK -> "Error de conexion. Intenta de nuevo."
+    AuthFailureReason.INVALID_CREDENTIALS -> "Correo o contraseña incorrectos."
+    AuthFailureReason.INACTIVE_ACCOUNT -> "La cuenta está inactiva. Contacta a Dirección."
+    AuthFailureReason.NO_STAFF_PROFILE -> "No se encontró un perfil de personal para este correo."
+    AuthFailureReason.NO_MEMBERSHIP -> "El perfil no tiene una membresía institucional activa."
+    AuthFailureReason.NO_ROLE -> "La membresía no tiene un rol institucional asignado."
+    AuthFailureReason.ROLE_NOT_ASSIGNED -> "Ese rol no está asignado a la membresía activa."
+    AuthFailureReason.SESSION_EXPIRED -> "La sesión expiró. Inicia sesión de nuevo."
+    AuthFailureReason.DEMO_UNAVAILABLE -> "Las entradas demo no están habilitadas en este ambiente."
+    AuthFailureReason.CONFIGURATION -> "La configuración de acceso es inválida."
+    AuthFailureReason.NETWORK -> "Error de conexión. Intenta de nuevo."
 }

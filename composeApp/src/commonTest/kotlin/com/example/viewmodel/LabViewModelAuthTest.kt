@@ -2,7 +2,10 @@ package com.example.viewmodel
 
 import com.example.data.auth.AuthFailureReason
 import com.example.data.auth.MockAuthRepositoryImpl
+import com.example.data.auth.StaffPermissions
 import com.example.data.auth.StaffRole
+import com.example.environment.AppEnvironment
+import com.example.environment.AppEnvironmentMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -23,7 +26,28 @@ class LabViewModelAuthTest {
 
     private fun TestScope.viewModel(): LabViewModel {
         val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
-        return LabViewModel(authRepository = MockAuthRepositoryImpl(), coroutineScope = scope)
+        return LabViewModel(
+            appEnvironment = AppEnvironment.demoLocal("test"),
+            authRepository = MockAuthRepositoryImpl(),
+            coroutineScope = scope
+        )
+    }
+
+    private fun TestScope.stagingViewModel(): LabViewModel {
+        val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
+        val stagingEnvironment = AppEnvironment.from(
+            mapOf(
+                AppEnvironment.ENVIRONMENT_KEY to AppEnvironmentMode.SUPABASE_STAGING.name,
+                AppEnvironment.APP_VERSION_KEY to "test",
+                AppEnvironment.SUPABASE_URL_KEY to "https://project-ref.supabase.co",
+                AppEnvironment.SUPABASE_PUBLISHABLE_KEY to "publishable-test-key"
+            )
+        )
+        return LabViewModel(
+            appEnvironment = stagingEnvironment,
+            authRepository = MockAuthRepositoryImpl(),
+            coroutineScope = scope
+        )
     }
 
     @Test
@@ -39,32 +63,46 @@ class LabViewModelAuthTest {
     @Test
     fun successfulLoginSelectsTheHomeAuthorizedForEachRole() = runTest {
         val cases = listOf(
-            Triple("direccion@example.invalid", StaffRole.DIRECCION, Screen.SecretaryDashboard),
-            Triple("secretaria@example.invalid", StaffRole.SECRETARIA, Screen.SecretaryDashboard),
-            Triple("trabajosocial@example.invalid", StaffRole.TRABAJO_SOCIAL, Screen.StudentRecordsDashboard),
-            Triple("udeii@example.invalid", StaffRole.UDEII, Screen.StudentRecordsDashboard),
-            Triple("docente@example.invalid", StaffRole.DOCENTE, Screen.StudentRecordsDashboard)
+            "direccion@example.invalid" to StaffRole.DIRECCION,
+            "secretaria@example.invalid" to StaffRole.SECRETARIA,
+            "trabajosocial@example.invalid" to StaffRole.TRABAJO_SOCIAL,
+            "udeii@example.invalid" to StaffRole.UDEII,
+            "docente@example.invalid" to StaffRole.DOCENTE
         )
 
-        cases.forEach { (email, expectedRole, expectedHome) ->
+        cases.forEach { (email, expectedRole) ->
             val vm = viewModel()
 
             vm.signIn(email, "demo1234")
+            val roleSelection = vm.loginState.value as? LoginUiState.RoleSelectionRequired
+            if (roleSelection != null) {
+                val assignedRoleId = roleSelection.context.availableRoles
+                    .single { it.role == expectedRole }
+                    .roleId
+                vm.selectRole(assignedRoleId)
+            }
 
-            assertEquals(expectedRole, vm.session.value?.profile?.role)
-            assertEquals(expectedHome, vm.currentScreen.value)
-            assertEquals(expectedHome, authorizedScreenFor(vm.session.value, vm.currentScreen.value))
+            assertEquals(expectedRole, vm.session.value?.activeRole)
+            assertEquals(Screen.SessionHome, vm.currentScreen.value)
+            assertEquals(
+                Screen.SessionHome,
+                authorizedScreenFor(vm.session.value, vm.currentScreen.value)
+            )
         }
     }
 
     @Test
-    fun successfulLoginWithoutAvailableHomeDoesNotAuthorizeSecretaryDashboard() = runTest {
+    fun roleWithoutStudentRecordAccessStaysInSafeSessionHome() = runTest {
         val vm = viewModel()
 
         vm.signIn("medico@example.invalid", "demo1234")
 
-        assertEquals(StaffRole.MEDICO_ESCOLAR, vm.session.value?.profile?.role)
-        assertNull(authorizedScreenFor(vm.session.value, vm.currentScreen.value))
+        assertEquals(StaffRole.MEDICO_ESCOLAR, vm.session.value?.activeRole)
+        assertEquals(Screen.SessionHome, vm.currentScreen.value)
+        assertEquals(
+            Screen.SessionHome,
+            authorizedScreenFor(vm.session.value, Screen.StudentRecordsDashboard)
+        )
     }
 
     @Test
@@ -90,10 +128,43 @@ class LabViewModelAuthTest {
     }
 
     @Test
+    fun switchRoleRebuildsPermissionsAndReturnsToSafeSessionHome() = runTest {
+        val vm = viewModel()
+        vm.signInDemo(StaffRole.DIRECCION)
+        vm.navigateTo(Screen.StudentRecordsDashboard)
+        assertEquals(Screen.StudentRecordsDashboard, vm.currentScreen.value)
+        val direccionAssignment = vm.session.value!!.roleAssignments
+            .single { it.role == StaffRole.SECRETARIA }
+
+        vm.switchRole(direccionAssignment.roleId)
+
+        assertEquals(StaffRole.SECRETARIA, vm.session.value?.activeRole)
+        assertEquals(
+            StaffPermissions.areasFor(StaffRole.SECRETARIA),
+            vm.session.value?.permissions
+        )
+        // Cambiar de rol reinicia a un destino siempre autorizado; no arrastra
+        // la pantalla del rol anterior bajo los permisos nuevos.
+        assertEquals(Screen.SessionHome, vm.currentScreen.value)
+    }
+
+    @Test
+    fun switchRoleToUnassignedRoleFailsClosedAndKeepsThePreviousRole() = runTest {
+        val vm = viewModel()
+        vm.signInDemo(StaffRole.SECRETARIA)
+
+        vm.switchRole("role-docente")
+
+        assertEquals(StaffRole.SECRETARIA, vm.session.value?.activeRole)
+        val state = assertIs<LoginUiState.Error>(vm.loginState.value)
+        assertEquals(AuthFailureReason.ROLE_NOT_ASSIGNED, state.reason)
+    }
+
+    @Test
     fun signOutClearsSessionAndResetsStateToIdle() = runTest {
         val vm = viewModel()
-        vm.signIn("direccion@example.invalid", "demo1234")
-        assertEquals("direccion@example.invalid", vm.session.value?.profile?.email)
+        vm.signIn("secretaria@example.invalid", "demo1234")
+        assertEquals("secretaria@example.invalid", vm.session.value?.profile?.email)
 
         vm.signOut()
 
@@ -122,5 +193,48 @@ class LabViewModelAuthTest {
 
         assertIs<LoginUiState.Idle>(vm.loginState.value)
         assertEquals("secretaria@example.invalid", vm.session.value?.profile?.email)
+    }
+
+    @Test
+    fun resetDemoInDemoLocalClearsTheActiveSessionAndReturnsToTheGuidedEntry() = runTest {
+        val vm = viewModel()
+        vm.signInDemo(StaffRole.SECRETARIA)
+        vm.navigateTo(Screen.StudentRecordsDashboard)
+        assertEquals(Screen.StudentRecordsDashboard, vm.currentScreen.value)
+
+        vm.resetDemo()
+
+        assertNull(vm.session.value)
+        assertEquals(Screen.SessionHome, vm.currentScreen.value)
+        assertIs<LoginUiState.Idle>(vm.loginState.value)
+    }
+
+    @Test
+    fun resetDemoInDemoLocalDoesNotCarryTheUserOrRoleOfThePreviousSessionIntoTheNextEntry() = runTest {
+        val vm = viewModel()
+        vm.signInDemo(StaffRole.DIRECCION)
+
+        vm.resetDemo()
+        vm.signInDemo(StaffRole.DOCENTE)
+
+        assertEquals(StaffRole.DOCENTE, vm.session.value?.activeRole)
+        assertEquals(
+            StaffPermissions.areasFor(StaffRole.DOCENTE),
+            vm.session.value?.permissions
+        )
+    }
+
+    @Test
+    fun resetDemoOutsideDemoLocalIsANoOpAndPreservesTheActiveSession() = runTest {
+        val vm = stagingViewModel()
+        vm.signIn("secretaria@example.invalid", "demo1234")
+        vm.navigateTo(Screen.StudentRecordsDashboard)
+        val sessionBeforeReset = vm.session.value
+        assertEquals(Screen.StudentRecordsDashboard, vm.currentScreen.value)
+
+        vm.resetDemo()
+
+        assertEquals(sessionBeforeReset, vm.session.value)
+        assertEquals(Screen.StudentRecordsDashboard, vm.currentScreen.value)
     }
 }

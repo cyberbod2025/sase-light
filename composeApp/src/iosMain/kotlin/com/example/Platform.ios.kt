@@ -10,3 +10,5 @@ actual fun formatTimestamp(pattern: String): String {
     formatter.dateFormat = pattern
     return formatter.stringFromDate(NSDate())
 }
+
+actual fun currentEpochMillis(): Long = (NSDate().timeIntervalSince1970 * 1_000.0).toLong()

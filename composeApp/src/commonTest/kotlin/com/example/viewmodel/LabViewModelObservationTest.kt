@@ -1,9 +1,12 @@
 package com.example.viewmodel
 
+import com.example.audit.InstitutionalAuditResult
 import com.example.data.MockSaseData
 import com.example.data.Student
 import com.example.data.StudentAddResult
 import com.example.data.auth.MockAuthRepositoryImpl
+import com.example.data.auth.StaffRole
+import com.example.environment.AppEnvironment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -31,10 +34,14 @@ class LabViewModelObservationTest {
 
     private fun TestScope.viewModel(): LabViewModel {
         val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
-        return LabViewModel(authRepository = MockAuthRepositoryImpl(), coroutineScope = scope)
+        return LabViewModel(
+            appEnvironment = AppEnvironment.demoLocal("test"),
+            authRepository = MockAuthRepositoryImpl(),
+            coroutineScope = scope
+        )
     }
 
-    private fun seedStudent(vm: LabViewModel, id: String): Student {
+    private fun seedStudent(id: String): Student {
         val student = Student(
             id = id,
             fullName = "ALUMNO OBS TEST",
@@ -42,34 +49,51 @@ class LabViewModelObservationTest {
             enrollmentId = "S310-OBS01",
             curp = "OBST010101HDFABC01"
         )
-        assertTrue(vm.addStudent(student) is StudentAddResult.Added)
+        assertTrue(MockSaseData.addStudent(student) is StudentAddResult.Added)
         return student
     }
 
     @Test
     fun addObservationUsesAuthenticatedStaffNameAsAuthor() = runTest {
         val vm = viewModel()
-        val student = seedStudent(vm, "MASTER-OBS-01")
         vm.signIn("secretaria@example.invalid", "demo1234")
+        val student = seedStudent("MASTER-OBS-01")
 
         val ok = vm.addObservation(student.id, "Requiere apoyo en matematicas", "Académica")
 
         assertTrue(ok)
         val updated = vm.saseStudents.value.single { it.id == student.id }
         val obs = updated.observations.first()
-        assertEquals("Demo Secretaria", obs.author)
+        assertEquals("Secretaría Demo", obs.author)
         assertEquals("Requiere apoyo en matematicas", obs.text)
     }
 
     @Test
     fun addObservationWithoutSessionDoesNothing() = runTest {
         val vm = viewModel()
-        val student = seedStudent(vm, "MASTER-OBS-02")
+        val student = seedStudent("MASTER-OBS-02")
 
         val ok = vm.addObservation(student.id, "Nota sin sesion", "Académica")
 
         assertFalse(ok)
         val updated = vm.saseStudents.value.single { it.id == student.id }
         assertTrue(updated.observations.isEmpty())
+    }
+
+    @Test
+    fun addObservationDeniedForRoleWithoutTheActionStillRecordsAuditAndDoesNotMutate() = runTest {
+        val vm = viewModel()
+        vm.signInDemo(StaffRole.DOCENTE)
+        val student = seedStudent("MASTER-OBS-03")
+
+        val ok = vm.addObservation(student.id, "Nota no autorizada", "Académica")
+
+        assertFalse(ok)
+        val updated = vm.saseStudents.value.single { it.id == student.id }
+        assertTrue(updated.observations.isEmpty())
+        val audit = vm.saseAudits.value.first()
+        assertEquals("authorization.denied.add_observation", audit.action)
+        val event = requireNotNull(audit.institutionalEvent)
+        assertEquals(InstitutionalAuditResult.DENIED, event.result)
     }
 }

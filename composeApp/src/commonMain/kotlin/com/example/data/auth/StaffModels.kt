@@ -34,17 +34,41 @@ data class StaffProfile(
     val id: String,
     val email: String,
     val fullName: String,
-    val role: StaffRole,
     val active: Boolean = true
 )
 
 data class AuthSession(
     val profile: StaffProfile,
-    val accessToken: String
+    val institutional: InstitutionalSession,
+    internal val accessToken: String
+) {
+    val userId: String get() = institutional.userId
+    val profileId: String get() = institutional.profileId
+    val membershipId: String get() = institutional.membershipId
+    val institutionId: String get() = institutional.institutionId
+    val institutionName: String get() = institutional.institutionName
+    val activeRoleId: String get() = institutional.activeRoleId
+    val activeRole: StaffRole get() = institutional.activeRole
+    val permissions: Set<SaseArea> get() = institutional.permissions
+    val schoolCycleId: String? get() = institutional.schoolCycleId
+    val sessionStartedAt: Long get() = institutional.sessionStartedAt
+    val expiresAt: Long? get() = institutional.expiresAt
+    val roleAssignments: List<InstitutionalRoleAssignment> get() = institutional.roleAssignments
+
+    fun switchToAssignedRole(roleId: String): AuthSession =
+        copy(institutional = institutional.switchToAssignedRole(roleId))
+
+    fun isExpired(nowEpochMillis: Long): Boolean = institutional.isExpired(nowEpochMillis)
+}
+
+data class RoleSelectionContext(
+    val institutionName: String,
+    val availableRoles: List<InstitutionalRoleAssignment>
 )
 
 sealed class AuthResult {
     data class Success(val session: AuthSession) : AuthResult()
+    data class RoleSelectionRequired(val context: RoleSelectionContext) : AuthResult()
     data class Failure(val reason: AuthFailureReason) : AuthResult()
 }
 
@@ -52,5 +76,11 @@ enum class AuthFailureReason {
     INVALID_CREDENTIALS,
     INACTIVE_ACCOUNT,
     NO_STAFF_PROFILE,
+    NO_MEMBERSHIP,
+    NO_ROLE,
+    ROLE_NOT_ASSIGNED,
+    SESSION_EXPIRED,
+    DEMO_UNAVAILABLE,
+    CONFIGURATION,
     NETWORK
 }

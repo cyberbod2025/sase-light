@@ -11,3 +11,5 @@ actual fun getPlatformName(): String = "Android ${android.os.Build.VERSION.SDK_I
 actual fun formatTimestamp(pattern: String): String {
     return SimpleDateFormat(pattern, Locale.getDefault()).format(Date())
 }
+
+actual fun currentEpochMillis(): Long = System.currentTimeMillis()

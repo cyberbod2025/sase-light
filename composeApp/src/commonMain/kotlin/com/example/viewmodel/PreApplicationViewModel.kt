@@ -337,7 +337,7 @@ class PreApplicationViewModel {
             _isProcessingAnnualEnrollmentV2.value = processing
         }
 
-        fun resetSharedStateForTests() {
+        fun resetDemoData() {
             _sharedPreApplications.value = MockPreApplicationData.preApplications
             _photos.value = demoPhotoStates()
             _reviewObservations.value = emptyMap()
@@ -345,8 +345,10 @@ class PreApplicationViewModel {
             _enrollmentFlowMode.value = EnrollmentFlowMode.ANNUAL_V2
             _v2Result.value = null
             _isProcessingAnnualEnrollmentV2.value = false
-            MockSaseData.resetForTests()
+            MockSaseData.resetDemoData()
         }
+
+        fun resetSharedStateForTests() = resetDemoData()
 
         fun toggleDocumentCotejado(folio: String, docNombre: String) {
             updatePreApp(folio) { app ->

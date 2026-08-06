@@ -4,6 +4,7 @@ import com.example.data.MockSaseData
 import com.example.data.Student
 import com.example.data.StudentAddResult
 import com.example.data.StudentCredentialPreview
+import com.example.data.auth.StaffRole
 import com.example.data.presolicitud.AntecedentesUdeii
 import com.example.data.presolicitud.AutorizadoPreSolicitud
 import com.example.data.presolicitud.ConsentimientosFamiliares
@@ -148,7 +149,7 @@ class PreApplicationGuardrailsTest {
 
     @Test
     fun labViewModelAddStudentReturnsStudentAddResultForFastTrackFlow() {
-        val viewModel = LabViewModel()
+        val viewModel = labViewModelWithRole(StaffRole.SECRETARIA)
 
         val result = viewModel.addStudent(
             student(

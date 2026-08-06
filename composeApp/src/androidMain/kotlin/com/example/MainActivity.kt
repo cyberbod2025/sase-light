@@ -4,17 +4,18 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.example.ui.SaseAppContent
+import androidx.compose.runtime.remember
+import com.example.ui.SaseBootstrapContent
 import com.example.ui.theme.MyApplicationTheme
-import com.example.viewmodel.LabViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
+            val bootstrap = remember { SaseCompositionRoot.create() }
             MyApplicationTheme {
-                SaseAppContent(viewModel = LabViewModel())
+                SaseBootstrapContent(bootstrap)
             }
         }
     }

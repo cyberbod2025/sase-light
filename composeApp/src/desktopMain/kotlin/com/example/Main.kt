@@ -4,9 +4,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import com.example.ui.SaseAppContent
+import androidx.compose.runtime.remember
+import com.example.ui.SaseBootstrapContent
 import com.example.ui.theme.MyApplicationTheme
-import com.example.viewmodel.LabViewModel
 
 fun main() = application {
     Window(
@@ -14,8 +14,9 @@ fun main() = application {
         title = "SASE-310 - Sistema de Administración de Secretaría y Expedientes",
         state = rememberWindowState(width = 1100.dp, height = 700.dp)
     ) {
+        val bootstrap = remember { SaseCompositionRoot.create() }
         MyApplicationTheme {
-            SaseAppContent(viewModel = LabViewModel())
+            SaseBootstrapContent(bootstrap)
         }
     }
 }

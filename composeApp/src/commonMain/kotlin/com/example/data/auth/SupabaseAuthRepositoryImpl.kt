@@ -1,5 +1,6 @@
 package com.example.data.auth
 
+import com.example.currentEpochMillis
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -29,14 +30,21 @@ internal data class GoTrueUser(val id: String, val email: String? = null)
 internal data class GoTrueTokenResponse(
     @SerialName("access_token") val accessToken: String,
     @SerialName("token_type") val tokenType: String,
+    @SerialName("expires_in") val expiresIn: Long = 3_600,
     val user: GoTrueUser
 )
 
 @Serializable
-internal data class RoleCodeRow(val code: String)
+internal data class RoleCodeRow(val id: String? = null, val code: String)
 
 @Serializable
-internal data class MembershipRoleRow(val roles: RoleCodeRow)
+internal data class MembershipRoleRow(
+    @SerialName("role_id") val roleId: String? = null,
+    val roles: RoleCodeRow
+)
+
+@Serializable
+internal data class InstitutionRow(val name: String)
 
 @Serializable
 internal data class ProfileRow(
@@ -47,7 +55,10 @@ internal data class ProfileRow(
 
 @Serializable
 internal data class MembershipRow(
+    val id: String,
+    @SerialName("institution_id") val institutionId: String,
     val active: Boolean,
+    val institutions: InstitutionRow,
     val profiles: ProfileRow,
     @SerialName("membership_roles") val membershipRoles: List<MembershipRoleRow> = emptyList()
 )
@@ -85,8 +96,9 @@ internal fun roleCodeToStaffRole(code: String): StaffRole? = when (code) {
  * la red de verdad.
  */
 class SupabaseAuthRepositoryImpl(
-    private val baseUrl: String = SupabaseConfig.URL,
-    private val apiKey: String = SupabaseConfig.PUBLISHABLE_KEY,
+    private val baseUrl: String,
+    private val apiKey: String,
+    private val nowMillis: () -> Long = ::currentEpochMillis,
     private val httpClient: HttpClient = HttpClient {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
@@ -97,7 +109,13 @@ class SupabaseAuthRepositoryImpl(
     private val _session = MutableStateFlow<AuthSession?>(null)
     override val session: StateFlow<AuthSession?> = _session.asStateFlow()
 
+    private var pendingIdentity: PendingSupabaseIdentity? = null
+
     override suspend fun signIn(email: String, password: String): AuthResult {
+        // Nunca conservar una sesión o selección pendiente anterior mientras
+        // se valida otra identidad, incluso si la nueva petición falla.
+        _session.value = null
+        pendingIdentity = null
         val normalized = email.trim().lowercase()
 
         val tokenResponse = try {
@@ -111,31 +129,126 @@ class SupabaseAuthRepositoryImpl(
         } catch (e: Exception) {
             return AuthResult.Failure(AuthFailureReason.NETWORK)
         }
-            ?: return AuthResult.Failure(AuthFailureReason.NO_STAFF_PROFILE)
+        if (membership == null) {
+            revokeRejectedToken(tokenResponse.accessToken)
+            return AuthResult.Failure(AuthFailureReason.NO_MEMBERSHIP)
+        }
 
         if (!membership.active || !membership.profiles.active) {
+            revokeRejectedToken(tokenResponse.accessToken)
             return AuthResult.Failure(AuthFailureReason.INACTIVE_ACCOUNT)
         }
 
-        val staffRole = membership.membershipRoles
-            .firstNotNullOfOrNull { roleCodeToStaffRole(it.roles.code) }
-            ?: return AuthResult.Failure(AuthFailureReason.NO_STAFF_PROFILE)
+        val assignments = membership.membershipRoles.mapNotNull { row ->
+            roleCodeToStaffRole(row.roles.code)?.let { role ->
+                InstitutionalRoleAssignment(
+                    roleId = row.roleId ?: row.roles.id ?: row.roles.code,
+                    role = role
+                )
+            }
+        }.distinctBy { it.roleId }
+        if (assignments.isEmpty()) {
+            revokeRejectedToken(tokenResponse.accessToken)
+            return AuthResult.Failure(AuthFailureReason.NO_ROLE)
+        }
 
         val profile = StaffProfile(
             id = tokenResponse.user.id,
             email = tokenResponse.user.email ?: normalized,
             fullName = membership.profiles.displayName?.takeIf { it.isNotBlank() }
                 ?: membership.profiles.fullName,
-            role = staffRole,
             active = true
         )
-        val newSession = AuthSession(profile = profile, accessToken = tokenResponse.accessToken)
-        _session.value = newSession
-        return AuthResult.Success(newSession)
+        val pending = PendingSupabaseIdentity(
+            token = tokenResponse,
+            membership = membership,
+            profile = profile,
+            assignments = assignments
+        )
+        pendingIdentity = pending
+        return if (assignments.size == 1) {
+            activate(pending, assignments.single().roleId)
+        } else {
+            AuthResult.RoleSelectionRequired(
+                RoleSelectionContext(
+                    institutionName = membership.institutions.name,
+                    availableRoles = assignments
+                )
+            )
+        }
+    }
+
+    override suspend fun selectRole(roleId: String): AuthResult {
+        val pending = pendingIdentity
+            ?: return AuthResult.Failure(AuthFailureReason.ROLE_NOT_ASSIGNED)
+        return activate(pending, roleId)
+    }
+
+    override suspend fun switchRole(roleId: String): AuthResult {
+        val active = _session.value
+            ?: return AuthResult.Failure(AuthFailureReason.ROLE_NOT_ASSIGNED)
+        val switched = runCatching { active.switchToAssignedRole(roleId) }.getOrNull()
+            ?: return AuthResult.Failure(AuthFailureReason.ROLE_NOT_ASSIGNED)
+        _session.value = switched
+        return AuthResult.Success(switched)
     }
 
     override suspend fun signOut() {
+        val accessToken = _session.value?.accessToken ?: pendingIdentity?.token?.accessToken
+        if (accessToken != null) {
+            runCatching { requestLogout(accessToken) }
+        }
+        // El cliente siempre deja de exponer la sesion local, incluso si el
+        // backend no esta disponible. Nunca se conserva una identidad previa.
         _session.value = null
+        pendingIdentity = null
+    }
+
+    private fun activate(pending: PendingSupabaseIdentity, roleId: String): AuthResult {
+        if (pending.assignments.none { it.roleId == roleId }) {
+            return AuthResult.Failure(AuthFailureReason.ROLE_NOT_ASSIGNED)
+        }
+        val startedAt = nowMillis()
+        val institutional = InstitutionalSession.create(
+            userId = pending.token.user.id,
+            profileId = pending.profile.id,
+            membershipId = pending.membership.id,
+            institutionId = pending.membership.institutionId,
+            institutionName = pending.membership.institutions.name,
+            roleAssignments = pending.assignments,
+            activeRoleId = roleId,
+            schoolCycleId = null,
+            sessionStartedAt = startedAt,
+            expiresAt = startedAt + pending.token.expiresIn * 1_000L
+        )
+        val session = AuthSession(
+            profile = pending.profile,
+            institutional = institutional,
+            accessToken = pending.token.accessToken
+        )
+        pendingIdentity = null
+        _session.value = session
+        return AuthResult.Success(session)
+    }
+
+    private suspend fun revokeRejectedToken(accessToken: String) {
+        runCatching { requestLogout(accessToken) }
+    }
+
+    /**
+     * Cierra unicamente la sesion actual. Supabase conserva los access tokens
+     * como JWT validos hasta su expiracion, pero elimina la sesion/refresh
+     * token asociados a este dispositivo.
+     */
+    private suspend fun requestLogout(accessToken: String) {
+        val response: HttpResponse = httpClient.post("$baseUrl/auth/v1/logout") {
+            header("apikey", apiKey)
+            header("Authorization", "Bearer $accessToken")
+            url { parameters.append("scope", "local") }
+        }
+        if (response.status != HttpStatusCode.NoContent) {
+            error("GoTrue respondio ${response.status} en /auth/v1/logout")
+        }
     }
 
     /** null = credenciales invalidas (400/401/403 de GoTrue); excepcion = fallo de red/servidor. */
@@ -161,7 +274,9 @@ class SupabaseAuthRepositoryImpl(
             url {
                 parameters.append(
                     "select",
-                    "active,profiles(full_name,active,display_name),membership_roles(roles(code))"
+                    "id,institution_id,active,institutions(name)," +
+                        "profiles(full_name,active,display_name)," +
+                        "membership_roles(role_id,roles(id,code))"
                 )
                 parameters.append("profile_id", "eq.$userId")
                 parameters.append("active", "eq.true")
@@ -174,4 +289,11 @@ class SupabaseAuthRepositoryImpl(
         val rows: List<MembershipRow> = response.body()
         return rows.firstOrNull()
     }
+
+    private data class PendingSupabaseIdentity(
+        val token: GoTrueTokenResponse,
+        val membership: MembershipRow,
+        val profile: StaffProfile,
+        val assignments: List<InstitutionalRoleAssignment>
+    )
 }

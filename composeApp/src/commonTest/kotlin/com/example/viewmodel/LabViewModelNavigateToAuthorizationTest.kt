@@ -1,13 +1,10 @@
 package com.example.viewmodel
 
-import com.example.data.auth.AuthRepository
-import com.example.data.auth.AuthResult
 import com.example.data.auth.AuthSession
-import com.example.data.auth.StaffProfile
 import com.example.data.auth.StaffRole
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import com.example.environment.AppEnvironment
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlin.test.Test
 import kotlin.test.assertIs
 
@@ -22,32 +19,22 @@ class LabViewModelNavigateToAuthorizationTest {
     // de la politica de gating, no del flujo de login (ya cubierto en
     // LabViewModelAuthTest). Tambien permite fijar un perfil inactivo, algo
     // que el signIn real de MockAuthRepositoryImpl nunca deja pasar.
-    private class FixedSessionAuthRepository(
-        fixedSession: AuthSession?
-    ) : AuthRepository {
-        override val session: StateFlow<AuthSession?> = MutableStateFlow(fixedSession).asStateFlow()
+    // FixedSessionAuthRepository/testSessionFor viven en TestAuthSessions.kt.
 
-        override suspend fun signIn(email: String, password: String): AuthResult =
-            throw UnsupportedOperationException("FixedSessionAuthRepository solo fija sesion, no inicia sesion")
+    private fun sessionFor(role: StaffRole, active: Boolean = true): AuthSession =
+        testSessionFor(role = role, active = active)
 
-        override suspend fun signOut() {
-            throw UnsupportedOperationException("FixedSessionAuthRepository no cierra sesion")
-        }
-    }
-
-    private fun sessionFor(role: StaffRole, active: Boolean = true): AuthSession = AuthSession(
-        profile = StaffProfile(
-            id = "staff-nav-test",
-            email = "staff-nav@example.invalid",
-            fullName = "Staff Navegacion Test",
-            role = role,
-            active = active
-        ),
-        accessToken = "token-nav-test"
-    )
-
+    // Dispatchers.Unconfined: estas pruebas no son runTest (no hay
+    // testScheduler); revalidateSession() puede expirar la sesion inactiva y
+    // lanzar authScope.launch { ... } de verdad (expireSession -> signOut),
+    // lo que con el MainScope() por defecto fallaria por falta de
+    // Dispatchers.Main en un test JVM plano.
     private fun viewModelWithSession(session: AuthSession?): LabViewModel =
-        LabViewModel(authRepository = FixedSessionAuthRepository(session))
+        LabViewModel(
+            appEnvironment = AppEnvironment.demoLocal("test"),
+            authRepository = FixedSessionAuthRepository(session),
+            coroutineScope = CoroutineScope(Dispatchers.Unconfined)
+        )
 
     @Test
     fun authorizedSessionNavigatesToDestination() {
@@ -65,7 +52,7 @@ class LabViewModelNavigateToAuthorizationTest {
 
         vm.navigateTo(Screen.SecretariaPreApplicationDashboard)
 
-        assertIs<Screen.SecretaryDashboard>(vm.currentScreen.value)
+        assertIs<Screen.SessionHome>(vm.currentScreen.value)
     }
 
     @Test
@@ -74,7 +61,7 @@ class LabViewModelNavigateToAuthorizationTest {
 
         vm.navigateTo(Screen.StudentRecordsDashboard)
 
-        assertIs<Screen.SecretaryDashboard>(vm.currentScreen.value)
+        assertIs<Screen.SessionHome>(vm.currentScreen.value)
     }
 
     @Test
@@ -83,7 +70,7 @@ class LabViewModelNavigateToAuthorizationTest {
 
         vm.navigateTo(Screen.StudentRecordsDashboard)
 
-        assertIs<Screen.SecretaryDashboard>(vm.currentScreen.value)
+        assertIs<Screen.SessionHome>(vm.currentScreen.value)
     }
 
     @Test
@@ -94,29 +81,29 @@ class LabViewModelNavigateToAuthorizationTest {
 
         vm.navigateTo(Screen.PreApplicationFamilyPortal)
 
-        assertIs<Screen.SecretaryDashboard>(vm.currentScreen.value)
+        assertIs<Screen.SessionHome>(vm.currentScreen.value)
     }
 
     @Test
     fun rejectedNavigationPreservesThePreviousScreen() {
-        val vm = viewModelWithSession(sessionFor(StaffRole.TRABAJO_SOCIAL))
-        vm.navigateTo(Screen.StudentRecordsDashboard)
-        assertIs<Screen.StudentRecordsDashboard>(vm.currentScreen.value)
+        val vm = viewModelWithSession(sessionFor(StaffRole.DIRECCION))
+        vm.navigateTo(Screen.SecretaryDashboard)
+        assertIs<Screen.SecretaryDashboard>(vm.currentScreen.value)
 
-        // Trabajo Social no tiene ALTA_OFICIAL: el intento se ignora en silencio.
-        vm.navigateTo(Screen.OfficialEnrollmentDashboard)
+        // Dirección no tiene PRE_SOLICITUD: el intento se ignora en silencio.
+        vm.navigateTo(Screen.SecretariaPreApplicationDashboard)
 
-        assertIs<Screen.StudentRecordsDashboard>(vm.currentScreen.value)
+        assertIs<Screen.SecretaryDashboard>(vm.currentScreen.value)
     }
 
     @Test
     fun navigateBackReturnsToTheAuthenticatedRoleHome() {
-        val vm = viewModelWithSession(sessionFor(StaffRole.TRABAJO_SOCIAL))
+        val vm = viewModelWithSession(sessionFor(StaffRole.SECRETARIA))
         vm.navigateTo(Screen.StudentRecord(studentId = "STU-001"))
 
         vm.navigateBack()
 
-        assertIs<Screen.StudentRecordsDashboard>(vm.currentScreen.value)
+        assertIs<Screen.SessionHome>(vm.currentScreen.value)
     }
 
     @Test
@@ -136,7 +123,7 @@ class LabViewModelNavigateToAuthorizationTest {
 
         vm.navigateFromSecretarySidebar("Pre-Solicitudes")
 
-        assertIs<Screen.SecretaryDashboard>(vm.currentScreen.value)
+        assertIs<Screen.SessionHome>(vm.currentScreen.value)
     }
 
     @Test
