@@ -9,6 +9,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+import kotlinx.coroutines.test.runTest
 
 class MockAuditRepositoryImplTest {
     private val repository = MockAuditRepositoryImpl()
@@ -19,10 +21,10 @@ class MockAuditRepositoryImplTest {
     }
 
     @Test
-    fun typedEventIsStoredWithTraceableContextAndLegacyProjection() {
+    fun typedEventIsStoredWithTraceableContextAndLegacyProjection() = runTest {
         val event = validEvent()
 
-        repository.logAudit(event)
+        assertTrue(repository.logAudit(event))
 
         val stored = repository.audits.value.first()
         assertEquals(event, stored.institutionalEvent)
@@ -33,7 +35,7 @@ class MockAuditRepositoryImplTest {
     }
 
     @Test
-    fun invalidTypedEventIsRejectedWithoutChangingAuditState() {
+    fun invalidTypedEventIsRejectedWithoutChangingAuditState() = runTest {
         val before = repository.audits.value
         val sensitiveValue = "curp=DO_NOT_STORE"
 

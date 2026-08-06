@@ -28,6 +28,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlinx.coroutines.test.runTest
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -148,7 +149,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun labViewModelAddStudentReturnsStudentAddResultForFastTrackFlow() {
+    fun labViewModelAddStudentReturnsStudentAddResultForFastTrackFlow() = runTest {
         val viewModel = labViewModelWithRole(StaffRole.SECRETARIA)
 
         val result = viewModel.addStudent(

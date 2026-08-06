@@ -4,6 +4,8 @@ import com.example.data.auth.MockAuthRepositoryImpl
 import com.example.data.auth.SupabaseAuthRepositoryImpl
 import com.example.data.repository.MockAuditRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
+import com.example.data.repository.SupabaseAuditRepositoryImpl
+import com.example.data.repository.SupabaseStudentRepositoryImpl
 import com.example.environment.AppEnvironment
 import com.example.environment.AppEnvironmentMode
 import com.example.environment.platformAppEnvironmentValues
@@ -49,16 +51,29 @@ object SaseCompositionRoot {
 
         AppEnvironmentMode.SUPABASE_STAGING -> {
             val supabase = requireNotNull(environment.supabase)
+            val authRepository = SupabaseAuthRepositoryImpl(
+                baseUrl = supabase.url,
+                apiKey = supabase.publishableKey
+            )
+            // Expedientes y bitacora leen la sesion viva del repositorio de
+            // autenticacion: sin sesion no leen ni escriben nada, y la
+            // institucion de cada operacion sale siempre de ahi.
+            val sessionProvider = { authRepository.session.value }
             SaseBootstrap.Ready(
                 environment = environment,
                 viewModel = LabViewModel(
                     appEnvironment = environment,
-                    authRepository = SupabaseAuthRepositoryImpl(
+                    authRepository = authRepository,
+                    studentRepository = SupabaseStudentRepositoryImpl(
                         baseUrl = supabase.url,
-                        apiKey = supabase.publishableKey
+                        apiKey = supabase.publishableKey,
+                        sessionProvider = sessionProvider
                     ),
-                    studentRepository = MockStudentRepositoryImpl(),
-                    auditRepository = MockAuditRepositoryImpl()
+                    auditRepository = SupabaseAuditRepositoryImpl(
+                        baseUrl = supabase.url,
+                        apiKey = supabase.publishableKey,
+                        sessionProvider = sessionProvider
+                    )
                 )
             )
         }

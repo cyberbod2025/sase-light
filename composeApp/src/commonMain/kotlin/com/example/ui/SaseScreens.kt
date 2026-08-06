@@ -646,6 +646,9 @@ fun SecretaryDashboardScreen(
     val students by viewModel.saseStudents.collectAsState()
     val session by viewModel.session.collectAsState()
     val sidebarItems = visibleSidebarItems(session)
+    // Alcance del propio dashboard: el alta de expediente vive en un diálogo
+    // fuera del BoxWithConstraints, y su guardado ahora viaja por red.
+    val dashboardScope = rememberCoroutineScope()
 
     var showNewStudentDialog by remember { mutableStateOf(false) }
     var newStudentName by remember { mutableStateOf("") }
@@ -918,22 +921,29 @@ fun SecretaryDashboardScreen(
                                             riskLevel = "Bajo",
                                             documentationStatus = "Completa"
                                         )
-                                        when (val addResult = viewModel.addStudent(std)) {
-                                            is StudentAddResult.Added -> {
-                                                showNewStudentDialog = false
-                                                newStudentName = ""
-                                                newStudentCurp = ""
-                                                newStudentTutor = ""
-                                                toast("Expediente registrado. Matrícula pendiente de alta oficial.")
-                                            }
-                                            is StudentAddResult.DuplicateCurp -> {
-                                                toast("Ya existe un alumno con esta CURP.")
-                                            }
-                                            is StudentAddResult.DuplicateEnrollmentId -> {
-                                                toast("Ya existe un alumno con esta matrícula.")
-                                            }
-                                            is StudentAddResult.InvalidData -> {
-                                                toast(addResult.message)
+                                        dashboardScope.launch {
+                                            when (val addResult = viewModel.addStudent(std)) {
+                                                is StudentAddResult.Added -> {
+                                                    showNewStudentDialog = false
+                                                    newStudentName = ""
+                                                    newStudentCurp = ""
+                                                    newStudentTutor = ""
+                                                    toast("Expediente registrado. Matrícula pendiente de alta oficial.")
+                                                }
+                                                is StudentAddResult.DuplicateCurp -> {
+                                                    toast("Ya existe un alumno con esta CURP.")
+                                                }
+                                                is StudentAddResult.DuplicateEnrollmentId -> {
+                                                    toast("Ya existe un alumno con esta matrícula.")
+                                                }
+                                                is StudentAddResult.InvalidData -> {
+                                                    toast(addResult.message)
+                                                }
+                                                // El expediente NO quedó guardado: nunca
+                                                // se confirma un alta que el backend rechazó.
+                                                is StudentAddResult.Failed -> {
+                                                    toast(institutionalFailureMessage(addResult.reason))
+                                                }
                                             }
                                         }
                                     } else {

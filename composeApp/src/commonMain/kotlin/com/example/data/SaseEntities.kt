@@ -101,4 +101,46 @@ sealed class StudentAddResult {
     data class DuplicateCurp(val curp: String, val existing: Student) : StudentAddResult()
     data class DuplicateEnrollmentId(val enrollmentId: String, val existing: Student) : StudentAddResult()
     data class InvalidData(val message: String) : StudentAddResult()
+
+    /**
+     * El almacenamiento institucional no confirmo el alta (sin sesion, permiso
+     * denegado por RLS o fallo de red). Nunca debe presentarse como "guardado":
+     * es la unica forma de distinguir un rechazo del backend de un dato invalido.
+     */
+    data class Failed(val reason: StudentPersistenceFailure) : StudentAddResult()
+}
+
+/** Resultado de una actualizacion; el mock nunca falla, el backend real si. */
+sealed class StudentUpdateResult {
+    data class Updated(val student: Student) : StudentUpdateResult()
+    data class Failed(val reason: StudentPersistenceFailure) : StudentUpdateResult()
+}
+
+/**
+ * Causa por la que el almacenamiento institucional rechazo una operacion.
+ * Se mantiene como enum para que ningun mensaje del servidor —que podria
+ * arrastrar datos de la fila rechazada— llegue tal cual a la interfaz.
+ */
+enum class StudentPersistenceFailure {
+    /** No hay sesion institucional activa: se escribe nada, se falla cerrado. */
+    NO_SESSION,
+
+    /** El servidor rechazo la operacion (RLS, permiso o validacion). */
+    REJECTED,
+
+    /** La operacion no llego a completarse (red o servidor no disponible). */
+    NETWORK,
+}
+
+/**
+ * Mensaje institucional para un rechazo de persistencia. Nunca reproduce texto
+ * devuelto por el servidor, que podria arrastrar datos de la fila rechazada.
+ */
+fun institutionalFailureMessage(reason: StudentPersistenceFailure): String = when (reason) {
+    StudentPersistenceFailure.NO_SESSION ->
+        "No hay sesión institucional activa. El cambio no se guardó."
+    StudentPersistenceFailure.REJECTED ->
+        "El sistema institucional rechazó el cambio. No se guardó."
+    StudentPersistenceFailure.NETWORK ->
+        "No fue posible contactar al sistema institucional. El cambio no se guardó."
 }

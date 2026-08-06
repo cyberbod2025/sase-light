@@ -8,6 +8,8 @@ import com.example.data.SaseAudit
 import com.example.data.SaseObservation
 import com.example.data.Student
 import com.example.data.StudentAddResult
+import com.example.data.StudentPersistenceFailure
+import com.example.data.StudentUpdateResult
 import com.example.data.auth.AuthFailureReason
 import com.example.data.auth.AuthRepository
 import com.example.data.auth.AuthResult
@@ -20,6 +22,7 @@ import com.example.data.repository.AuditRepository
 import com.example.data.repository.MockAuditRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
 import com.example.data.repository.StudentRepository
+import com.example.data.repository.StudentSyncResult
 import com.example.environment.AppEnvironment
 import com.example.formatTimestamp
 import com.example.getPlatformName
@@ -80,6 +83,14 @@ sealed interface LoginUiState {
     data class Error(val reason: AuthFailureReason) : LoginUiState
 }
 
+/** Estado observable de la sincronizacion del expediente institucional. */
+sealed interface StudentSyncUiState {
+    data object Idle : StudentSyncUiState
+    data object Loading : StudentSyncUiState
+    data object Ready : StudentSyncUiState
+    data class Error(val reason: StudentPersistenceFailure) : StudentSyncUiState
+}
+
 /**
  * Estado institucional de la aplicación. El ambiente y el repositorio de
  * autenticación son obligatorios: el ViewModel nunca elige un mock ni degrada
@@ -112,6 +123,33 @@ class LabViewModel(
 
     val saseStudents: StateFlow<List<Student>> = studentRepository.students
     val saseAudits: StateFlow<List<SaseAudit>> = auditRepository.audits
+
+    private val _studentSync = MutableStateFlow<StudentSyncUiState>(StudentSyncUiState.Idle)
+
+    /**
+     * Estado real de la carga institucional. En DEMO_LOCAL se resuelve al
+     * instante; conectado refleja la peticion de red, de modo que la interfaz
+     * nunca presente una lista vacia por error de red como si fuera "sin datos".
+     */
+    val studentSync: StateFlow<StudentSyncUiState> = _studentSync.asStateFlow()
+
+    /** Recarga manual del expediente institucional de la sesion activa. */
+    suspend fun reloadInstitutionalData() {
+        if (activeSession() == null) {
+            _studentSync.value = StudentSyncUiState.Error(StudentPersistenceFailure.NO_SESSION)
+            return
+        }
+        loadInstitutionalData()
+    }
+
+    private suspend fun loadInstitutionalData() {
+        _studentSync.value = StudentSyncUiState.Loading
+        _studentSync.value = when (val result = studentRepository.refresh()) {
+            is StudentSyncResult.Loaded -> StudentSyncUiState.Ready
+            is StudentSyncResult.Failed -> StudentSyncUiState.Error(result.reason)
+        }
+        auditRepository.refresh()
+    }
 
     fun signIn(email: String, password: String) {
         authenticate { authRepository.signIn(email, password) }
@@ -184,6 +222,7 @@ class LabViewModel(
                 authRepository.signOut()
                 _currentScreen.value = Screen.SessionHome
                 _loginState.value = LoginUiState.Idle
+                _studentSync.value = StudentSyncUiState.Idle
             } finally {
                 _sessionTransitioning.value = false
             }
@@ -239,6 +278,7 @@ class LabViewModel(
             result = InstitutionalAuditResult.AUTHORIZED
         )
         scheduleExpiration(active)
+        loadInstitutionalData()
     }
 
     private fun scheduleExpiration(active: AuthSession) {
@@ -292,28 +332,41 @@ class LabViewModel(
         navigateTo(Screen.SessionHome)
     }
 
-    fun updateStudent(student: Student): Boolean {
+    suspend fun updateStudent(student: Student): Boolean {
         val active = authorizedFor(
             action = StaffAction.UPDATE_STUDENT,
             entityType = "student",
             entityId = student.id
         ) ?: return false
-        studentRepository.updateStudent(student)
-        return recordAudit(
+
+        // Sin bitácora asentable no se toca el expediente: el evento se valida
+        // ANTES de mutar, y su resultado real se registra después.
+        if (!canRecordAudit(active, "student.updated", "student", student.id)) return false
+
+        val persisted = studentRepository.updateStudent(student) is StudentUpdateResult.Updated
+        recordAudit(
             session = active,
             action = "student.updated",
             entityType = "student",
             entityId = student.id,
-            result = InstitutionalAuditResult.AUTHORIZED
+            result = if (persisted) InstitutionalAuditResult.AUTHORIZED
+            else InstitutionalAuditResult.FAILED
         )
+        return persisted
     }
 
-    fun addStudent(student: Student): StudentAddResult {
+    suspend fun addStudent(student: Student): StudentAddResult {
         val active = authorizedFor(
             action = StaffAction.CREATE_STUDENT,
             entityType = "student",
             entityId = student.id.ifBlank { "new-student" }
         ) ?: return StudentAddResult.InvalidData("Acción no autorizada para la sesión activa.")
+
+        // El identificador definitivo lo asigna el almacenamiento, así que aquí
+        // se comprueba con el provisional que el evento será registrable.
+        if (!canRecordAudit(active, "student.created", "student", student.id.ifBlank { "new-student" })) {
+            return StudentAddResult.Failed(StudentPersistenceFailure.REJECTED)
+        }
 
         val result = studentRepository.addStudent(student)
         if (result is StudentAddResult.Added) {
@@ -328,7 +381,7 @@ class LabViewModel(
         return result
     }
 
-    fun addObservation(studentId: String, text: String, category: String): Boolean {
+    suspend fun addObservation(studentId: String, text: String, category: String): Boolean {
         val active = authorizedFor(
             action = StaffAction.ADD_OBSERVATION,
             entityType = "student_observation",
@@ -342,9 +395,10 @@ class LabViewModel(
             date = "Hoy",
             category = category
         )
-        studentRepository.updateStudent(
+        val persisted = studentRepository.updateStudent(
             student.copy(observations = listOf(observation) + student.observations)
-        )
+        ) is StudentUpdateResult.Updated
+        if (!persisted) return false
         return recordAudit(
             session = active,
             action = "student.observation.created",
@@ -358,7 +412,7 @@ class LabViewModel(
      * Registra un evento sin aceptar actor, rol ni detalle libres. Esos campos
      * siempre provienen de la sesión institucional activa.
      */
-    fun logSaseAudit(action: String, entityType: String, entityId: String): Boolean {
+    suspend fun logSaseAudit(action: String, entityType: String, entityId: String): Boolean {
         val active = authorizedFor(
             action = StaffAction.UPDATE_STUDENT,
             entityType = entityType,
@@ -373,7 +427,7 @@ class LabViewModel(
         )
     }
 
-    fun reportIncident(studentId: String, type: String, description: String): Boolean {
+    suspend fun reportIncident(studentId: String, type: String, description: String): Boolean {
         val active = authorizedFor(
             action = StaffAction.REPORT_INCIDENT,
             entityType = "school_incident",
@@ -389,9 +443,10 @@ class LabViewModel(
             reportedByName = active.profile.fullName,
             idGenerator = { "INC-${Random.nextInt(100000, 999999)}" }
         )
-        studentRepository.updateStudent(
+        val persisted = studentRepository.updateStudent(
             student.copy(schoolIncidents = listOf(incident) + student.schoolIncidents)
-        )
+        ) is StudentUpdateResult.Updated
+        if (!persisted) return false
         return recordAudit(
             session = active,
             action = "school_incident.reported",
@@ -401,7 +456,7 @@ class LabViewModel(
         )
     }
 
-    fun advanceIncident(studentId: String, incidentId: String, note: String): Boolean {
+    suspend fun advanceIncident(studentId: String, incidentId: String, note: String): Boolean {
         val active = authorizedFor(
             action = StaffAction.ADVANCE_INCIDENT,
             entityType = "school_incident",
@@ -414,13 +469,14 @@ class LabViewModel(
             is IncidentTransitionResult.IllegalTransition -> return false
             is IncidentTransitionResult.Success -> transition.incident
         }
-        studentRepository.updateStudent(
+        val persisted = studentRepository.updateStudent(
             student.copy(
                 schoolIncidents = student.schoolIncidents.map {
                     if (it.id == incidentId) updated else it
                 }
             )
-        )
+        ) is StudentUpdateResult.Updated
+        if (!persisted) return false
         return recordAudit(
             session = active,
             action = "school_incident.advanced.${updated.status}",
@@ -430,7 +486,7 @@ class LabViewModel(
         )
     }
 
-    fun escalateCase(studentId: String): Boolean {
+    suspend fun escalateCase(studentId: String): Boolean {
         val active = authorizedFor(
             action = StaffAction.ESCALATE_CASE,
             entityType = "student_case",
@@ -454,7 +510,7 @@ class LabViewModel(
         return active
     }
 
-    private fun authorizedFor(
+    private suspend fun authorizedFor(
         action: StaffAction,
         entityType: String,
         entityId: String
@@ -472,27 +528,48 @@ class LabViewModel(
         return null
     }
 
-    private fun recordAudit(
+    private fun buildAuditEvent(
+        session: AuthSession,
+        action: String,
+        entityType: String,
+        entityId: String,
+        result: InstitutionalAuditResult
+    ): InstitutionalAuditEvent = InstitutionalAuditEvent(
+        institutionId = session.institutionId,
+        actorProfileId = session.profileId,
+        membershipId = session.membershipId,
+        activeRole = session.activeRole,
+        action = action,
+        entityType = entityType,
+        entityId = entityId,
+        timestamp = formatTimestamp("yyyy-MM-dd HH:mm:ss"),
+        result = result,
+        sourcePlatform = getPlatformName()
+    )
+
+    /**
+     * Comprobación previa a mutar: ¿este evento sería registrable? No asienta
+     * nada, de modo que una mutación abortada no deja una bitácora de algo que
+     * nunca ocurrió.
+     */
+    private fun canRecordAudit(
+        session: AuthSession,
+        action: String,
+        entityType: String,
+        entityId: String
+    ): Boolean = InstitutionalAuditValidator.validate(
+        buildAuditEvent(session, action, entityType, entityId, InstitutionalAuditResult.AUTHORIZED)
+    ).isValid
+
+    private suspend fun recordAudit(
         session: AuthSession,
         action: String,
         entityType: String,
         entityId: String,
         result: InstitutionalAuditResult
     ): Boolean {
-        val event = InstitutionalAuditEvent(
-            institutionId = session.institutionId,
-            actorProfileId = session.profileId,
-            membershipId = session.membershipId,
-            activeRole = session.activeRole,
-            action = action,
-            entityType = entityType,
-            entityId = entityId,
-            timestamp = formatTimestamp("yyyy-MM-dd HH:mm:ss"),
-            result = result,
-            sourcePlatform = getPlatformName()
-        )
+        val event = buildAuditEvent(session, action, entityType, entityId, result)
         if (!InstitutionalAuditValidator.validate(event).isValid) return false
-        auditRepository.logAudit(event)
-        return true
+        return auditRepository.logAudit(event)
     }
 }

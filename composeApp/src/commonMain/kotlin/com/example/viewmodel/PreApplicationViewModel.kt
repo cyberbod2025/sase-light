@@ -1190,6 +1190,12 @@ class PreApplicationViewModel {
                     is StudentAddResult.DuplicateCurp -> addResult.existing
                     is StudentAddResult.DuplicateEnrollmentId -> return OfficialEnrollmentResult.DuplicateMatricula(addResult.enrollmentId)
                     is StudentAddResult.InvalidData -> return OfficialEnrollmentResult.MasterStudentPropagationError(addResult.message)
+                    // Inalcanzable con el almacenamiento en memoria, pero mantiene
+                    // honesta esta ruta si algún día se apoya en un repositorio
+                    // conectado en vez de MockSaseData.
+                    is StudentAddResult.Failed -> return OfficialEnrollmentResult.MasterStudentPropagationError(
+                        "El expediente maestro no pudo persistirse (${addResult.reason.name})."
+                    )
                 }
             }
             markConverted(folio)

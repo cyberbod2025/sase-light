@@ -8,7 +8,10 @@ import kotlinx.coroutines.flow.StateFlow
 class MockAuditRepositoryImpl : AuditRepository {
     override val audits: StateFlow<List<SaseAudit>> = MockSaseData.audits
 
-    override fun logAudit(event: InstitutionalAuditEvent) {
+    override suspend fun refresh(): Boolean = true
+
+    override suspend fun logAudit(event: InstitutionalAuditEvent): Boolean {
         MockSaseData.logAudit(event)
+        return true
     }
 }

@@ -238,13 +238,18 @@ private fun InstitutionalStudentRecordRoute(
         else false
     }
 
+    val routeScope = rememberCoroutineScope()
+
     InstitutionalStudentRecordContent(
         presentation = presentation,
         student = currentStudent,
         isConverted = isConverted,
         onBack = { viewModel.navigateTo(returnTo) },
         onSaveStudent = { updatedStudent ->
-            viewModel.updateStudent(updatedStudent)
+            routeScope.launch {
+            // La pre-solicitud solo se sincroniza si el expediente quedó
+            // realmente guardado; un rechazo del backend no debe propagarse.
+            if (!viewModel.updateStudent(updatedStudent)) return@launch
             val folio = (presentation as? InstitutionalStudentRecordPresentation.Content)?.folio
             if (!folio.isNullOrBlank()) {
                 val preApp = preApplications.firstOrNull { it.folio.trim().uppercase() == folio.trim().uppercase() }
@@ -265,9 +270,12 @@ private fun InstitutionalStudentRecordRoute(
                     )
                 }
             }
+            }
         },
         onLogAudit = { action, _ ->
-            viewModel.logSaseAudit(action, "student_record", studentId)
+            routeScope.launch {
+                viewModel.logSaseAudit(action, "student_record", studentId)
+            }
         }
     )
 }
@@ -1674,8 +1682,10 @@ fun StudentRecordScreen(
                                                             fontWeight = FontWeight.Bold,
                                                             fontSize = 10.sp,
                                                             modifier = Modifier.clickable {
-                                                                if (!viewModel.advanceIncident(student.id, incident.id, "")) {
-                                                                    toast("No se pudo avanzar la incidencia")
+                                                                scope.launch {
+                                                                    if (!viewModel.advanceIncident(student.id, incident.id, "")) {
+                                                                        toast("No se pudo avanzar la incidencia")
+                                                                    }
                                                                 }
                                                             }
                                                         )
@@ -1883,12 +1893,14 @@ fun StudentRecordScreen(
                             text = "Registrar",
                             onClick = {
                                 if (incDesc.isNotBlank()) {
-                                    if (viewModel.reportIncident(student.id, incType, incDesc)) {
-                                        showIncidentDialog = false
-                                        incDesc = ""
-                                        toast("Incidencia registrada")
-                                    } else {
-                                        toast("No hay sesión activa para registrar la incidencia")
+                                    scope.launch {
+                                        if (viewModel.reportIncident(student.id, incType, incDesc)) {
+                                            showIncidentDialog = false
+                                            incDesc = ""
+                                            toast("Incidencia registrada")
+                                        } else {
+                                            toast("No se pudo registrar la incidencia")
+                                        }
                                     }
                                 } else {
                                     toast("Favor de agregar descripción")
@@ -1969,12 +1981,14 @@ fun StudentRecordScreen(
                             text = "Agregar",
                             onClick = {
                                 if (obsText.isNotBlank()) {
-                                    if (viewModel.addObservation(student.id, obsText, obsCategory)) {
-                                        showObsDialog = false
-                                        obsText = ""
-                                        toast("Observación registrada")
-                                    } else {
-                                        toast("No hay sesión activa para registrar la observación")
+                                    scope.launch {
+                                        if (viewModel.addObservation(student.id, obsText, obsCategory)) {
+                                            showObsDialog = false
+                                            obsText = ""
+                                            toast("Observación registrada")
+                                        } else {
+                                            toast("No se pudo registrar la observación")
+                                        }
                                     }
                                 } else {
                                     toast("Favor de agregar observaciones")
@@ -2024,12 +2038,14 @@ fun StudentRecordScreen(
                             text = "Escalar Caso",
                             onClick = {
                                 if (escalarNotes.isNotBlank()) {
-                                    if (viewModel.escalateCase(student.id)) {
-                                        showEscalarDialog = false
-                                        escalarNotes = ""
-                                        toast("Caso escalado con éxito.")
-                                    } else {
-                                        toast("Tu sesión no autoriza escalar este caso.")
+                                    scope.launch {
+                                        if (viewModel.escalateCase(student.id)) {
+                                            showEscalarDialog = false
+                                            escalarNotes = ""
+                                            toast("Caso escalado con éxito.")
+                                        } else {
+                                            toast("No se pudo escalar el caso.")
+                                        }
                                     }
                                 } else {
                                     toast("Favor de agregar motivo")
