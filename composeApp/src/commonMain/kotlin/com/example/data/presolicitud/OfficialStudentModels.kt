@@ -14,6 +14,16 @@ enum class OfficialStudentStatus(val label: String) {
     CERRADO("Cerrado")
 }
 
+/**
+ * Una CURP sugerida por el portal familiar termina en "XXX00" porque el sistema
+ * la construye sin el homoclave real de RENAPO. Es un dato provisional: sirve
+ * para trabajar la pre-solicitud, nunca para producir identidad oficial.
+ */
+fun isSyntheticCurp(curp: String): Boolean =
+    curp.trim().uppercase().endsWith(SYNTHETIC_CURP_SUFFIX)
+
+internal const val SYNTHETIC_CURP_SUFFIX: String = "XXX00"
+
 data class OfficialStudent(
     val id: String, // UUID interno
     val preApplicationFolio: String, // Referencia a la pre-solicitud de origen
@@ -42,9 +52,12 @@ data class OfficialStudent(
 ) {
     companion object {
         fun generateMatricula(curp: String, ingresoAnioCorto: Int): String? {
-            if (curp.length < 10) return null // Inválida o incompleta
+            val normalizedCurp = curp.trim().uppercase()
+            if (normalizedCurp.length < 10) return null // Inválida o incompleta
+            // Una CURP sintética no puede convertirse en identidad oficial.
+            if (isSyntheticCurp(normalizedCurp)) return null
             if (ingresoAnioCorto !in 0..99) return null
-            val prefix = curp.substring(0, 10).uppercase()
+            val prefix = normalizedCurp.substring(0, 10)
             return "S310-$prefix-${ingresoAnioCorto.toString().padStart(2, '0')}"
         }
     }

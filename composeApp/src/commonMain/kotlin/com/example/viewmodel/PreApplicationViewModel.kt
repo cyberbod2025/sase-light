@@ -1134,6 +1134,12 @@ class PreApplicationViewModel {
             var updatedStudent: OfficialStudent? = null
             _officialStudents.value = _officialStudents.value.map { student ->
                 if (student.preApplicationFolio != folio) return@map student
+                if (isSyntheticCurp(student.curp)) {
+                    return OfficialEnrollmentResult.Error(
+                        "La CURP registrada es provisional (terminación XXX00). " +
+                            "Captura la CURP oficial del documento antes de generar matrícula."
+                    )
+                }
                 if (!isOfficialCurpComplete(student.curp) || student.gradoIngreso !in 1..3) {
                     return OfficialEnrollmentResult.Error("La matrícula se asignará cuando la CURP y el alta oficial estén completas.")
                 }
