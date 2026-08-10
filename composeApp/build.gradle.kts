@@ -12,6 +12,54 @@ val saseSupabasePublishableKey = providers.gradleProperty("sase.supabasePublisha
 
 fun buildConfigString(value: String): String = "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
+/**
+ * Un binario de piloto no puede salir de aquí por accidente.
+ *
+ * Sin `-Psase.environment` el build sigue produciendo DEMO_LOCAL, que es lo correcto
+ * para trabajo diario, pero lo anuncia en voz alta: nadie debe poder confundir ese APK
+ * con el del piloto. Y si alguien pide un modo conectado sin credenciales, el build
+ * falla aquí en vez de entregar una aplicación que se cae al abrirla.
+ */
+run {
+    val requestedEnvironment = saseEnvironment.get()
+    val connectedModes = setOf("SUPABASE_STAGING", "PRODUCTION")
+    val validModes = connectedModes + "DEMO_LOCAL"
+
+    if (requestedEnvironment !in validModes) {
+        throw GradleException(
+            "sase.environment='$requestedEnvironment' no es un ambiente válido. " +
+                "Use uno de: ${validModes.sorted().joinToString(", ")}."
+        )
+    }
+
+    if (requestedEnvironment in connectedModes) {
+        val faltantes = buildList {
+            if (saseSupabaseUrl.get().isBlank()) add("sase.supabaseUrl")
+            if (saseSupabasePublishableKey.get().isBlank()) add("sase.supabasePublishableKey")
+        }
+        if (faltantes.isNotEmpty()) {
+            throw GradleException(
+                "El ambiente $requestedEnvironment exige configuración externa y falta: " +
+                    "${faltantes.joinToString(", ")}. " +
+                    "No se aplica ningún valor por defecto: un binario conectado sin " +
+                    "credenciales explícitas no se construye."
+            )
+        }
+        if (!saseSupabaseUrl.get().startsWith("https://")) {
+            throw GradleException(
+                "sase.supabaseUrl debe ser una URL HTTPS absoluta. Valor recibido: '${saseSupabaseUrl.get()}'."
+            )
+        }
+        logger.lifecycle("SASE: construyendo binario $requestedEnvironment contra ${saseSupabaseUrl.get()}")
+    } else {
+        logger.lifecycle(
+            "SASE: construyendo binario DEMO_LOCAL con datos sintéticos en memoria. " +
+                "NO es el binario del piloto. Para el piloto: " +
+                "-Psase.environment=SUPABASE_STAGING -Psase.supabaseUrl=... -Psase.supabasePublishableKey=..."
+        )
+    }
+}
+
 kotlin {
   androidTarget {
     compilations.all {
