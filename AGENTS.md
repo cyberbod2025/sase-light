@@ -12,7 +12,13 @@ Compose Multiplatform (KMP) app for school administration (SASE = Sistema de Adm
 
 ## Data
 
-All data is **in-memory mock** (`MockSaseData` singleton, `composeApp/src/commonMain/.../data/`). No backend, no database. Student records, audits, documents etc. are hardcoded lists.
+Three explicit runtime modes (`AppEnvironmentMode` in `environment/AppEnvironment.kt`), wired by `SaseCompositionRoot`:
+
+- `DEMO_LOCAL` — in-memory mock (`MockSaseData` singleton and `Mock*RepositoryImpl`, `composeApp/src/commonMain/.../data/`). No backend, no persistence across restarts.
+- `SUPABASE_STAGING` — real persistence via `Supabase*RepositoryImpl` against a Supabase project. Never falls back to mock data; missing configuration fails the build/boot instead of degrading silently.
+- `PRODUCTION` — blocked at boot (`SaseCompositionRoot` returns a `ConfigurationFailure`) until RLS policies are validated.
+
+The mode is never inferred at runtime with a default: connected modes require `sase.supabaseUrl` and `sase.supabasePublishableKey` (enforced in `composeApp/build.gradle.kts`).
 
 
 
@@ -28,7 +34,7 @@ All three call `SaseAppContent(viewModel = LabViewModel())` from `commonMain`.
 
 ## Architecture
 
-Simple single-ViewModel (`LabViewModel` in `commonMain`) with a sealed `Screen` class for navigation (`SecretaryDashboard` / `StudentRecord(id)`). No DI framework. No navigation library.
+Two ViewModels, no DI framework, no navigation library. `LabViewModel` (`commonMain`) owns a sealed `Screen` class for navigation and the institutional flow; `PreApplicationViewModel` owns the family pre-application flow independently. `SaseCompositionRoot` is the single point where a runtime mode becomes concrete repository instances — see Data above.
 
 ## Design conventions
 
@@ -56,7 +62,9 @@ Always use:
 - No pipes (`|`) during Gradle execution — use `*>` to redirect to log file if needed
 - `Get-Content <log> -Tail 120` to inspect output
 
-## Auto commit + CI rule
+## Commit + PR rule
+
+Never commit or push directly to `main`. Every change goes through a short branch, per the portfolio-wide branch governance (D-004 in `_Shared/COMMAND-CENTER/DECISIONES.md`):
 
 After any approved microphase execution:
 
@@ -67,15 +75,15 @@ After any approved microphase execution:
 - no risky unexpected files
 - recommendation is commit ready
 
-**THEN automatically execute:**
+**THEN execute:**
 1. `git status`
 2. `git add` only scoped files
-3. `git commit` with suggested conventional commit message
-4. `git push origin main`
-5. `gh run list --branch main --limit 3`
-6. `gh run view <latest-run-id>`
-7. wait until workflow completes
-8. report final CI status
+3. `git commit` with a conventional commit message
+4. `git push -u origin <branch>` (never `main`)
+5. `gh pr create` targeting `main`
+6. `gh pr checks <pr-number> --watch` (or `gh run list --branch <branch> --limit 3`)
+7. wait until CI completes
+8. report final CI status; merge (squash) and delete the branch only after Hugo confirms, unless he has explicitly pre-authorized autonomous merge for this task
 
 **STRICT RULES:**
 - Never add composeApp/build/
@@ -84,10 +92,12 @@ After any approved microphase execution:
 - Never commit if unexpected files are modified
 - Never commit if scope is unclear
 - Never proceed to next feature until CI is green
+- Never push or merge directly to `main`
 
 **REPORT FORMAT:**
 - files committed
 - commit hash
+- PR number/URL
 - workflow run ID
 - Build Android
 - Test Desktop
