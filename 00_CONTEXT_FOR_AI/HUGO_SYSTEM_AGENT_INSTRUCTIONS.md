@@ -61,6 +61,26 @@ Pre-solicitud familiar -> Secretaria -> Alta oficial -> Expediente -> Credencial
 
 Do not break this flow.
 
+## Contribution Lanes
+
+Main app work, testing/tooling, and agent-context documentation are separate lanes. Mixing them in one PR makes review and rollback harder: a UI fix and a smoke-script change should never share a diff.
+
+| Lane | Allowed examples | Forbidden in the same PR |
+|---|---|---|
+| Main app | `composeApp/src/**` screens, models, business rules, bug fixes | `tools/android/`, agent-memory files |
+| Testing / tooling | `tools/android/`, `docs/testing/`, smoke scripts, sanitized evidence under `evidence/` | Application behavior or business-rule changes |
+| Agent context | `AGENTS.md`, `00_CONTEXT_FOR_AI/`, `.claude/`, workflow skills | App code, generated evidence |
+
+**One PR belongs to one lane, unless Hugo explicitly authorizes a mixed exception.**
+
+Branch naming by lane (examples):
+
+- Main app: `fix/enrollment-...`, `feat/expediente-...`
+- Testing / tooling: `test/android-...`, `agent/test-...`
+- Agent context: `docs/agents-...`, `docs/skills-...`
+
+Pre-PR checklist — before opening a PR, run `git diff --stat` against the target branch and confirm every changed path belongs to the same lane. If it doesn't, split the change or get Hugo's explicit sign-off for the exception before pushing.
+
 ## Required Git Workflow
 
 Start:
