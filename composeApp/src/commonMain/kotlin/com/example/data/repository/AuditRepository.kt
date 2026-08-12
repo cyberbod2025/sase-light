@@ -18,4 +18,11 @@ interface AuditRepository {
      * cambio: sin evidencia no hay mutacion.
      */
     suspend fun logAudit(event: InstitutionalAuditEvent): Boolean
+
+    /**
+     * Vacia el estado en memoria (sin red). Se invoca en logout/expiracion de
+     * sesion/antes de aceptar una sesion nueva para que el StateFlow nunca
+     * exponga la bitacora de un usuario/institucion anterior.
+     */
+    fun clear()
 }

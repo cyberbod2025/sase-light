@@ -96,7 +96,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun confirmInitialGroupBlocksDuplicateMatricula() {
+    fun confirmInitialGroupBlocksDuplicateMatricula() = runTest {
         val curpWithConflictingMatricula = uniqueCurp("DMAT")
         val expectedMatricula = com.example.data.presolicitud.OfficialStudent.generateMatricula(curpWithConflictingMatricula, 26) ?: ""
         assertIs<StudentAddResult.Added>(
@@ -271,7 +271,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun convertedPreApplicationIsNotShownAsSimplyPending() {
+    fun convertedPreApplicationIsNotShownAsSimplyPending() = runTest {
         val readyCandidate = submitReadyCandidate(curp = uniqueCurp("CONVRT"))
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
         val readyStored = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == readyCandidate.folio }
@@ -286,7 +286,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun successfulOfficialEnrollmentCreatesOfficialStudentAndMasterStudent() {
+    fun successfulOfficialEnrollmentCreatesOfficialStudentAndMasterStudent() = runTest {
         val readyCandidate = submitReadyCandidate(curp = uniqueCurp("MASTCR"))
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
         val readyStored = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == readyCandidate.folio }
@@ -300,7 +300,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun propagatedMasterStudentUsesOfficialMatriculaAndNormalizedCurp() {
+    fun propagatedMasterStudentUsesOfficialMatriculaAndNormalizedCurp() = runTest {
         val rawCurp = uniqueCurp("NORMED").lowercase()
         val readyCandidate = submitReadyCandidate(curp = rawCurp)
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
@@ -332,7 +332,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun unrelatedMasterDuplicateDoesNotReturnFalseSuccess() {
+    fun unrelatedMasterDuplicateDoesNotReturnFalseSuccess() = runTest {
         val curpWithConflictingMatricula = uniqueCurp("CONFLI")
         val readyCandidate = submitReadyCandidate(curp = curpWithConflictingMatricula)
         val expectedMatricula = com.example.data.presolicitud.OfficialStudent.generateMatricula(readyCandidate.alumnoCurp, 26) ?: ""
@@ -545,7 +545,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun masterStudentCanBeFoundByCurpAfterOfficialEnrollment() {
+    fun masterStudentCanBeFoundByCurpAfterOfficialEnrollment() = runTest {
         val rawCurp = uniqueCurp("MASTER").lowercase()
         val readyCandidate = submitReadyCandidate(curp = rawCurp)
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
@@ -561,7 +561,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun masterStudentCanBeFoundByMatriculaAfterOfficialEnrollment() {
+    fun masterStudentCanBeFoundByMatriculaAfterOfficialEnrollment() = runTest {
         val rawCurp = uniqueCurp("MATRIC").lowercase()
         val readyCandidate = submitReadyCandidate(curp = rawCurp)
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
@@ -577,7 +577,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun preApplicationFolioLinkIsVisibleOnOfficialStudent() {
+    fun preApplicationFolioLinkIsVisibleOnOfficialStudent() = runTest {
         val rawCurp = uniqueCurp("FOLINK")
         val readyCandidate = submitReadyCandidate(curp = rawCurp)
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
@@ -742,7 +742,7 @@ class PreApplicationGuardrailsTest {
     // ── Integration: full pre-enrollment flow ───────────────────────────
 
     @Test
-    fun fullPreEnrollmentFlowFromSubmitToMasterStudent() {
+    fun fullPreEnrollmentFlowFromSubmitToMasterStudent() = runTest {
         val rawCurp = uniqueCurp("INTEG").lowercase()
         val grado = 1
 
@@ -1831,5 +1831,44 @@ class PreApplicationGuardrailsTest {
     fun v2LegacyFlowStillAvailable() {
         MockSaseData.resetForTests()
         assertEquals(com.example.data.enrollment.EnrollmentFlowMode.ANNUAL_V2, PreApplicationViewModel.enrollmentFlowMode.value)
+    }
+
+    // ── P1 Codex PR #49: alta oficial debe usar el repositorio conectado ──
+
+    @Test
+    fun stagingConfirmInitialGroupFailsClosedInsteadOfWritingMockSaseData() = runTest {
+        val readyCandidate = submitReadyCandidate(curp = uniqueCurp("STGRTE"))
+        assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
+        val readyStored = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == readyCandidate.folio }
+        assertIs<OfficialEnrollmentResult.Success>(PreApplicationViewModel.startOfficialEnrollment(readyStored, selectedGroup = "1A"))
+
+        val countBefore = MockSaseData.students.value.count { it.preApplicationFolio == readyStored.folio }
+
+        val bootstrap = com.example.SaseCompositionRoot.create(
+            mapOf(
+                com.example.environment.AppEnvironment.ENVIRONMENT_KEY to com.example.environment.AppEnvironmentMode.SUPABASE_STAGING.name,
+                com.example.environment.AppEnvironment.APP_VERSION_KEY to "test",
+                com.example.environment.AppEnvironment.SUPABASE_URL_KEY to "https://project-ref.supabase.co",
+                com.example.environment.AppEnvironment.SUPABASE_PUBLISHABLE_KEY to "publishable-test-key"
+            )
+        )
+        assertIs<com.example.SaseBootstrap.Ready>(bootstrap)
+
+        try {
+            // Sin sesion viva en el repositorio conectado, confirmInitialGroup
+            // debe fallar cerrado (NO_SESSION) en vez de escribir en
+            // MockSaseData -- si todavia usara MockSaseData directo (P1 de
+            // Codex en PR #49), esto tendria "exito" silencioso sin que el
+            // estudiante llegara jamas a Supabase.
+            val result = PreApplicationViewModel.confirmInitialGroup(readyStored.folio, "1A")
+            val failure = assertIs<OfficialEnrollmentResult.MasterStudentPropagationError>(result)
+            assertTrue(failure.message.contains("NO_SESSION"))
+
+            val countAfter = MockSaseData.students.value.count { it.preApplicationFolio == readyStored.folio }
+            assertEquals(countBefore, countAfter, "MockSaseData no debe recibir escrituras cuando el ambiente esta conectado")
+        } finally {
+            // Restaurar el repositorio mock para no contaminar otros tests.
+            PreApplicationViewModel.resetSharedStateForTests()
+        }
     }
 }

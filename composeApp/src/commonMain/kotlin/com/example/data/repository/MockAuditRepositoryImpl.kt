@@ -14,4 +14,10 @@ class MockAuditRepositoryImpl : AuditRepository {
         MockSaseData.logAudit(event)
         return true
     }
+
+    override fun clear() {
+        // DEMO_LOCAL es un dataset compartido de demostracion, no datos de un
+        // usuario real: no hay sesion anterior de la que aislarse. Ver el
+        // mismo criterio en MockStudentRepositoryImpl.clear().
+    }
 }

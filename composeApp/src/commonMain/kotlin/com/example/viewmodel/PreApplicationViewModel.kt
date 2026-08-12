@@ -5,6 +5,9 @@ import com.example.data.SaseAudit
 import com.example.data.SaseDocument
 import com.example.data.Student
 import com.example.data.StudentAddResult
+import com.example.data.StudentUpdateResult
+import com.example.data.repository.MockStudentRepositoryImpl
+import com.example.data.repository.StudentRepository
 import com.example.data.enrollment.AnnualEnrollmentFlowCoordinator
 import com.example.data.enrollment.EnrollmentFlowMode
 import com.example.data.enrollment.AnnualEnrollmentFlowRequest
@@ -211,6 +214,17 @@ class PreApplicationViewModel {
         private const val preApplicationTimestampPrefix = "Hoy "
         private val officialCurpPattern = Regex("^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z0-9]\\d$")
 
+        // El alta oficial se apoyaba en MockSaseData sin importar el ambiente
+        // (P1 de Codex en PR #49): SaseCompositionRoot inyecta aqui el mismo
+        // repositorio que ya resuelve LabViewModel por ambiente. El default
+        // preserva el comportamiento actual en DEMO_LOCAL/tests (delega en
+        // MockSaseData igual que antes).
+        private var studentRepository: StudentRepository = MockStudentRepositoryImpl()
+
+        fun configureRepositories(studentRepository: StudentRepository) {
+            this.studentRepository = studentRepository
+        }
+
         fun approvePreApplication(folio: String) {
             updatePreApp(folio) { it.copy(status = PreApplicationStatus.ACEPTADA) }
             reconcileReadinessAfterRequirementChange(folio)
@@ -346,6 +360,7 @@ class PreApplicationViewModel {
             _v2Result.value = null
             _isProcessingAnnualEnrollmentV2.value = false
             MockSaseData.resetDemoData()
+            studentRepository = MockStudentRepositoryImpl()
         }
 
         fun resetSharedStateForTests() = resetDemoData()
@@ -646,7 +661,7 @@ class PreApplicationViewModel {
 
             val duplicateCurp = _sharedPreApplications.value.any { normalizeCurp(it.alumnoCurp) == normalizedCurp } ||
                 _officialStudents.value.any { normalizeCurp(it.curp) == normalizedCurp } ||
-                MockSaseData.students.value.any { normalizeCurp(it.curp) == normalizedCurp }
+                studentRepository.students.value.any { normalizeCurp(it.curp) == normalizedCurp }
             if (duplicateCurp) {
                 return FamilySubmissionResult.DuplicateCurp(normalizedCurp)
             }
@@ -946,10 +961,10 @@ class PreApplicationViewModel {
             }
 
         private fun masterStudentByCurp(curp: String): Student? =
-            MockSaseData.students.value.firstOrNull { normalizeCurp(it.curp) == normalizeCurp(curp) }
+            studentRepository.students.value.firstOrNull { normalizeCurp(it.curp) == normalizeCurp(curp) }
 
         private fun masterStudentByMatricula(matricula: String): Student? =
-            MockSaseData.students.value.firstOrNull {
+            studentRepository.students.value.firstOrNull {
                 normalizeMatricula(it.enrollmentId) == normalizeMatricula(matricula)
             }
 
@@ -959,7 +974,7 @@ class PreApplicationViewModel {
         fun curpDuplicateInfo(folio: String, curp: String, tramite: String = ""): String? {
             if (tramite.uppercase() == "REINSCRIPCION") return null
             val normalized = normalizeCurp(curp)
-            val inMaster = MockSaseData.students.value.firstOrNull {
+            val inMaster = studentRepository.students.value.firstOrNull {
                 normalizeCurp(it.curp) == normalized && it.preApplicationFolio?.let { p -> normalizeCurp(p) != normalizeCurp(folio) } == true
             }
             if (inMaster != null) return "CURP ya registrada en el padrón maestro (${inMaster.fullName})"
@@ -1122,7 +1137,7 @@ class PreApplicationViewModel {
             )
         }
 
-        fun confirmInitialGroup(
+        suspend fun confirmInitialGroup(
             folio: String,
             selectedGroup: String,
             actor: String = "Secretaría"
@@ -1183,15 +1198,19 @@ class PreApplicationViewModel {
 
             val currentStudent = updatedStudent
                 ?: return OfficialEnrollmentResult.Error("No se encontró alta oficial para este folio.")
-            val existingMaster = MockSaseData.studentByCurp(currentStudent.curp)
+            val existingMaster = masterStudentByCurp(currentStudent.curp)
             val syncedMaster = if (existingMaster != null) {
                 val updatedMaster = existingMaster.copy(
                     group = cleanGroup,
                     enrollmentId = currentStudent.matriculaOficial.orEmpty(),
                     status = "Alta oficial con grupo"
                 )
-                MockSaseData.updateStudent(updatedMaster)
-                updatedMaster
+                when (val updateResult = studentRepository.updateStudent(updatedMaster)) {
+                    is StudentUpdateResult.Updated -> updateResult.student
+                    is StudentUpdateResult.Failed -> return OfficialEnrollmentResult.MasterStudentPropagationError(
+                        "El expediente maestro no pudo actualizarse (${updateResult.reason.name})."
+                    )
+                }
             } else {
                 val newMaster = Student(
                     id = "MASTER-${folio.takeLast(4)}",
@@ -1202,14 +1221,11 @@ class PreApplicationViewModel {
                     status = "Alta oficial con grupo",
                     preApplicationFolio = folio
                 )
-                when (val addResult = MockSaseData.addStudent(newMaster)) {
+                when (val addResult = studentRepository.addStudent(newMaster)) {
                     is StudentAddResult.Added -> addResult.student
                     is StudentAddResult.DuplicateCurp -> addResult.existing
                     is StudentAddResult.DuplicateEnrollmentId -> return OfficialEnrollmentResult.DuplicateMatricula(addResult.enrollmentId)
                     is StudentAddResult.InvalidData -> return OfficialEnrollmentResult.MasterStudentPropagationError(addResult.message)
-                    // Inalcanzable con el almacenamiento en memoria, pero mantiene
-                    // honesta esta ruta si algún día se apoya en un repositorio
-                    // conectado en vez de MockSaseData.
                     is StudentAddResult.Failed -> return OfficialEnrollmentResult.MasterStudentPropagationError(
                         "El expediente maestro no pudo persistirse (${addResult.reason.name})."
                     )

@@ -37,6 +37,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.test.runTest
 
 class InstitutionalRecordSecretaryEditingIntegrationTest {
     private var seq = 0
@@ -797,7 +798,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `H CONVERTED es isConverted true`() {
+    fun `H CONVERTED es isConverted true`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s, addAnnual = false)
         PreApplicationViewModel.approvePreApplication(preApp.folio)
@@ -884,7 +885,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `K flujo completo grupo confirmado via start+confirm`() {
+    fun `K flujo completo grupo confirmado via start+confirm`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s, addAnnual = false)
         val selectedGroup = "1A"

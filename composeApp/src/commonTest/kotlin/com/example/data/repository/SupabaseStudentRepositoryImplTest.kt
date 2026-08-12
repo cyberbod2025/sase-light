@@ -87,7 +87,14 @@ private fun studentRow(
 private class Recorder {
     val requests = mutableListOf<HttpRequestData>()
     var bodies = mutableListOf<String>()
+
+    /** Cuerpo de la primera peticion que cumple [predicate] — requests/bodies estan en el mismo orden. */
+    fun bodyFor(predicate: (HttpRequestData) -> Boolean): String = bodies[requests.indexOfFirst(predicate)]
 }
+
+/** Respuesta minima valida para el upsert de identidad sensible (todas sus columnas tienen default salvo student_id). */
+private fun sensitiveIdentityRowJson(studentId: String = "student-1"): String =
+    """{"student_id":"$studentId"}"""
 
 private fun repositoryWith(
     session: AuthSession? = testSession(),
@@ -155,10 +162,16 @@ class SupabaseStudentRepositoryImplTest {
 
         repository.refresh()
 
-        val request = recorder.requests.single()
-        assertEquals(STUDENTS_PATH, request.url.encodedPath)
-        assertEquals("eq.$INSTITUTION_A", request.url.parameters["institution_id"])
-        assertEquals("Bearer token-de-prueba", request.headers[HttpHeaders.Authorization])
+        // refresh() consulta el nucleo y las tablas por area (identidad
+        // sensible, observaciones, incidencias): todas deben filtrar por la
+        // misma institucion de la sesion.
+        assertTrue(recorder.requests.isNotEmpty())
+        recorder.requests.forEach { request ->
+            assertEquals("eq.$INSTITUTION_A", request.url.parameters["institution_id"])
+            assertEquals("Bearer token-de-prueba", request.headers[HttpHeaders.Authorization])
+        }
+        val studentsRequest = recorder.requests.first { it.url.encodedPath == STUDENTS_PATH }
+        assertEquals(STUDENTS_PATH, studentsRequest.url.encodedPath)
     }
 
     @Test
@@ -288,10 +301,11 @@ class SupabaseStudentRepositoryImplTest {
     @Test
     fun actualizacionExitosaReemplazaElExpedienteEnMemoria() = runTest {
         val (repository, recorder) = repositoryWith { request ->
-            if (request.method == HttpMethod.Get) {
-                HttpStatusCode.OK to "[${studentRow(group = "1A")}]"
-            } else {
-                HttpStatusCode.OK to "[${studentRow(group = "1B")}]"
+            when {
+                request.method == HttpMethod.Get -> HttpStatusCode.OK to "[${studentRow(group = "1A")}]"
+                request.url.encodedPath.endsWith("student_sensitive_identity") ->
+                    HttpStatusCode.OK to "[${sensitiveIdentityRowJson()}]"
+                else -> HttpStatusCode.OK to "[${studentRow(group = "1B")}]"
             }
         }
         repository.refresh()
@@ -309,8 +323,7 @@ class SupabaseStudentRepositoryImplTest {
         assertEquals("1B", assertIs<StudentUpdateResult.Updated>(result).student.group)
         assertEquals("1B", repository.students.value.single().group)
 
-        val patch = recorder.requests.last()
-        assertEquals(HttpMethod.Patch, patch.method)
+        val patch = recorder.requests.first { it.url.encodedPath == STUDENTS_PATH && it.method == HttpMethod.Patch }
         assertEquals("eq.student-1", patch.url.parameters["id"])
         // El filtro por institucion viaja ademas de RLS.
         assertEquals("eq.$INSTITUTION_A", patch.url.parameters["institution_id"])
@@ -414,8 +427,12 @@ class SupabaseStudentRepositoryImplTest {
         // Con encodeDefaults=false una columna ausente del PATCH queda intacta
         // en PostgREST: si el payload omitiera los nulos, seria imposible
         // borrar una matricula o desligar un folio de pre-solicitud.
-        val (repository, recorder) = repositoryWith {
-            HttpStatusCode.OK to "[${studentRow(enrollmentId = null)}]"
+        val (repository, recorder) = repositoryWith { request ->
+            if (request.url.encodedPath.endsWith("student_sensitive_identity")) {
+                HttpStatusCode.OK to "[${sensitiveIdentityRowJson()}]"
+            } else {
+                HttpStatusCode.OK to "[${studentRow(enrollmentId = null)}]"
+            }
         }
 
         repository.updateStudent(
@@ -429,7 +446,7 @@ class SupabaseStudentRepositoryImplTest {
             )
         )
 
-        val body = recorder.bodies.single()
+        val body = recorder.bodyFor { it.url.encodedPath == STUDENTS_PATH && it.method == HttpMethod.Patch }
         listOf(
             "institution_id", "full_name", "student_group", "enrollment_id",
             "curp", "shift", "school_year", "status", "pre_application_folio"

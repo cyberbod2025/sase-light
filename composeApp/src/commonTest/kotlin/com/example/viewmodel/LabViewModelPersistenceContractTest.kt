@@ -3,6 +3,8 @@ package com.example.viewmodel
 import com.example.audit.InstitutionalAuditEvent
 import com.example.data.MockSaseData
 import com.example.data.SaseAudit
+import com.example.data.SaseIncident
+import com.example.data.SaseObservation
 import com.example.data.Student
 import com.example.data.StudentAddResult
 import com.example.data.StudentPersistenceFailure
@@ -35,22 +37,32 @@ import kotlin.test.assertTrue
  */
 private class RecordingStudentRepository(
     private val onUpdate: (Student) -> StudentUpdateResult = { StudentUpdateResult.Updated(it) },
-    private val onAdd: (Student) -> StudentAddResult = { StudentAddResult.Added(it) }
+    private val onAdd: (Student) -> StudentAddResult = { StudentAddResult.Added(it) },
+    private val onRefresh: (List<Student>) -> StudentSyncResult = { StudentSyncResult.Loaded(it) }
 ) : StudentRepository {
     val updates = mutableListOf<Student>()
     val adds = mutableListOf<Student>()
     var refreshes = 0
+    var cleared = 0
 
     private val _students = MutableStateFlow<List<Student>>(emptyList())
     override val students: StateFlow<List<Student>> = _students.asStateFlow()
 
+    // Fuente "de servidor", independiente de _students: igual que
+    // MockSaseData/Supabase, clear() vacia solo la cache local expuesta a la
+    // UI, nunca el origen que refresh() vuelve a consultar.
+    private var backingData: List<Student> = emptyList()
+
     fun seed(vararg students: Student) {
-        _students.value = students.toList()
+        backingData = students.toList()
+        _students.value = backingData
     }
 
     override suspend fun refresh(): StudentSyncResult {
         refreshes++
-        return StudentSyncResult.Loaded(_students.value)
+        val result = onRefresh(backingData)
+        if (result is StudentSyncResult.Loaded) _students.value = result.students
+        return result
     }
 
     override suspend fun updateStudent(student: Student): StudentUpdateResult {
@@ -61,6 +73,46 @@ private class RecordingStudentRepository(
     override suspend fun addStudent(student: Student): StudentAddResult {
         adds += student
         return onAdd(student)
+    }
+
+    override suspend fun addObservation(studentId: String, observation: SaseObservation): StudentUpdateResult {
+        val student = _students.value.firstOrNull { it.id == studentId } ?: return onUpdate(
+            Student(id = studentId, fullName = "", group = "", enrollmentId = "", curp = "")
+        )
+        val updated = student.copy(observations = listOf(observation) + student.observations)
+        updates += updated
+        return onUpdate(updated)
+    }
+
+    override suspend fun addIncident(
+        studentId: String,
+        type: String,
+        description: String,
+        date: String,
+        reportedByStaffId: String,
+        reportedByName: String
+    ): StudentUpdateResult {
+        val student = _students.value.firstOrNull { it.id == studentId } ?: return onUpdate(
+            Student(id = studentId, fullName = "", group = "", enrollmentId = "", curp = "")
+        )
+        val incident = SaseIncident(date = date, type = type, reporter = reportedByName, status = "En seguimiento", id = "INC-TEST")
+        val updated = student.copy(schoolIncidents = listOf(incident) + student.schoolIncidents)
+        updates += updated
+        return onUpdate(updated)
+    }
+
+    override suspend fun advanceIncident(studentId: String, updated: SaseIncident): StudentUpdateResult {
+        val student = _students.value.firstOrNull { it.id == studentId } ?: return onUpdate(
+            Student(id = studentId, fullName = "", group = "", enrollmentId = "", curp = "")
+        )
+        val next = student.copy(schoolIncidents = student.schoolIncidents.map { if (it.id == updated.id) updated else it })
+        updates += next
+        return onUpdate(next)
+    }
+
+    override fun clear() {
+        cleared++
+        _students.value = emptyList()
     }
 }
 
@@ -79,6 +131,12 @@ private class RecordingAuditRepository(
         if (!accepts) return false
         _audits.value = listOf(SaseAudit.fromInstitutionalEvent(event)) + _audits.value
         return true
+    }
+
+    var cleared = 0
+    override fun clear() {
+        cleared++
+        _audits.value = emptyList()
     }
 }
 
@@ -202,6 +260,42 @@ class LabViewModelPersistenceContractTest {
     }
 
     @Test
+    fun `logout de A e inicio de B con refresh fallido no hereda datos de la sesion anterior`() = runTest {
+        // P1 de Codex en PR #49: "Clear prior-session data before accepting
+        // a new session". Escenario exacto que pidio Hugo: SECRETARIA
+        // institucion A -> logout -> login usuario B -> el refresh de B
+        // falla -> cero expedientes/bitacora heredados, ni siquiera bajo el
+        // estado de error.
+        var refreshCount = 0
+        val repository = RecordingStudentRepository(
+            onRefresh = { students ->
+                refreshCount++
+                if (refreshCount == 1) StudentSyncResult.Loaded(students)
+                else StudentSyncResult.Failed(StudentPersistenceFailure.NETWORK)
+            }
+        )
+        repository.seed(student())
+        val audits = RecordingAuditRepository()
+        val vm = viewModel(repository, audits)
+
+        vm.signIn("secretaria@example.invalid", "demo1234")
+        assertEquals(listOf("student-1"), vm.saseStudents.value.map { it.id })
+
+        vm.signOut()
+        // cleared=2: una vez al aceptar la sesion de A (no-op, no habia nada
+        // que limpiar todavia) y otra vez en signOut() — ambos puntos del
+        // ciclo de vida llaman clear() por diseno.
+        assertEquals(2, repository.cleared, "signOut debe vaciar el repositorio de estudiantes")
+        assertEquals(2, audits.cleared, "signOut debe vaciar la bitacora")
+
+        vm.signIn("docente@example.invalid", "demo1234")
+
+        assertIs<StudentSyncUiState.Error>(vm.studentSync.value)
+        assertTrue(vm.saseStudents.value.isEmpty(), "cero expedientes heredados de la sesion anterior")
+        assertTrue(vm.saseAudits.value.isEmpty(), "cero bitacora heredada de la sesion anterior")
+    }
+
+    @Test
     fun `un fallo de carga se comunica como error y no como institucion vacia`() = runTest {
         val failing = object : StudentRepository {
             override val students: StateFlow<List<Student>> = MutableStateFlow(emptyList())
@@ -211,6 +305,19 @@ class LabViewModelPersistenceContractTest {
                 StudentUpdateResult.Failed(StudentPersistenceFailure.NETWORK)
             override suspend fun addStudent(student: Student) =
                 StudentAddResult.Failed(StudentPersistenceFailure.NETWORK)
+            override suspend fun addObservation(studentId: String, observation: SaseObservation) =
+                StudentUpdateResult.Failed(StudentPersistenceFailure.NETWORK)
+            override suspend fun addIncident(
+                studentId: String,
+                type: String,
+                description: String,
+                date: String,
+                reportedByStaffId: String,
+                reportedByName: String
+            ) = StudentUpdateResult.Failed(StudentPersistenceFailure.NETWORK)
+            override suspend fun advanceIncident(studentId: String, updated: SaseIncident) =
+                StudentUpdateResult.Failed(StudentPersistenceFailure.NETWORK)
+            override fun clear() {}
         }
         val vm = viewModel(failing, RecordingAuditRepository())
 

@@ -10,6 +10,7 @@ import com.example.environment.AppEnvironment
 import com.example.environment.AppEnvironmentMode
 import com.example.environment.platformAppEnvironmentValues
 import com.example.viewmodel.LabViewModel
+import com.example.viewmodel.PreApplicationViewModel
 
 sealed interface SaseBootstrap {
     data class Ready(
@@ -39,15 +40,23 @@ object SaseCompositionRoot {
     }
 
     fun create(environment: AppEnvironment): SaseBootstrap = when (environment.mode) {
-        AppEnvironmentMode.DEMO_LOCAL -> SaseBootstrap.Ready(
-            environment = environment,
-            viewModel = LabViewModel(
-                appEnvironment = environment,
-                authRepository = MockAuthRepositoryImpl(),
-                studentRepository = MockStudentRepositoryImpl(),
-                auditRepository = MockAuditRepositoryImpl()
+        AppEnvironmentMode.DEMO_LOCAL -> {
+            val studentRepository = MockStudentRepositoryImpl()
+            // El alta oficial (PreApplicationViewModel) es estatico y no pasa
+            // por este constructor: se cablea aqui al mismo repositorio que
+            // usa LabViewModel para que ambos lean/escriban el mismo padron
+            // maestro segun el ambiente (P1 de Codex en PR #49).
+            PreApplicationViewModel.configureRepositories(studentRepository)
+            SaseBootstrap.Ready(
+                environment = environment,
+                viewModel = LabViewModel(
+                    appEnvironment = environment,
+                    authRepository = MockAuthRepositoryImpl(),
+                    studentRepository = studentRepository,
+                    auditRepository = MockAuditRepositoryImpl()
+                )
             )
-        )
+        }
 
         AppEnvironmentMode.SUPABASE_STAGING -> {
             val supabase = requireNotNull(environment.supabase)
@@ -59,16 +68,18 @@ object SaseCompositionRoot {
             // autenticacion: sin sesion no leen ni escriben nada, y la
             // institucion de cada operacion sale siempre de ahi.
             val sessionProvider = { authRepository.session.value }
+            val studentRepository = SupabaseStudentRepositoryImpl(
+                baseUrl = supabase.url,
+                apiKey = supabase.publishableKey,
+                sessionProvider = sessionProvider
+            )
+            PreApplicationViewModel.configureRepositories(studentRepository)
             SaseBootstrap.Ready(
                 environment = environment,
                 viewModel = LabViewModel(
                     appEnvironment = environment,
                     authRepository = authRepository,
-                    studentRepository = SupabaseStudentRepositoryImpl(
-                        baseUrl = supabase.url,
-                        apiKey = supabase.publishableKey,
-                        sessionProvider = sessionProvider
-                    ),
+                    studentRepository = studentRepository,
                     auditRepository = SupabaseAuditRepositoryImpl(
                         baseUrl = supabase.url,
                         apiKey = supabase.publishableKey,

@@ -1387,9 +1387,11 @@ private fun OfficialEnrollmentContextualPanel(
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(
                     onClick = {
-                        val confirmResult = PreApplicationViewModel.confirmInitialGroup(preApp.folio, selectedGroup, actor = staffName)
-                        resultMessage = confirmResult.message
-                        resultColor = confirmResult.toUiColor()
+                        scope.launch {
+                            val confirmResult = PreApplicationViewModel.confirmInitialGroup(preApp.folio, selectedGroup, actor = staffName)
+                            resultMessage = confirmResult.message
+                            resultColor = confirmResult.toUiColor()
+                        }
                     },
                     enabled = groupConfirmed && selectedGroup.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(containerColor = SaseNavy, contentColor = Color.White),

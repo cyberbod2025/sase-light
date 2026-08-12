@@ -157,6 +157,10 @@ class SupabaseAuditRepositoryImpl(
         return true
     }
 
+    override fun clear() {
+        _audits.value = emptyList()
+    }
+
     private fun InstitutionalAuditEvent.matchesSession(session: AuthSession): Boolean =
         institutionId == session.institutionId &&
             actorProfileId == session.profileId &&

@@ -37,7 +37,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 
 sealed class Screen {
     data object SessionHome : Screen()
@@ -144,11 +143,21 @@ class LabViewModel(
 
     private suspend fun loadInstitutionalData() {
         _studentSync.value = StudentSyncUiState.Loading
-        _studentSync.value = when (val result = studentRepository.refresh()) {
+        val result = studentRepository.refresh()
+        _studentSync.value = when (result) {
             is StudentSyncResult.Loaded -> StudentSyncUiState.Ready
-            is StudentSyncResult.Failed -> StudentSyncUiState.Error(result.reason)
+            is StudentSyncResult.Failed -> {
+                // Un refresh fallido no debe dejar expuesto lo que hubiera en
+                // memoria de una sesion anterior (P1 de Codex en PR #49:
+                // "Clear prior-session data before accepting a new session").
+                studentRepository.clear()
+                auditRepository.clear()
+                StudentSyncUiState.Error(result.reason)
+            }
         }
-        auditRepository.refresh()
+        if (!auditRepository.refresh()) {
+            auditRepository.clear()
+        }
     }
 
     fun signIn(email: String, password: String) {
@@ -220,6 +229,8 @@ class LabViewModel(
                     )
                 }
                 authRepository.signOut()
+                studentRepository.clear()
+                auditRepository.clear()
                 _currentScreen.value = Screen.SessionHome
                 _loginState.value = LoginUiState.Idle
                 _studentSync.value = StudentSyncUiState.Idle
@@ -268,6 +279,12 @@ class LabViewModel(
             _loginState.value = LoginUiState.Error(AuthFailureReason.SESSION_EXPIRED)
             return
         }
+        // Un usuario nuevo (u otra institucion) nunca debe ver, ni siquiera
+        // brevemente antes de que loadInstitutionalData() complete, los
+        // expedientes/bitacora que hubieran quedado en memoria de la sesion
+        // anterior (P1 de Codex en PR #49).
+        studentRepository.clear()
+        auditRepository.clear()
         _currentScreen.value = Screen.SessionHome
         _loginState.value = LoginUiState.Idle
         recordAudit(
@@ -309,6 +326,8 @@ class LabViewModel(
                     )
                 }
                 authRepository.signOut()
+                studentRepository.clear()
+                auditRepository.clear()
                 _currentScreen.value = Screen.SessionHome
                 _loginState.value = LoginUiState.Error(AuthFailureReason.SESSION_EXPIRED)
             } finally {
@@ -394,7 +413,7 @@ class LabViewModel(
             entityType = "student_observation",
             entityId = studentId
         ) ?: return false
-        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return false
+        if (saseStudents.value.none { it.id == studentId }) return false
 
         val observation = SaseObservation(
             text = text,
@@ -402,9 +421,11 @@ class LabViewModel(
             date = "Hoy",
             category = category
         )
-        val persisted = studentRepository.updateStudent(
-            student.copy(observations = listOf(observation) + student.observations)
-        ) is StudentUpdateResult.Updated
+        // Metodo dedicado, no updateStudent(): en SUPABASE_STAGING vive en su
+        // propia tabla con su propio RLS, y el resultado nunca se reporta
+        // como guardado si la fila no llego a insertarse (P1 de Codex en PR
+        // #49, "Reject updates for fields the backend does not persist").
+        val persisted = studentRepository.addObservation(studentId, observation) is StudentUpdateResult.Updated
         if (!persisted) return false
         return recordAudit(
             session = active,
@@ -440,25 +461,28 @@ class LabViewModel(
             entityType = "school_incident",
             entityId = studentId
         ) ?: return false
-        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return false
+        if (saseStudents.value.none { it.id == studentId }) return false
 
-        val incident = IncidentWorkflow.report(
+        // Metodo dedicado, no updateStudent(): en SUPABASE_STAGING su RLS
+        // real es EDIT_INCIDENTS (Prefectura/Tutor), DISTINTO del que protege
+        // el nucleo del expediente (EDIT_STUDENT_IDENTITY, Secretaria) —
+        // enrutar por updateStudent() rechazaria el reporte para cualquier
+        // rol que legitimamente puede reportar incidencias.
+        val result = studentRepository.addIncident(
+            studentId = studentId,
             type = type,
             description = description,
             date = "Hoy",
             reportedByStaffId = active.profile.id,
-            reportedByName = active.profile.fullName,
-            idGenerator = { "INC-${Random.nextInt(100000, 999999)}" }
+            reportedByName = active.profile.fullName
         )
-        val persisted = studentRepository.updateStudent(
-            student.copy(schoolIncidents = listOf(incident) + student.schoolIncidents)
-        ) is StudentUpdateResult.Updated
-        if (!persisted) return false
+        val updated = (result as? StudentUpdateResult.Updated)?.student ?: return false
+        val incidentId = updated.schoolIncidents.firstOrNull()?.id ?: return false
         return recordAudit(
             session = active,
             action = "school_incident.reported",
             entityType = "school_incident",
-            entityId = incident.id,
+            entityId = incidentId,
             result = InstitutionalAuditResult.AUTHORIZED
         )
     }
@@ -476,13 +500,7 @@ class LabViewModel(
             is IncidentTransitionResult.IllegalTransition -> return false
             is IncidentTransitionResult.Success -> transition.incident
         }
-        val persisted = studentRepository.updateStudent(
-            student.copy(
-                schoolIncidents = student.schoolIncidents.map {
-                    if (it.id == incidentId) updated else it
-                }
-            )
-        ) is StudentUpdateResult.Updated
+        val persisted = studentRepository.advanceIncident(studentId, updated) is StudentUpdateResult.Updated
         if (!persisted) return false
         return recordAudit(
             session = active,

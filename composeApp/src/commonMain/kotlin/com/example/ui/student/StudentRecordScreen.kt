@@ -138,6 +138,14 @@ private fun visibleEnrollmentId(enrollmentId: String, curp: String): String =
 
 private fun visibleGroup(group: String): String = group.trim().ifBlank { "Pendiente de asignación" }
 
+/**
+ * Un campo del expediente sin capturar/persistir en SUPABASE_STAGING queda
+ * en blanco (nunca con un valor fabricado, ver Student en SaseEntities.kt) —
+ * la UI debe decirlo explicitamente en vez de mostrar una celda vacia que
+ * parezca un error de carga.
+ */
+private fun String.orNoRegistrado(): String = trim().ifBlank { "No registrado" }
+
 private fun visibleGrade(group: String): String = group.trim().firstOrNull()?.digitToIntOrNull()
     ?.let { "${it}°" }
     ?: "Pendiente de confirmar"
@@ -653,6 +661,7 @@ private fun GrupoDecisionDialog(
     var groupConfirmed by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf<String?>(null) }
     var resultColor by remember { mutableStateOf(SaseGreen) }
+    val scope = rememberCoroutineScope()
 
     val grade = preApp?.gradoSolicitado ?: 0
     val groupOptions = if (grade in 1..3) PreApplicationViewModel.groupOptionsForGrade(grade) else emptyList()
@@ -729,35 +738,37 @@ private fun GrupoDecisionDialog(
                         text = "Confirmar grupo",
                         onClick = {
                             val group = selectedGroup ?: return@SasePrimaryButton
-                            if (officialStudent != null) {
-                                val result = PreApplicationViewModel.confirmInitialGroup(folio, group, actor = actor)
-                                resultMessage = result.message
-                                resultColor = when (result) {
-                                    is OfficialEnrollmentResult.Success -> SaseGreen
-                                    else -> SaseOrange
-                                }
-                                if (result is OfficialEnrollmentResult.Success) {
-                                    toast("Grupo $group confirmado")
-                                    onDismiss()
-                                }
-                            } else {
-                                val app = preApp
-                                val enrollResult = PreApplicationViewModel.startOfficialEnrollment(app, group, actor = actor)
-                                resultMessage = enrollResult.message
-                                resultColor = when (enrollResult) {
-                                    is OfficialEnrollmentResult.Success -> SaseGreen
-                                    else -> SaseOrange
-                                }
-                                if (enrollResult is OfficialEnrollmentResult.Success) {
-                                    val confirmResult = PreApplicationViewModel.confirmInitialGroup(folio, group, actor = actor)
-                                    resultMessage = confirmResult.message
-                                    resultColor = when (confirmResult) {
+                            scope.launch {
+                                if (officialStudent != null) {
+                                    val result = PreApplicationViewModel.confirmInitialGroup(folio, group, actor = actor)
+                                    resultMessage = result.message
+                                    resultColor = when (result) {
                                         is OfficialEnrollmentResult.Success -> SaseGreen
                                         else -> SaseOrange
                                     }
-                                    if (confirmResult is OfficialEnrollmentResult.Success) {
-                                        toast("Grupo $group asignado")
+                                    if (result is OfficialEnrollmentResult.Success) {
+                                        toast("Grupo $group confirmado")
                                         onDismiss()
+                                    }
+                                } else {
+                                    val app = preApp
+                                    val enrollResult = PreApplicationViewModel.startOfficialEnrollment(app, group, actor = actor)
+                                    resultMessage = enrollResult.message
+                                    resultColor = when (enrollResult) {
+                                        is OfficialEnrollmentResult.Success -> SaseGreen
+                                        else -> SaseOrange
+                                    }
+                                    if (enrollResult is OfficialEnrollmentResult.Success) {
+                                        val confirmResult = PreApplicationViewModel.confirmInitialGroup(folio, group, actor = actor)
+                                        resultMessage = confirmResult.message
+                                        resultColor = when (confirmResult) {
+                                            is OfficialEnrollmentResult.Success -> SaseGreen
+                                            else -> SaseOrange
+                                        }
+                                        if (confirmResult is OfficialEnrollmentResult.Success) {
+                                            toast("Grupo $group asignado")
+                                            onDismiss()
+                                        }
                                     }
                                 }
                             }
@@ -1110,12 +1121,12 @@ fun StudentRecordScreen(
                             "Medio" -> SaseStatusVariant.WARNING
                             else -> SaseStatusVariant.SUCCESS
                         }
-                        SaseStatusChip(label = "Riesgo: ${student.riskLevel}", variant = riesgoVariant)
+                        SaseStatusChip(label = "Riesgo: ${student.riskLevel.orNoRegistrado()}", variant = riesgoVariant)
                         val bapVariant = if (student.bap == "Sí") SaseStatusVariant.INFORMATION else SaseStatusVariant.NEUTRAL
-                        SaseStatusChip(label = "BAP: ${student.bap}", variant = bapVariant)
-                        SaseStatusChip(label = "Seguro escolar: ${student.schoolInsurance}", variant = SaseStatusVariant.SUCCESS)
+                        SaseStatusChip(label = "BAP: ${student.bap.orNoRegistrado()}", variant = bapVariant)
+                        SaseStatusChip(label = "Seguro escolar: ${student.schoolInsurance.orNoRegistrado()}", variant = SaseStatusVariant.SUCCESS)
                         val docVariant = if (student.documentationStatus == "Completa") SaseStatusVariant.SUCCESS else SaseStatusVariant.WARNING
-                        SaseStatusChip(label = "Documentación: ${student.documentationStatus}", variant = docVariant)
+                        SaseStatusChip(label = "Documentación: ${student.documentationStatus.orNoRegistrado()}", variant = docVariant)
                     }
                 }
 
@@ -1147,11 +1158,11 @@ fun StudentRecordScreen(
     Text("Datos generales", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        DataRow(label = "Fecha de nacimiento", value = student.birthDate)
-                                        DataRow(label = "Edad", value = "${student.age} años")
-                                        DataRow(label = "Lugar de nacimiento", value = student.birthPlace)
-                                        DataRow(label = "Domicilio", value = student.address)
-                                        DataRow(label = "Código postal", value = student.zipCode)
+                                        DataRow(label = "Fecha de nacimiento", value = student.birthDate.orNoRegistrado())
+                                        DataRow(label = "Edad", value = if (student.age > 0) "${student.age} años" else "No registrado")
+                                        DataRow(label = "Lugar de nacimiento", value = student.birthPlace.orNoRegistrado())
+                                        DataRow(label = "Domicilio", value = student.address.orNoRegistrado())
+                                        DataRow(label = "Código postal", value = student.zipCode.orNoRegistrado())
                                     }
 
                                     // Contacts block
@@ -1219,10 +1230,10 @@ fun StudentRecordScreen(
     Text("Salud", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        DataRow(label = "Alergias", value = student.healthAlergies)
-                                        DataRow(label = "Observaciones médicas", value = student.healthNotes)
-                                        DataRow(label = "Medicamentos", value = student.healthMeds)
-                                        DataRow(label = "Pases de salud", value = student.healthPasses)
+                                        DataRow(label = "Alergias", value = student.healthAlergies.orNoRegistrado())
+                                        DataRow(label = "Observaciones médicas", value = student.healthNotes.orNoRegistrado())
+                                        DataRow(label = "Medicamentos", value = student.healthMeds.orNoRegistrado())
+                                        DataRow(label = "Pases de salud", value = student.healthPasses.orNoRegistrado())
                                     }
 
                                     // Incidents summary block
@@ -1279,10 +1290,10 @@ fun StudentRecordScreen(
     Text("Orientación y trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        DataRow(label = "Estado de seguimiento", value = student.orientationStatus)
-                                        DataRow(label = "Última cita", value = student.orientationLastAppointment)
-                                        DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan)
-                                        DataRow(label = "Responsable", value = student.orientationResponsible)
+                                        DataRow(label = "Estado de seguimiento", value = student.orientationStatus.orNoRegistrado())
+                                        DataRow(label = "Última cita", value = student.orientationLastAppointment.orNoRegistrado())
+                                        DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan.orNoRegistrado())
+                                        DataRow(label = "Responsable", value = student.orientationResponsible.orNoRegistrado())
                                     }
 
                                     // Documents block
@@ -1355,11 +1366,11 @@ fun StudentRecordScreen(
     Text("Datos generales", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                             Spacer(modifier = Modifier.height(10.dp))
-                                            DataRow(label = "Fecha de nacimiento", value = student.birthDate)
-                                            DataRow(label = "Edad", value = "${student.age} años")
-                                            DataRow(label = "Lugar de nacimiento", value = student.birthPlace)
-                                            DataRow(label = "Domicilio", value = student.address)
-                                            DataRow(label = "Código postal", value = student.zipCode)
+                                            DataRow(label = "Fecha de nacimiento", value = student.birthDate.orNoRegistrado())
+                                            DataRow(label = "Edad", value = if (student.age > 0) "${student.age} años" else "No registrado")
+                                            DataRow(label = "Lugar de nacimiento", value = student.birthPlace.orNoRegistrado())
+                                            DataRow(label = "Domicilio", value = student.address.orNoRegistrado())
+                                            DataRow(label = "Código postal", value = student.zipCode.orNoRegistrado())
                                         }
 
                                         // Contacts block
@@ -1433,10 +1444,10 @@ fun StudentRecordScreen(
     Text("Salud", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                             Spacer(modifier = Modifier.height(10.dp))
-                                            DataRow(label = "Alergias", value = student.healthAlergies)
-                                            DataRow(label = "Observaciones médicas", value = student.healthNotes)
-                                            DataRow(label = "Medicamentos", value = student.healthMeds)
-                                            DataRow(label = "Pases de salud", value = student.healthPasses)
+                                            DataRow(label = "Alergias", value = student.healthAlergies.orNoRegistrado())
+                                            DataRow(label = "Observaciones médicas", value = student.healthNotes.orNoRegistrado())
+                                            DataRow(label = "Medicamentos", value = student.healthMeds.orNoRegistrado())
+                                            DataRow(label = "Pases de salud", value = student.healthPasses.orNoRegistrado())
                                         }
                                     }
 
@@ -1494,10 +1505,10 @@ fun StudentRecordScreen(
     Text("Orientación y trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                             Spacer(modifier = Modifier.height(10.dp))
-                                        DataRow(label = "Estado de seguimiento", value = student.orientationStatus)
-                                            DataRow(label = "Última cita", value = student.orientationLastAppointment)
-                                            DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan)
-                                            DataRow(label = "Responsable", value = student.orientationResponsible)
+                                        DataRow(label = "Estado de seguimiento", value = student.orientationStatus.orNoRegistrado())
+                                            DataRow(label = "Última cita", value = student.orientationLastAppointment.orNoRegistrado())
+                                            DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan.orNoRegistrado())
+                                            DataRow(label = "Responsable", value = student.orientationResponsible.orNoRegistrado())
                                         }
                                     }
 
@@ -1577,12 +1588,12 @@ fun StudentRecordScreen(
                                 if (!hasOfficialEnrollment(student.enrollmentId, student.curp)) {
                                     DataRow(label = "Estado de matrícula", value = enrollmentPendingReason(student.curp))
                                 }
-                                DataRow(label = "Fecha de nacimiento", value = student.birthDate)
-                                DataRow(label = "Edad", value = "${student.age} años")
-                                DataRow(label = "Lugar de nacimiento", value = student.birthPlace)
-                                DataRow(label = "Domicilio familiar", value = student.address)
-                                DataRow(label = "Código postal", value = student.zipCode)
-                                DataRow(label = "Estado del seguro escolar", value = student.schoolInsurance)
+                                DataRow(label = "Fecha de nacimiento", value = student.birthDate.orNoRegistrado())
+                                DataRow(label = "Edad", value = if (student.age > 0) "${student.age} años" else "No registrado")
+                                DataRow(label = "Lugar de nacimiento", value = student.birthPlace.orNoRegistrado())
+                                DataRow(label = "Domicilio familiar", value = student.address.orNoRegistrado())
+                                DataRow(label = "Código postal", value = student.zipCode.orNoRegistrado())
+                                DataRow(label = "Estado del seguro escolar", value = student.schoolInsurance.orNoRegistrado())
                                 DataRow(label = "Expediente auditado", value = "Sí, por Secretaría")
                             }
                         }
@@ -1624,13 +1635,13 @@ fun StudentRecordScreen(
                                 DataRow(label = "Faltas justificadas", value = student.excusedAbsences.toString())
                                 DataRow(label = "Faltas injustificadas", value = student.unexcusedAbsences.toString())
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = SaseBorder.copy(alpha = 0.12f))
-                                DataRow(label = "Alergias", value = student.healthAlergies)
-                                DataRow(label = "Medicamentos", value = student.healthMeds)
-                                DataRow(label = "Observaciones médicas", value = student.healthNotes)
+                                DataRow(label = "Alergias", value = student.healthAlergies.orNoRegistrado())
+                                DataRow(label = "Medicamentos", value = student.healthMeds.orNoRegistrado())
+                                DataRow(label = "Observaciones médicas", value = student.healthNotes.orNoRegistrado())
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = SaseBorder.copy(alpha = 0.12f))
-                                DataRow(label = "Estado de seguimiento", value = student.orientationStatus)
-                                DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan)
-                                DataRow(label = "Responsable de orientación", value = student.orientationResponsible)
+                                DataRow(label = "Estado de seguimiento", value = student.orientationStatus.orNoRegistrado())
+                                DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan.orNoRegistrado())
+                                DataRow(label = "Responsable de orientación", value = student.orientationResponsible.orNoRegistrado())
                             }
                         }
 
@@ -1707,10 +1718,10 @@ fun StudentRecordScreen(
                             SaseCard(modifier = Modifier.fillMaxWidth()) {
                                 Text("Historial médico y salud del Alumno", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
-                                DataRow(label = "Alergias severas", value = student.healthAlergies)
-                                DataRow(label = "Medicamentos de uso diario", value = student.healthMeds)
-                                DataRow(label = "Historial o pases de emergencia", value = student.healthPasses)
-                                DataRow(label = "Notas clínicas generales", value = student.healthNotes)
+                                DataRow(label = "Alergias severas", value = student.healthAlergies.orNoRegistrado())
+                                DataRow(label = "Medicamentos de uso diario", value = student.healthMeds.orNoRegistrado())
+                                DataRow(label = "Historial o pases de emergencia", value = student.healthPasses.orNoRegistrado())
+                                DataRow(label = "Notas clínicas generales", value = student.healthNotes.orNoRegistrado())
                             }
                         }
 
@@ -1718,10 +1729,10 @@ fun StudentRecordScreen(
                             SaseCard(modifier = Modifier.fillMaxWidth()) {
                                 Text("Bitácora de Orientación y Trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
-                                DataRow(label = "Estatus escolar", value = student.orientationStatus)
-                                DataRow(label = "Fecha de última sesión", value = student.orientationLastAppointment)
-                                DataRow(label = "Plan remedial de intervención", value = student.orientationInterventionPlan)
-                                DataRow(label = "Psicólogo/Orientador responsable", value = student.orientationResponsible)
+                                DataRow(label = "Estatus escolar", value = student.orientationStatus.orNoRegistrado())
+                                DataRow(label = "Fecha de última sesión", value = student.orientationLastAppointment.orNoRegistrado())
+                                DataRow(label = "Plan remedial de intervención", value = student.orientationInterventionPlan.orNoRegistrado())
+                                DataRow(label = "Psicólogo/Orientador responsable", value = student.orientationResponsible.orNoRegistrado())
                             }
                         }
 
