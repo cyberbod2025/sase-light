@@ -410,10 +410,11 @@ class LabViewModel(
                 entityId = result.student.id,
                 result = InstitutionalAuditResult.AUTHORIZED
             )
-            // El expediente ya se escribió: no se revierte. Pero sin bitácora
-            // no hay evidencia de quién lo dio de alta, así que no se reporta
-            // como un alta confirmada.
-            if (!audited) return StudentAddResult.Failed(StudentPersistenceFailure.AUDIT_NOT_RECORDED)
+            // El expediente ya se escribió y sigue committeado: reportarlo
+            // como Failed induciría a un reintento que chocaría con la
+            // CURP/matrícula ya creada. La falta de bitácora se distingue
+            // como advertencia, no como "el alta no ocurrió".
+            if (!audited) return StudentAddResult.CommittedWithoutAudit(result.student)
         }
         return result
     }

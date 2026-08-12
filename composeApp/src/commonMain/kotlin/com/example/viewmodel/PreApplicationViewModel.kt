@@ -6,6 +6,9 @@ import com.example.data.SaseDocument
 import com.example.data.Student
 import com.example.data.StudentAddResult
 import com.example.data.StudentUpdateResult
+import com.example.data.auth.AuthSession
+import com.example.data.auth.StaffAction
+import com.example.data.auth.StaffPermissions
 import com.example.data.repository.MockStudentRepositoryImpl
 import com.example.data.repository.StudentRepository
 import com.example.data.enrollment.AnnualEnrollmentFlowCoordinator
@@ -225,6 +228,19 @@ class PreApplicationViewModel {
             this.studentRepository = studentRepository
         }
 
+        // Sin sesion configurada, ninguna escritura institucional se autoriza
+        // (P2 de Codex, "Gate official-enrollment writes by the active
+        // role"): confirmInitialGroup escribe el expediente maestro y antes
+        // no distinguia DEMO_LOCAL de SUPABASE_STAGING, asi que un rol sin
+        // permiso real (p.ej. DIRECCION tras la correccion de la matriz de
+        // permisos) podia ejecutar en DEMO_LOCAL lo que RLS ya rechaza en
+        // staging.
+        private var authSessionProvider: () -> AuthSession? = { null }
+
+        fun configureAuthSessionProvider(provider: () -> AuthSession?) {
+            this.authSessionProvider = provider
+        }
+
         fun approvePreApplication(folio: String) {
             updatePreApp(folio) { it.copy(status = PreApplicationStatus.ACEPTADA) }
             reconcileReadinessAfterRequirementChange(folio)
@@ -361,6 +377,7 @@ class PreApplicationViewModel {
             _isProcessingAnnualEnrollmentV2.value = false
             MockSaseData.resetDemoData()
             studentRepository = MockStudentRepositoryImpl()
+            authSessionProvider = { null }
         }
 
         fun resetSharedStateForTests() = resetDemoData()
@@ -1142,6 +1159,15 @@ class PreApplicationViewModel {
             selectedGroup: String,
             actor: String = "Secretaría"
         ): OfficialEnrollmentResult {
+            // CREATE_STUDENT y UPDATE_STUDENT tienen exactamente los mismos
+            // roles autorizados en StaffPermissions.actionMatrix hoy (solo
+            // SECRETARIA); esta funcion puede ejercer cualquiera de los dos
+            // segun si el expediente maestro ya existe, asi que basta con
+            // exigir uno para que ambas ramas de escritura queden cubiertas.
+            if (!StaffPermissions.canPerform(authSessionProvider(), StaffAction.UPDATE_STUDENT)) {
+                return OfficialEnrollmentResult.Error("Acción no autorizada para la sesión activa.")
+            }
+
             val cleanGroup = selectedGroup.trim().uppercase()
             if (cleanGroup.isBlank()) {
                 return OfficialEnrollmentResult.Error("Selecciona un grupo para confirmar.")
@@ -1225,6 +1251,11 @@ class PreApplicationViewModel {
                 )
                 when (val addResult = studentRepository.addStudent(newMaster)) {
                     is StudentAddResult.Added -> addResult.student
+                    // Esta llamada usa el repositorio directo, sin el wrapper
+                    // de auditoria de LabViewModel.addStudent -- nunca produce
+                    // esta variante hoy, pero StudentAddResult es sellada y el
+                    // expediente igual quedo persistido si llegara a pasar.
+                    is StudentAddResult.CommittedWithoutAudit -> addResult.student
                     is StudentAddResult.DuplicateCurp -> addResult.existing
                     is StudentAddResult.DuplicateEnrollmentId -> return OfficialEnrollmentResult.DuplicateMatricula(addResult.enrollmentId)
                     is StudentAddResult.InvalidData -> return OfficialEnrollmentResult.MasterStudentPropagationError(addResult.message)

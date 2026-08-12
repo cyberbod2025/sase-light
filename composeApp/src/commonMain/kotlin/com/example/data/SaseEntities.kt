@@ -114,6 +114,16 @@ sealed class StudentAddResult {
      * es la unica forma de distinguir un rechazo del backend de un dato invalido.
      */
     data class Failed(val reason: StudentPersistenceFailure) : StudentAddResult()
+
+    /**
+     * El expediente SI se persistio (esta en el backend real y en cache) pero
+     * el evento de auditoria no pudo asentarse. Distinto de [Failed]: un
+     * llamador que reintentara el alta creyendo que no paso nada chocaria con
+     * la CURP/matricula ya creada (P1 de Codex, "Do not return a persistence
+     * failure after committing the student"). El expediente se trata como
+     * creado; la falta de bitacora se advierte por separado.
+     */
+    data class CommittedWithoutAudit(val student: Student) : StudentAddResult()
 }
 
 /** Resultado de una actualizacion; el mock nunca falla, el backend real si. */

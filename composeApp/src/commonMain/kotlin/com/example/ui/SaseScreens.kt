@@ -954,6 +954,18 @@ fun SecretaryDashboardScreen(
                                                 is StudentAddResult.Failed -> {
                                                     toast(institutionalFailureMessage(addResult.reason))
                                                 }
+                                                // El expediente SI quedo guardado; solo la
+                                                // bitacora no se asento. Se confirma el alta
+                                                // y se advierte por separado, sin invitar a
+                                                // un reintento que chocaria con la CURP ya
+                                                // creada.
+                                                is StudentAddResult.CommittedWithoutAudit -> {
+                                                    showNewStudentDialog = false
+                                                    newStudentName = ""
+                                                    newStudentCurp = ""
+                                                    newStudentTutor = ""
+                                                    toast("Expediente registrado, pero la bitácora institucional no se pudo asentar. Verifica el registro de auditoría.")
+                                                }
                                             }
                                         }
                                     } else {

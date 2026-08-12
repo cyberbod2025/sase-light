@@ -38,6 +38,12 @@ class PreApplicationGuardrailsTest {
     @BeforeTest
     fun resetSharedState() {
         PreApplicationViewModel.resetSharedStateForTests()
+        // confirmInitialGroup exige una sesion autorizada (P2 de Codex,
+        // "Gate official-enrollment writes by the active role"); estas
+        // pruebas ejercen el flujo de Secretaria, el unico rol con
+        // CREATE_STUDENT/UPDATE_STUDENT en el catalogo real. testSessionFor
+        // vive en el mismo paquete (TestAuthSessions.kt).
+        PreApplicationViewModel.configureAuthSessionProvider { testSessionFor(StaffRole.SECRETARIA) }
     }
 
     @Test
@@ -1856,13 +1862,16 @@ class PreApplicationGuardrailsTest {
 
         try {
             // Sin sesion viva en el repositorio conectado, confirmInitialGroup
-            // debe fallar cerrado (NO_SESSION) en vez de escribir en
-            // MockSaseData -- si todavia usara MockSaseData directo (P1 de
-            // Codex en PR #49), esto tendria "exito" silencioso sin que el
-            // estudiante llegara jamas a Supabase.
+            // debe fallar cerrado en vez de escribir en MockSaseData -- si
+            // todavia usara MockSaseData directo (P1 de Codex en PR #49),
+            // esto tendria "exito" silencioso sin que el estudiante llegara
+            // jamas a Supabase. Con el gate de rol (P2 de Codex, "Gate
+            // official-enrollment writes by the active role") el rechazo
+            // ahora ocurre en la propia autorizacion, antes incluso de
+            // intentar la escritura -- StaffPermissions.canPerform(null, ...)
+            // es siempre false sin sesion.
             val result = PreApplicationViewModel.confirmInitialGroup(readyStored.folio, "1A")
-            val failure = assertIs<OfficialEnrollmentResult.MasterStudentPropagationError>(result)
-            assertTrue(failure.message.contains("NO_SESSION"))
+            assertIs<OfficialEnrollmentResult.Error>(result)
 
             val countAfter = MockSaseData.students.value.count { it.preApplicationFolio == readyStored.folio }
             assertEquals(countBefore, countAfter, "MockSaseData no debe recibir escrituras cuando el ambiente esta conectado")

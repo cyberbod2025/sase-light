@@ -42,16 +42,21 @@ object SaseCompositionRoot {
     fun create(environment: AppEnvironment): SaseBootstrap = when (environment.mode) {
         AppEnvironmentMode.DEMO_LOCAL -> {
             val studentRepository = MockStudentRepositoryImpl()
+            val authRepository = MockAuthRepositoryImpl()
             // El alta oficial (PreApplicationViewModel) es estatico y no pasa
             // por este constructor: se cablea aqui al mismo repositorio que
             // usa LabViewModel para que ambos lean/escriban el mismo padron
-            // maestro segun el ambiente (P1 de Codex en PR #49).
+            // maestro segun el ambiente (P1 de Codex en PR #49), y a la misma
+            // sesion activa para que confirmInitialGroup gatee por rol igual
+            // que en SUPABASE_STAGING (P2 de Codex, "Gate official-enrollment
+            // writes by the active role").
             PreApplicationViewModel.configureRepositories(studentRepository)
+            PreApplicationViewModel.configureAuthSessionProvider { authRepository.session.value }
             SaseBootstrap.Ready(
                 environment = environment,
                 viewModel = LabViewModel(
                     appEnvironment = environment,
-                    authRepository = MockAuthRepositoryImpl(),
+                    authRepository = authRepository,
                     studentRepository = studentRepository,
                     auditRepository = MockAuditRepositoryImpl()
                 )
@@ -74,6 +79,7 @@ object SaseCompositionRoot {
                 sessionProvider = sessionProvider
             )
             PreApplicationViewModel.configureRepositories(studentRepository)
+            PreApplicationViewModel.configureAuthSessionProvider(sessionProvider)
             SaseBootstrap.Ready(
                 environment = environment,
                 viewModel = LabViewModel(

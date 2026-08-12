@@ -28,6 +28,7 @@ import com.example.viewmodel.PreApplicationViewModel
 import com.example.viewmodel.OfficialEnrollmentResult
 import com.example.viewmodel.ReadinessResult
 import com.example.viewmodel.Screen
+import com.example.viewmodel.testSessionFor
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -46,6 +47,9 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     @BeforeTest
     fun resetBefore() {
         PreApplicationViewModel.resetSharedStateForTests()
+        // confirmInitialGroup exige una sesion autorizada (P2 de Codex,
+        // "Gate official-enrollment writes by the active role").
+        PreApplicationViewModel.configureAuthSessionProvider { testSessionFor(StaffRole.SECRETARIA) }
     }
 
     @AfterTest
