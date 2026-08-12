@@ -970,7 +970,11 @@ class PreApplicationViewModel {
             return null
         }
 
-        fun startOfficialEnrollment(preApp: PreApplication, selectedGroup: String?): OfficialEnrollmentResult {
+        fun startOfficialEnrollment(
+            preApp: PreApplication,
+            selectedGroup: String?,
+            actor: String = "Secretaría"
+        ): OfficialEnrollmentResult {
             val existing = officialEnrollmentForFolio(preApp.folio)
             if (existing != null) {
                 return OfficialEnrollmentResult.DuplicateFolio(preApp.folio)
@@ -1040,10 +1044,11 @@ class PreApplicationViewModel {
                 validacionSecretaria = ValidacionArea(
                     area = "Secretaría",
                     validado = true,
-                    validadoPor = "Secretaría",
+                    validadoPor = actor,
                     fechaValidacion = "$preApplicationTimestampPrefix${com.example.formatTimestamp("hh:mm a")}",
                     observaciones = "Alta oficial iniciada desde pre-solicitud ${preApp.folio}"
-                )
+                ),
+                creadoPor = actor
             )
 
             _officialStudents.value = _officialStudents.value + officialStudent
@@ -1066,22 +1071,24 @@ class PreApplicationViewModel {
 
         private fun propagateOfficialEnrollmentToMasterStudent(
             preApp: PreApplication,
-            officialStudent: OfficialStudent
+            officialStudent: OfficialStudent,
+            actor: String = "Secretaría"
         ): StudentAddResult {
             val existingMaster = MockSaseData.studentByCurp(officialStudent.curp)
                 ?: officialStudent.matriculaOficial?.let { MockSaseData.studentByEnrollmentId(it) }
             if (existingMaster?.preApplicationFolio == preApp.folio) {
-                val updated = masterStudentFromOfficial(preApp, officialStudent, existingMaster.id)
+                val updated = masterStudentFromOfficial(preApp, officialStudent, existingMaster.id, actor)
                 MockSaseData.updateStudent(updated)
                 return StudentAddResult.DuplicateCurp(updated.curp, updated)
             }
-            return MockSaseData.addStudent(masterStudentFromOfficial(preApp, officialStudent))
+            return MockSaseData.addStudent(masterStudentFromOfficial(preApp, officialStudent, actor = actor))
         }
 
         private fun masterStudentFromOfficial(
             preApp: PreApplication,
             officialStudent: OfficialStudent,
-            existingId: String? = null
+            existingId: String? = null,
+            actor: String = "Secretaría"
         ): Student {
             val responsable = preApp.responsables.firstOrNull()
             val group = officialStudent.grupoAsignado ?: officialStudent.grupoSugerido.orEmpty()
@@ -1109,13 +1116,17 @@ class PreApplicationViewModel {
                     SaseDocument(doc.nombre, officialStudent.fechaCreacion, if (doc.cotejadoSecretaria) "Vigente" else "En revisión")
                 },
                 audits = listOf(
-                    SaseAudit("Alta oficial propagada", "Secretaría", officialStudent.fechaCreacion, "Origen ${preApp.folio}")
+                    SaseAudit("Alta oficial propagada", actor, officialStudent.fechaCreacion, "Origen ${preApp.folio}")
                 ),
                 preApplicationFolio = preApp.folio
             )
         }
 
-        fun confirmInitialGroup(folio: String, selectedGroup: String): OfficialEnrollmentResult {
+        fun confirmInitialGroup(
+            folio: String,
+            selectedGroup: String,
+            actor: String = "Secretaría"
+        ): OfficialEnrollmentResult {
             val cleanGroup = selectedGroup.trim().uppercase()
             if (cleanGroup.isBlank()) {
                 return OfficialEnrollmentResult.Error("Selecciona un grupo para confirmar.")
@@ -1162,7 +1173,7 @@ class PreApplicationViewModel {
                     validacionDireccion = ValidacionArea(
                         area = "Dirección",
                         validado = true,
-                        validadoPor = "Secretaría/Dirección",
+                        validadoPor = actor,
                         fechaValidacion = "Hoy",
                         observaciones = "Grupo $cleanGroup confirmado por cupo básico mock"
                     )

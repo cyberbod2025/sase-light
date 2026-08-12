@@ -1367,7 +1367,7 @@ private fun OfficialEnrollmentContextualPanel(
         if (panelPresentation.showProcessAction && actionPresentation.showLegacyStartAction && officialStudent == null && curpDuplicate == null) {
             Button(
                 onClick = {
-                    val enrollmentResult = PreApplicationViewModel.startOfficialEnrollment(preApp, selectedGroup)
+                    val enrollmentResult = PreApplicationViewModel.startOfficialEnrollment(preApp, selectedGroup, actor = staffName)
                     resultMessage = enrollmentResult.message
                     resultColor = enrollmentResult.toUiColor()
                 },
@@ -1387,7 +1387,7 @@ private fun OfficialEnrollmentContextualPanel(
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(
                     onClick = {
-                        val confirmResult = PreApplicationViewModel.confirmInitialGroup(preApp.folio, selectedGroup)
+                        val confirmResult = PreApplicationViewModel.confirmInitialGroup(preApp.folio, selectedGroup, actor = staffName)
                         resultMessage = confirmResult.message
                         resultColor = confirmResult.toUiColor()
                     },

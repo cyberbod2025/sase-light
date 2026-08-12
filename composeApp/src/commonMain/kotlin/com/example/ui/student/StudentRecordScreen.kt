@@ -239,11 +239,13 @@ private fun InstitutionalStudentRecordRoute(
     }
 
     val routeScope = rememberCoroutineScope()
+    val actorName = viewModel.session.value?.profile?.fullName ?: "Secretaría"
 
     InstitutionalStudentRecordContent(
         presentation = presentation,
         student = currentStudent,
         isConverted = isConverted,
+        actor = actorName,
         onBack = { viewModel.navigateTo(returnTo) },
         onSaveStudent = { updatedStudent ->
             routeScope.launch {
@@ -285,6 +287,7 @@ private fun InstitutionalStudentRecordContent(
     presentation: InstitutionalStudentRecordPresentation,
     student: Student?,
     isConverted: Boolean = false,
+    actor: String = "Secretaría",
     onBack: () -> Unit,
     onSaveStudent: (Student) -> Unit,
     onLogAudit: (String, String) -> Unit
@@ -628,6 +631,7 @@ private fun InstitutionalStudentRecordContent(
     if (showGroupDialog) {
         GrupoDecisionDialog(
             folio = preAppFolio,
+            actor = actor,
             onDismiss = { showGroupDialog = false },
             toast = toast
         )
@@ -637,6 +641,7 @@ private fun InstitutionalStudentRecordContent(
 @Composable
 private fun GrupoDecisionDialog(
     folio: String,
+    actor: String = "Secretaría",
     onDismiss: () -> Unit,
     toast: (String) -> Unit
 ) {
@@ -725,7 +730,7 @@ private fun GrupoDecisionDialog(
                         onClick = {
                             val group = selectedGroup ?: return@SasePrimaryButton
                             if (officialStudent != null) {
-                                val result = PreApplicationViewModel.confirmInitialGroup(folio, group)
+                                val result = PreApplicationViewModel.confirmInitialGroup(folio, group, actor = actor)
                                 resultMessage = result.message
                                 resultColor = when (result) {
                                     is OfficialEnrollmentResult.Success -> SaseGreen
@@ -737,14 +742,14 @@ private fun GrupoDecisionDialog(
                                 }
                             } else {
                                 val app = preApp
-                                val enrollResult = PreApplicationViewModel.startOfficialEnrollment(app, group)
+                                val enrollResult = PreApplicationViewModel.startOfficialEnrollment(app, group, actor = actor)
                                 resultMessage = enrollResult.message
                                 resultColor = when (enrollResult) {
                                     is OfficialEnrollmentResult.Success -> SaseGreen
                                     else -> SaseOrange
                                 }
                                 if (enrollResult is OfficialEnrollmentResult.Success) {
-                                    val confirmResult = PreApplicationViewModel.confirmInitialGroup(folio, group)
+                                    val confirmResult = PreApplicationViewModel.confirmInitialGroup(folio, group, actor = actor)
                                     resultMessage = confirmResult.message
                                     resultColor = when (confirmResult) {
                                         is OfficialEnrollmentResult.Success -> SaseGreen
