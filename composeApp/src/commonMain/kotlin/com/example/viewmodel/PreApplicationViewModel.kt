@@ -1212,14 +1212,16 @@ class PreApplicationViewModel {
                     )
                 }
             } else {
-                val newMaster = Student(
-                    id = "MASTER-${folio.takeLast(4)}",
-                    fullName = currentStudent.alumnoNombreCompleto,
+                // masterStudentFromOfficial trae domicilio/fecha de nacimiento/
+                // tutor desde sourcePreApplication -- una fila construida a
+                // mano aqui (como antes) los omitia por completo, y con el
+                // alta atomica (migracion 0011) esa omision se persiste tal
+                // cual (P1 de Codex, "Preserve pre-application identity when
+                // creating the master record").
+                val newMaster = masterStudentFromOfficial(sourcePreApplication, currentStudent, actor = actor).copy(
                     group = cleanGroup,
                     enrollmentId = currentStudent.matriculaOficial.orEmpty(),
-                    curp = currentStudent.curp,
-                    status = "Alta oficial con grupo",
-                    preApplicationFolio = folio
+                    status = "Alta oficial con grupo"
                 )
                 when (val addResult = studentRepository.addStudent(newMaster)) {
                     is StudentAddResult.Added -> addResult.student

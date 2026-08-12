@@ -19,12 +19,22 @@
 -- (VIEW_INCIDENTS ya lo tiene), consistente con que el catalogo real no le
 -- da ningun EDIT_* hoy.
 --
+-- CORRECCION (segunda revision de Codex sobre 34c82aa, P1 "Grant incident
+-- read access with the new edit permission"): el catalogo real tampoco le
+-- daba VIEW_INCIDENTS a SECRETARIA. Con solo EDIT_INCIDENTS, la politica
+-- student_incidents_select_by_permission (VIEW_INCIDENTS) le habria
+-- bloqueado la fila que su propio INSERT ... return=representation intenta
+-- leer de vuelta, y tambien el refresh() posterior -- el flujo de
+-- reportar/avanzar incidencias habria seguido pareciendo roto pese al
+-- primer otorgamiento. Se agrega VIEW_INCIDENTS junto con EDIT_INCIDENTS
+-- para que el permiso de escritura sea utilizable de verdad.
+--
 -- ESTADO: escrita, NO aplicada. Requiere autorizacion explicita de Hugo
 -- antes de tocar el proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh).
 
 insert into public.role_permissions (role_id, permission_id)
 select r.id, p.id
 from public.roles r
-join public.permissions p on p.code = 'EDIT_INCIDENTS'
+join public.permissions p on p.code in ('EDIT_INCIDENTS', 'VIEW_INCIDENTS')
 where r.code = 'SECRETARIA'
 on conflict (role_id, permission_id) do nothing;
