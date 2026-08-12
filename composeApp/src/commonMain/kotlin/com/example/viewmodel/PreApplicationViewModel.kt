@@ -1183,8 +1183,14 @@ class PreApplicationViewModel {
                 return OfficialEnrollmentResult.NotReady(listOf("Readiness institucional declarada"))
             }
 
+            // El nuevo estado se calcula en una lista local, NO se publica a
+            // _officialStudents todavia: si la persistencia del expediente
+            // maestro falla mas abajo, el alta oficial no debe quedar
+            // marcada como ALTA_OFICIAL_CON_GRUPO en memoria sin que el
+            // backend la respalde (P1 de Codex, "Roll back official state
+            // when persistence fails").
             var updatedStudent: OfficialStudent? = null
-            _officialStudents.value = _officialStudents.value.map { student ->
+            val recomputedOfficialStudents = _officialStudents.value.map { student ->
                 if (student.preApplicationFolio != folio) return@map student
                 if (isSyntheticCurp(student.curp)) {
                     return OfficialEnrollmentResult.Error(
@@ -1264,6 +1270,9 @@ class PreApplicationViewModel {
                     )
                 }
             }
+            // El expediente maestro ya se persistio con exito: recien ahora
+            // se confirma en memoria el cambio de estado del alta oficial.
+            _officialStudents.value = recomputedOfficialStudents
             markConverted(folio)
             return OfficialEnrollmentResult.Success(
                 officialStudent = currentStudent,

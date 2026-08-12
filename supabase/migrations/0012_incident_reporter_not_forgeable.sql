@@ -24,6 +24,19 @@
 -- Sin sesion autenticada (auth.uid() nulo) el trigger rechaza el insert
 -- directamente: no se permite un reportero null.
 --
+-- CORRECCION (segunda revision de Codex sobre e5f5b89, P1 "Stamp incident
+-- attribution on updates too"): el trigger original solo cubria BEFORE
+-- INSERT. La politica de UPDATE (student_incidents_update_by_permission,
+-- 0007) solo exige EDIT_INCIDENTS, sin restringir columnas -- cualquier
+-- miembro con ese permiso podia usar advanceIncident() (o un PATCH directo)
+-- para reescribir reported_by_profile_id/reporter_name despues del insert.
+-- El trigger ahora tambien corre BEFORE UPDATE: en insercion estampa al
+-- actor actual (como antes); en actualizacion CONGELA los valores
+-- originales (NEW := OLD) sin importar que envie el cliente, porque el
+-- reportero de una incidencia es quien la creo, no quien la actualiza
+-- despues (p.ej. Direccion avanzando el seguimiento no debe convertirse en
+-- el "reportero").
+--
 -- Tabla `student_incidents` esta vacia en remoto a la fecha de esta
 -- migracion (verificado antes de escribirla, mismo criterio que 0007/0008);
 -- el ALTER COLUMN ... SET NOT NULL no requiere backfill.
@@ -45,6 +58,14 @@ declare
   v_actor uuid;
   v_full_name text;
 begin
+  if tg_op = 'UPDATE' then
+    -- El reportero es quien creo la incidencia, no quien la actualiza
+    -- despues: se congelan los valores originales pase lo que pase en NEW.
+    new.reported_by_profile_id := old.reported_by_profile_id;
+    new.reporter_name := old.reporter_name;
+    return new;
+  end if;
+
   v_actor := (select auth.uid());
   if v_actor is null then
     raise exception 'SASE_INCIDENT_REPORTER_REQUIRES_SESSION';
@@ -59,7 +80,7 @@ end;
 $$;
 
 create trigger trg_student_incidents_stamp_reporter
-  before insert on public.student_incidents
+  before insert or update on public.student_incidents
   for each row execute function public.sase_stamp_incident_reporter();
 
 alter table public.student_incidents
