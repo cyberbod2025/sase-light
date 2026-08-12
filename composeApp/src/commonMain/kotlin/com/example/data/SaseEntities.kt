@@ -130,6 +130,13 @@ enum class StudentPersistenceFailure {
 
     /** La operacion no llego a completarse (red o servidor no disponible). */
     NETWORK,
+
+    /**
+     * El expediente se escribio, pero la bitacora institucional no quedo asentada.
+     * La mutacion no se revierte: se reporta como no confirmada para que quien
+     * llama no la trate como un alta exitosa sin evidencia.
+     */
+    AUDIT_NOT_RECORDED,
 }
 
 /**
@@ -143,4 +150,6 @@ fun institutionalFailureMessage(reason: StudentPersistenceFailure): String = whe
         "El sistema institucional rechazó el cambio. No se guardó."
     StudentPersistenceFailure.NETWORK ->
         "No fue posible contactar al sistema institucional. El cambio no se guardó."
+    StudentPersistenceFailure.AUDIT_NOT_RECORDED ->
+        "El expediente se guardó, pero la bitácora institucional no quedó registrada. Repórtalo antes de continuar."
 }

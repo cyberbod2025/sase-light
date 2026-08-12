@@ -344,7 +344,10 @@ class LabViewModel(
         if (!canRecordAudit(active, "student.updated", "student", student.id)) return false
 
         val persisted = studentRepository.updateStudent(student) is StudentUpdateResult.Updated
-        recordAudit(
+        // Un guardado exitoso sin bitácora asentada no es un guardado confirmado:
+        // la escritura de auditoría es una llamada de red independiente que puede
+        // fallar aunque la del expediente haya tenido éxito.
+        val audited = recordAudit(
             session = active,
             action = "student.updated",
             entityType = "student",
@@ -352,7 +355,7 @@ class LabViewModel(
             result = if (persisted) InstitutionalAuditResult.AUTHORIZED
             else InstitutionalAuditResult.FAILED
         )
-        return persisted
+        return persisted && audited
     }
 
     suspend fun addStudent(student: Student): StudentAddResult {
@@ -370,13 +373,17 @@ class LabViewModel(
 
         val result = studentRepository.addStudent(student)
         if (result is StudentAddResult.Added) {
-            recordAudit(
+            val audited = recordAudit(
                 session = active,
                 action = "student.created",
                 entityType = "student",
                 entityId = result.student.id,
                 result = InstitutionalAuditResult.AUTHORIZED
             )
+            // El expediente ya se escribió: no se revierte. Pero sin bitácora
+            // no hay evidencia de quién lo dio de alta, así que no se reporta
+            // como un alta confirmada.
+            if (!audited) return StudentAddResult.Failed(StudentPersistenceFailure.AUDIT_NOT_RECORDED)
         }
         return result
     }
