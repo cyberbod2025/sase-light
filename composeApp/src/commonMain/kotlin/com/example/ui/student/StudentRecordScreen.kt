@@ -257,9 +257,11 @@ private fun InstitutionalStudentRecordRoute(
         onBack = { viewModel.navigateTo(returnTo) },
         onSaveStudent = { updatedStudent ->
             routeScope.launch {
-            // La pre-solicitud solo se sincroniza si el expediente quedó
-            // realmente guardado; un rechazo del backend no debe propagarse.
-            if (!viewModel.updateStudent(updatedStudent)) return@launch
+            // La pre-solicitud se sincroniza si el expediente quedó
+            // persistido, con o sin bitácora asentada; solo un rechazo real
+            // (nada escrito) debe detener la sincronización (P1 de Codex,
+            // "Distinguish committed updates from audit failures").
+            if (!viewModel.updateStudent(updatedStudent).isCommitted) return@launch
             val folio = (presentation as? InstitutionalStudentRecordPresentation.Content)?.folio
             if (!folio.isNullOrBlank()) {
                 val preApp = preApplications.firstOrNull { it.folio.trim().uppercase() == folio.trim().uppercase() }

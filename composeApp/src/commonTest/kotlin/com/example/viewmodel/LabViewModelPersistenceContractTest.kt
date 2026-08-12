@@ -179,7 +179,7 @@ class LabViewModelPersistenceContractTest {
 
         val saved = vm.updateStudent(student())
 
-        assertFalse(saved, "un rechazo del almacenamiento no puede devolver exito")
+        assertEquals(StudentUpdateOutcome.REJECTED, saved, "un rechazo del almacenamiento no puede devolver exito")
         // El intento queda asentado como fallido, no como autorizado.
         val last = audits.logged.last { it.action == "student.updated" }
         assertEquals("FAILED", last.result.name)
@@ -192,11 +192,30 @@ class LabViewModelPersistenceContractTest {
         val vm = viewModel(repository, audits)
         vm.signIn("secretaria@example.invalid", "demo1234")
 
-        assertTrue(vm.updateStudent(student()))
+        assertEquals(StudentUpdateOutcome.UPDATED, vm.updateStudent(student()))
 
         assertEquals(1, repository.updates.size)
         val last = audits.logged.last { it.action == "student.updated" }
         assertEquals("AUTHORIZED", last.result.name)
+    }
+
+    @Test
+    fun `una actualizacion persistida cuya bitacora falla se reporta comprometida sin bitacora, no rechazada`() = runTest {
+        // Contrato de P1 de Codex, "Distinguish committed updates from audit
+        // failures": el expediente ya se escribio en el backend cuando la
+        // bitacora falla despues -- reportarlo como rechazo saltaria
+        // sincronizaciones dependientes (p.ej. la pre-solicitud relacionada)
+        // pese a que el cambio si ocurrio.
+        val repository = RecordingStudentRepository()
+        val audits = RecordingAuditRepository(accepts = false)
+        val vm = viewModel(repository, audits)
+        vm.signIn("secretaria@example.invalid", "demo1234")
+
+        val result = vm.updateStudent(student())
+
+        assertEquals(StudentUpdateOutcome.COMMITTED_WITHOUT_AUDIT, result)
+        assertTrue(result.isCommitted)
+        assertEquals(1, repository.updates.size, "el expediente si debe haberse escrito")
     }
 
     @Test
@@ -210,7 +229,7 @@ class LabViewModelPersistenceContractTest {
         // evidencia posible, la mutacion no debe intentarse siquiera.
         val saved = vm.updateStudent(student(id = "SINT010101MDFABC01"))
 
-        assertFalse(saved)
+        assertEquals(StudentUpdateOutcome.REJECTED, saved)
         assertTrue(repository.updates.isEmpty(), "no se muta sin bitacora asentable")
     }
 
@@ -220,7 +239,7 @@ class LabViewModelPersistenceContractTest {
         val audits = RecordingAuditRepository()
         val vm = viewModel(repository, audits)
 
-        assertFalse(vm.updateStudent(student()))
+        assertEquals(StudentUpdateOutcome.REJECTED, vm.updateStudent(student()))
         assertIs<StudentAddResult.InvalidData>(vm.addStudent(student()))
 
         assertTrue(repository.updates.isEmpty())

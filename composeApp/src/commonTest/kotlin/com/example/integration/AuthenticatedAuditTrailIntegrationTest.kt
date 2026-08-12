@@ -81,7 +81,7 @@ class AuthenticatedAuditTrailIntegrationTest {
 
         // 2) Accion institucional real: Secretaria actualiza el expediente
         val student = vm.saseStudents.value.single { it.id == studentId }
-        assertTrue(vm.updateStudent(student.copy(group = "1B")))
+        assertTrue(vm.updateStudent(student.copy(group = "1B")).isCommitted)
 
         val updated = vm.saseStudents.value.single { it.id == studentId }
         assertEquals("1B", updated.group, "la accion institucional debe reflejarse en el expediente")

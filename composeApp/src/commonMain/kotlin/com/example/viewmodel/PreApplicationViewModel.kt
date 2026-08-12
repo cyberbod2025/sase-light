@@ -211,6 +211,19 @@ sealed class CorrectionRequestResult {
 
 class PreApplicationViewModel {
     companion object {
+        // RIESGO CONOCIDO (Codex, cierre de PR #49, "Block mock pre-applications
+        // in connected mode" -- documentado, NO resuelto en este cierre por
+        // decision explicita de Hugo): a diferencia de studentRepository/
+        // authSessionProvider, esta lista NUNCA se conecta a Supabase segun el
+        // ambiente. En SUPABASE_STAGING, Secretaria puede convertir una
+        // pre-solicitud de DEMO_LOCAL en un alumno real, y cualquier
+        // pre-solicitud real que la familia envie se pierde al reiniciar la
+        // app -- nunca llega al backend. El primer recorrido institucional
+        // completo (familia -> pre-solicitud -> secretaria -> alta oficial)
+        // sigue sin persistir su primera mitad en el piloto real. Requiere
+        // almacenamiento conectado de pre-solicitudes (tablas + RLS +
+        // repositorio) como trabajo aparte antes de considerar ese recorrido
+        // cerrado para el piloto.
         private val _sharedPreApplications = MutableStateFlow(MockPreApplicationData.preApplications)
         val sharedPreApplications: StateFlow<List<PreApplication>> = _sharedPreApplications.asStateFlow()
         private val preApplicationFolioChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -1262,7 +1275,30 @@ class PreApplicationViewModel {
                     // esta variante hoy, pero StudentAddResult es sellada y el
                     // expediente igual quedo persistido si llegara a pasar.
                     is StudentAddResult.CommittedWithoutAudit -> addResult.student
-                    is StudentAddResult.DuplicateCurp -> addResult.existing
+                    is StudentAddResult.DuplicateCurp -> {
+                        // El cache local estaba desactualizado (otra
+                        // sesion/pestana ya creo este CURP). Solo se acepta
+                        // la fila en conflicto como el maestro de ESTE folio
+                        // si de verdad le pertenece; si no, es una CURP
+                        // ajena de verdad y se rechaza en vez de marcar esta
+                        // pre-solicitud como convertida sin haber tocado su
+                        // propio expediente (P1 de Codex, "Reject unrelated
+                        // CURP conflicts during enrollment").
+                        if (addResult.existing.preApplicationFolio != folio) {
+                            return OfficialEnrollmentResult.DuplicateCurp(addResult.curp)
+                        }
+                        val syncedExisting = addResult.existing.copy(
+                            group = cleanGroup,
+                            enrollmentId = currentStudent.matriculaOficial.orEmpty(),
+                            status = "Alta oficial con grupo"
+                        )
+                        when (val syncResult = studentRepository.updateStudent(syncedExisting)) {
+                            is StudentUpdateResult.Updated -> syncResult.student
+                            is StudentUpdateResult.Failed -> return OfficialEnrollmentResult.MasterStudentPropagationError(
+                                "El expediente maestro no pudo actualizarse (${syncResult.reason.name})."
+                            )
+                        }
+                    }
                     is StudentAddResult.DuplicateEnrollmentId -> return OfficialEnrollmentResult.DuplicateMatricula(addResult.enrollmentId)
                     is StudentAddResult.InvalidData -> return OfficialEnrollmentResult.MasterStudentPropagationError(addResult.message)
                     is StudentAddResult.Failed -> return OfficialEnrollmentResult.MasterStudentPropagationError(

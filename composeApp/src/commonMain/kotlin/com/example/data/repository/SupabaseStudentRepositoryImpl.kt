@@ -468,6 +468,17 @@ class SupabaseStudentRepositoryImpl(
             )
         }
 
+        // El resultado solo se publica si la sesion activa sigue siendo
+        // aquella bajo la que se pidieron estos datos. Si cambio mientras
+        // este refresh estaba en vuelo (p.ej. A cierra sesion y B inicia
+        // sesion antes de que la respuesta de A llegue), publicarlo
+        // repoblaria el StateFlow compartido con expedientes de la sesion
+        // obsoleta de A durante la sesion de B (P1 de Codex, "Ignore refresh
+        // results from obsolete sessions").
+        if (sessionProvider() != session) {
+            return StudentSyncResult.Failed(StudentPersistenceFailure.NO_SESSION)
+        }
+
         _students.value = loaded
         return incompleteReason?.let { StudentSyncResult.Partial(loaded, it) }
             ?: StudentSyncResult.Loaded(loaded)

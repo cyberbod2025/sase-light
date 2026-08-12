@@ -101,6 +101,25 @@ sealed interface StudentSyncUiState {
 }
 
 /**
+ * Resultado de [LabViewModel.updateStudent]: distingue un guardado
+ * confirmado (con bitacora) de uno comprometido sin bitacora, de un
+ * rechazo donde nada se escribio. Antes esto colapsaba a `Boolean`, asi
+ * que un fallo de auditoria transitorio tras una actualizacion ya
+ * comprometida en el backend se reportaba identico a un rechazo total —
+ * cualquier sincronizacion dependiente (p.ej. la pre-solicitud
+ * relacionada) se saltaba pese a que el expediente si cambio (P1 de
+ * Codex, "Distinguish committed updates from audit failures").
+ */
+enum class StudentUpdateOutcome {
+    UPDATED,
+    COMMITTED_WITHOUT_AUDIT,
+    REJECTED;
+
+    /** El expediente quedo persistido, con o sin bitacora asentada. */
+    val isCommitted: Boolean get() = this != REJECTED
+}
+
+/**
  * Estado institucional de la aplicación. El ambiente y el repositorio de
  * autenticación son obligatorios: el ViewModel nunca elige un mock ni degrada
  * silenciosamente una configuración conectada a demo.
@@ -362,21 +381,25 @@ class LabViewModel(
         navigateTo(Screen.SessionHome)
     }
 
-    suspend fun updateStudent(student: Student): Boolean {
+    suspend fun updateStudent(student: Student): StudentUpdateOutcome {
         val active = authorizedFor(
             action = StaffAction.UPDATE_STUDENT,
             entityType = "student",
             entityId = student.id
-        ) ?: return false
+        ) ?: return StudentUpdateOutcome.REJECTED
 
         // Sin bitácora asentable no se toca el expediente: el evento se valida
         // ANTES de mutar, y su resultado real se registra después.
-        if (!canRecordAudit(active, "student.updated", "student", student.id)) return false
+        if (!canRecordAudit(active, "student.updated", "student", student.id)) {
+            return StudentUpdateOutcome.REJECTED
+        }
 
         val persisted = studentRepository.updateStudent(student) is StudentUpdateResult.Updated
-        // Un guardado exitoso sin bitácora asentada no es un guardado confirmado:
-        // la escritura de auditoría es una llamada de red independiente que puede
-        // fallar aunque la del expediente haya tenido éxito.
+        // Un guardado exitoso sin bitácora asentada sigue siendo un guardado:
+        // el expediente ya está comprometido en el backend, así que no se
+        // reporta como rechazo (eso induciría un reintento innecesario o una
+        // sincronización dependiente saltada); se distingue como comprometido
+        // sin bitácora en vez de colapsarlo con un rechazo real.
         val audited = recordAudit(
             session = active,
             action = "student.updated",
@@ -385,7 +408,11 @@ class LabViewModel(
             result = if (persisted) InstitutionalAuditResult.AUTHORIZED
             else InstitutionalAuditResult.FAILED
         )
-        return persisted && audited
+        return when {
+            !persisted -> StudentUpdateOutcome.REJECTED
+            audited -> StudentUpdateOutcome.UPDATED
+            else -> StudentUpdateOutcome.COMMITTED_WITHOUT_AUDIT
+        }
     }
 
     suspend fun addStudent(student: Student): StudentAddResult {
