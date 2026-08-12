@@ -87,6 +87,16 @@ sealed interface StudentSyncUiState {
     data object Idle : StudentSyncUiState
     data object Loading : StudentSyncUiState
     data object Ready : StudentSyncUiState
+
+    /**
+     * El nucleo cargo pero algun subrecurso por area fallo por red/servidor;
+     * [saseStudents] sigue siendo seguro de mostrar (conserva lo ultimo
+     * conocido para esa seccion en vez de una lista vacia fabricada), pero
+     * la sincronizacion no se completo — la UI debe poder distinguirlo de
+     * [Ready] para, p.ej., ofrecer reintentar.
+     */
+    data class Incomplete(val reason: StudentPersistenceFailure) : StudentSyncUiState
+
     data class Error(val reason: StudentPersistenceFailure) : StudentSyncUiState
 }
 
@@ -146,6 +156,7 @@ class LabViewModel(
         val result = studentRepository.refresh()
         _studentSync.value = when (result) {
             is StudentSyncResult.Loaded -> StudentSyncUiState.Ready
+            is StudentSyncResult.Partial -> StudentSyncUiState.Incomplete(result.reason)
             is StudentSyncResult.Failed -> {
                 // Un refresh fallido no debe dejar expuesto lo que hubiera en
                 // memoria de una sesion anterior (P1 de Codex en PR #49:
@@ -442,7 +453,7 @@ class LabViewModel(
      */
     suspend fun logSaseAudit(action: String, entityType: String, entityId: String): Boolean {
         val active = authorizedFor(
-            action = StaffAction.UPDATE_STUDENT,
+            action = StaffAction.LOG_STUDENT_RECORD_EVENT,
             entityType = entityType,
             entityId = entityId
         ) ?: return false

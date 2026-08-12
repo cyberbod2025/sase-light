@@ -25,7 +25,15 @@ enum class StaffAction {
     ADD_OBSERVATION,
     REPORT_INCIDENT,
     ADVANCE_INCIDENT,
-    ESCALATE_CASE
+    ESCALATE_CASE,
+    /**
+     * Registrar un evento de bitacora sobre la pantalla de expediente sin
+     * mutar el expediente (p.ej. abrir/consultar). No corresponde a ningun
+     * EDIT_* del catalogo real: student_audit_events solo exige membresia y
+     * rol reales (migracion 0009), asi que se autoriza por acceso al area
+     * EXPEDIENTE, no por poder editarlo.
+     */
+    LOG_STUDENT_RECORD_EVENT
 }
 
 /**
@@ -60,15 +68,34 @@ object StaffPermissions {
         StaffRole.DOCENTE to setOf(SaseArea.SESSION, SaseArea.DOCENCIA)
     )
 
+    /**
+     * Debe reflejar EXACTAMENTE lo que el catalogo real de permisos (rol ->
+     * permiso, introspeccion 2026-08-12 de "SASE-Light") le otorga a cada
+     * rol via RLS, para que el cliente nunca ofrezca una accion que el
+     * servidor va a rechazar en silencio:
+     *  - DIRECCION solo tiene permisos VIEW_* y CREDENCIAL en el catalogo real
+     *    -- ningun EDIT_*. Es un rol de supervision/lectura, no de escritura
+     *    institucional. ESCALATE_CASE es la unica excepcion: no escribe en
+     *    ninguna tabla protegida por EDIT_*, solo registra un evento de
+     *    bitacora (student_audit_events), que cualquier miembro activo con
+     *    su rol real puede insertar (migracion 0009).
+     *  - SECRETARIA tiene EDIT_STUDENT_IDENTITY (nucleo del expediente,
+     *    domicilio/tutor/contacto, observaciones) en el catalogo real.
+     *    EDIT_INCIDENTS NO existia para ningun rol de este enum antes de la
+     *    migracion 0010 (escrita, pendiente de aplicar) -- ver esa migracion
+     *    para el porque de otorgarselo a SECRETARIA en vez de a
+     *    PREFECTURA/TUTOR (roles que no existen en este cliente).
+     */
     private val actionMatrix: Map<StaffRole, Set<StaffAction>> = mapOf(
-        StaffRole.DIRECCION to StaffAction.entries.toSet(),
+        StaffRole.DIRECCION to setOf(StaffAction.ESCALATE_CASE, StaffAction.LOG_STUDENT_RECORD_EVENT),
         StaffRole.SECRETARIA to setOf(
             StaffAction.CREATE_STUDENT,
             StaffAction.UPDATE_STUDENT,
             StaffAction.ADD_OBSERVATION,
             StaffAction.REPORT_INCIDENT,
             StaffAction.ADVANCE_INCIDENT,
-            StaffAction.ESCALATE_CASE
+            StaffAction.ESCALATE_CASE,
+            StaffAction.LOG_STUDENT_RECORD_EVENT
         ),
         StaffRole.TRABAJO_SOCIAL to emptySet(),
         StaffRole.MEDICO_ESCOLAR to emptySet(),

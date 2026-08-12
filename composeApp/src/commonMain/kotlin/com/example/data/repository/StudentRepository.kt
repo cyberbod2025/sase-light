@@ -11,6 +11,17 @@ import kotlinx.coroutines.flow.StateFlow
 /** Resultado de sincronizar el listado con el almacenamiento institucional. */
 sealed class StudentSyncResult {
     data class Loaded(val students: List<Student>) : StudentSyncResult()
+
+    /**
+     * El nucleo del expediente se cargo, pero al menos un subrecurso por
+     * area (identidad sensible, observaciones, incidencias) fallo por
+     * transporte/servidor en vez de responder "sin datos". [students]
+     * conserva, para esa seccion, lo ultimo que ya estaba en memoria en vez
+     * de reemplazarlo por listas vacias -- nunca se presenta un fallo de red
+     * como si el backend hubiera confirmado ausencia de datos.
+     */
+    data class Partial(val students: List<Student>, val reason: StudentPersistenceFailure) : StudentSyncResult()
+
     data class Failed(val reason: StudentPersistenceFailure) : StudentSyncResult()
 }
 

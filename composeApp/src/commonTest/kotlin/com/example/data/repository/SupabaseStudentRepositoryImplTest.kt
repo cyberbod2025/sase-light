@@ -34,6 +34,8 @@ import kotlin.test.assertTrue
  * y que un rechazo del backend nunca se presente como exito.
  */
 private const val STUDENTS_PATH = "/rest/v1/students"
+private const val CREATE_RPC_PATH = "/rest/v1/rpc/create_student_core_and_identity"
+private const val UPDATE_RPC_PATH = "/rest/v1/rpc/update_student_core_and_identity"
 private const val BASE_URL = "https://proyecto-ficticio.supabase.invalid"
 
 internal const val INSTITUTION_A = "11111111-1111-1111-1111-111111111111"
@@ -96,6 +98,33 @@ private class Recorder {
 private fun sensitiveIdentityRowJson(studentId: String = "student-1"): String =
     """{"student_id":"$studentId"}"""
 
+/**
+ * Respuesta de las RPC atomicas `create_student_core_and_identity` /
+ * `update_student_core_and_identity` (migracion 0011): nucleo + identidad
+ * sensible en una sola fila.
+ */
+private fun studentWithIdentityRowJson(
+    id: String = "student-1",
+    institutionId: String = INSTITUTION_A,
+    fullName: String = "ALUMNA SINTETICA UNO",
+    group: String = "1A",
+    enrollmentId: String? = "S310-0001",
+    curp: String = "SINT010101MDFABC01",
+    tutorName: String = "",
+    tutorRelation: String = ""
+): String {
+    val enrollment = if (enrollmentId == null) "null" else "\"$enrollmentId\""
+    return """
+        {"id":"$id","institution_id":"$institutionId","full_name":"$fullName",
+         "student_group":"$group","enrollment_id":$enrollment,"curp":"$curp",
+         "shift":"Vespertino","school_year":"2025-2026","status":"Activo",
+         "pre_application_folio":"PS-0001","birth_date":"","birth_place":"",
+         "address":"","zip_code":"","tutor_name":"$tutorName","tutor_relation":"$tutorRelation",
+         "tutor_phone":"","tutor_email":"","emergency_contact_name":"",
+         "emergency_contact_relation":"","emergency_contact_phone":"","emergency_contact_email":""}
+    """.trimIndent()
+}
+
 private fun repositoryWith(
     session: AuthSession? = testSession(),
     recorder: Recorder = Recorder(),
@@ -128,7 +157,10 @@ class SupabaseStudentRepositoryImplTest {
 
     @Test
     fun refreshMapeaLaFilaJsonAlModeloStudent() = runTest {
-        val (repository, _) = repositoryWith { HttpStatusCode.OK to "[${studentRow()}]" }
+        val (repository, _) = repositoryWith { request ->
+            if (request.url.encodedPath == STUDENTS_PATH) HttpStatusCode.OK to "[${studentRow()}]"
+            else HttpStatusCode.OK to "[]"
+        }
 
         val result = repository.refresh()
 
@@ -148,8 +180,9 @@ class SupabaseStudentRepositoryImplTest {
 
     @Test
     fun refreshTraduceMatriculaNulaACadenaVacia() = runTest {
-        val (repository, _) = repositoryWith {
-            HttpStatusCode.OK to "[${studentRow(enrollmentId = null)}]"
+        val (repository, _) = repositoryWith { request ->
+            if (request.url.encodedPath == STUDENTS_PATH) HttpStatusCode.OK to "[${studentRow(enrollmentId = null)}]"
+            else HttpStatusCode.OK to "[]"
         }
 
         val loaded = assertIs<StudentSyncResult.Loaded>(repository.refresh())
@@ -178,14 +211,90 @@ class SupabaseStudentRepositoryImplTest {
     fun refreshDescartaFilasDeOtraInstitucionAunqueElServidorLasDevuelva() = runTest {
         // Si una politica RLS se relajara por error, el cliente sigue sin
         // mostrar expedientes de otra escuela.
-        val (repository, _) = repositoryWith {
-            HttpStatusCode.OK to
-                "[${studentRow(id = "propio")},${studentRow(id = "ajeno", institutionId = INSTITUTION_B)}]"
+        val (repository, _) = repositoryWith { request ->
+            if (request.url.encodedPath == STUDENTS_PATH) {
+                HttpStatusCode.OK to
+                    "[${studentRow(id = "propio")},${studentRow(id = "ajeno", institutionId = INSTITUTION_B)}]"
+            } else {
+                HttpStatusCode.OK to "[]"
+            }
         }
 
         val loaded = assertIs<StudentSyncResult.Loaded>(repository.refresh())
 
         assertEquals(listOf("propio"), loaded.students.map { it.id })
+    }
+
+    @Test
+    fun refreshFusionaLaIdentidadSensibleDeSuTablaPropia() = runTest {
+        val (repository, _) = repositoryWith { request ->
+            when {
+                request.url.encodedPath == STUDENTS_PATH -> HttpStatusCode.OK to "[${studentRow()}]"
+                request.url.encodedPath.endsWith("student_sensitive_identity") ->
+                    HttpStatusCode.OK to "[${sensitiveIdentityRowJson()}]"
+                else -> HttpStatusCode.OK to "[]"
+            }
+        }
+
+        val loaded = assertIs<StudentSyncResult.Loaded>(repository.refresh())
+        // sensitiveIdentityRowJson() solo fija student_id; el resto llega en
+        // su valor neutro, pero la fusion en si (RLS respondio, no fallo) es
+        // lo que separa Loaded de Partial.
+        assertEquals("", loaded.students.single().tutorName)
+    }
+
+    @Test
+    fun refreshEsIncompletoSiUnSubrecursoFallaPeroNoBorraElNucleoCargado() = runTest {
+        // P1 de Codex, "Treat supplemental fetch failures as synchronization
+        // failures": un fallo de transporte/servidor en identidad sensible
+        // NO debe verse identico a "sin datos" (RLS). refresh() sigue
+        // devolviendo el nucleo, pero marca el resultado como incompleto.
+        val (repository, _) = repositoryWith { request ->
+            when {
+                request.url.encodedPath == STUDENTS_PATH -> HttpStatusCode.OK to "[${studentRow()}]"
+                request.url.encodedPath.endsWith("student_sensitive_identity") ->
+                    HttpStatusCode.InternalServerError to "{}"
+                else -> HttpStatusCode.OK to "[]"
+            }
+        }
+
+        val result = repository.refresh()
+
+        val partial = assertIs<StudentSyncResult.Partial>(result)
+        assertEquals(StudentPersistenceFailure.NETWORK, partial.reason)
+        assertEquals("student-1", partial.students.single().id)
+        assertEquals(partial.students, repository.students.value)
+    }
+
+    @Test
+    fun refreshIncompletoPreservaLaIdentidadSensibleYaConocidaEnVezDeVaciarla() = runTest {
+        // El caso critico: un refresh anterior SI trajo tutor/domicilio; un
+        // refresh posterior donde ese subrecurso falla por red no debe
+        // sustituirlos por valores neutros como si el backend hubiera
+        // confirmado que ya no existen.
+        var sensitiveShouldFail = false
+        val (repository, _) = repositoryWith { request ->
+            when {
+                request.url.encodedPath == STUDENTS_PATH -> HttpStatusCode.OK to "[${studentRow()}]"
+                request.url.encodedPath.endsWith("student_sensitive_identity") ->
+                    if (sensitiveShouldFail) {
+                        HttpStatusCode.InternalServerError to "{}"
+                    } else {
+                        HttpStatusCode.OK to """[{"student_id":"student-1","tutor_name":"MADRE SINTETICA"}]"""
+                    }
+                else -> HttpStatusCode.OK to "[]"
+            }
+        }
+
+        val first = assertIs<StudentSyncResult.Loaded>(repository.refresh())
+        assertEquals("MADRE SINTETICA", first.students.single().tutorName)
+
+        sensitiveShouldFail = true
+        val second = assertIs<StudentSyncResult.Partial>(repository.refresh())
+
+        // El subrecurso fallo por servidor, no por RLS: el tutor ya conocido
+        // se conserva, nunca se sustituye por "" como si ya no existiera.
+        assertEquals("MADRE SINTETICA", second.students.single().tutorName)
     }
 
     @Test
@@ -203,7 +312,7 @@ class SupabaseStudentRepositoryImplTest {
     @Test
     fun altaExitosaDevuelveElExpedienteConElIdAsignadoPorElServidor() = runTest {
         val (repository, recorder) = repositoryWith {
-            HttpStatusCode.Created to "[${studentRow(id = "id-del-servidor")}]"
+            HttpStatusCode.Created to "[${studentWithIdentityRowJson(id = "id-del-servidor")}]"
         }
 
         val result = repository.addStudent(
@@ -220,12 +329,55 @@ class SupabaseStudentRepositoryImplTest {
         assertEquals("id-del-servidor", added.student.id)
         assertEquals(listOf(added.student), repository.students.value)
 
+        val request = recorder.requests.single()
+        assertEquals(CREATE_RPC_PATH, request.url.encodedPath)
+        assertEquals(HttpMethod.Post, request.method)
+
         val body = recorder.bodies.single()
-        // La institucion sale de la sesion y el id nunca lo fija el cliente.
-        assertTrue(body.contains("\"institution_id\":\"$INSTITUTION_A\""), body)
-        assertTrue(!body.contains("\"id\":"), "el cliente no debe enviar id: $body")
-        assertTrue(body.contains("\"curp\":\"SINT010101MDFABC01\""), "la CURP se normaliza: $body")
-        assertEquals(HttpMethod.Post, recorder.requests.single().method)
+        // La institucion sale de la sesion y el id nunca lo fija el cliente:
+        // el alta atomica (migracion 0011) ni siquiera acepta un parametro de id.
+        assertTrue(body.contains("\"p_institution_id\":\"$INSTITUTION_A\""), body)
+        assertTrue(!body.contains("\"id\":") && !body.contains("\"p_id\":"), "el cliente no debe enviar id: $body")
+        assertTrue(body.contains("\"p_curp\":\"SINT010101MDFABC01\""), "la CURP se normaliza: $body")
+    }
+
+    @Test
+    fun altaAtomicaPersisteYDevuelveLaIdentidadSensibleCapturada() = runTest {
+        // Contrato del alta atomica (P1 de Codex, "Persist sensitive identity
+        // during student creation"): lo que la UI captura para tutor debe
+        // sobrevivir el viaje completo -- se manda en la RPC y se recibe de
+        // vuelta en la MISMA respuesta (una sola escritura, no un alta
+        // seguida de una relectura separada que pudiera quedarse a medias).
+        val (repository, recorder) = repositoryWith {
+            HttpStatusCode.Created to "[${studentWithIdentityRowJson(
+                id = "id-del-servidor",
+                tutorName = "MADRE SINTETICA",
+                tutorRelation = "Madre"
+            )}]"
+        }
+
+        val result = repository.addStudent(
+            Student(
+                id = "",
+                fullName = "ALUMNA SINTETICA UNO",
+                group = "1A",
+                enrollmentId = "S310-0001",
+                curp = "SINT010101MDFABC01",
+                tutorName = "MADRE SINTETICA",
+                tutorRelation = "Madre"
+            )
+        )
+
+        val added = assertIs<StudentAddResult.Added>(result)
+        assertEquals("MADRE SINTETICA", added.student.tutorName)
+        assertEquals("Madre", added.student.tutorRelation)
+        // Lo que quedo en memoria (equivalente a "releer del repositorio")
+        // coincide exactamente con lo devuelto por el alta: no se perdio nada.
+        assertEquals(added.student, repository.students.value.single())
+
+        val body = recorder.bodies.single()
+        assertTrue(body.contains("\"p_tutor_name\":\"MADRE SINTETICA\""), body)
+        assertTrue(body.contains("\"p_tutor_relation\":\"Madre\""), body)
     }
 
     @Test
@@ -302,10 +454,10 @@ class SupabaseStudentRepositoryImplTest {
     fun actualizacionExitosaReemplazaElExpedienteEnMemoria() = runTest {
         val (repository, recorder) = repositoryWith { request ->
             when {
-                request.method == HttpMethod.Get -> HttpStatusCode.OK to "[${studentRow(group = "1A")}]"
-                request.url.encodedPath.endsWith("student_sensitive_identity") ->
-                    HttpStatusCode.OK to "[${sensitiveIdentityRowJson()}]"
-                else -> HttpStatusCode.OK to "[${studentRow(group = "1B")}]"
+                request.url.encodedPath == STUDENTS_PATH && request.method == HttpMethod.Get ->
+                    HttpStatusCode.OK to "[${studentRow(group = "1A")}]"
+                request.method == HttpMethod.Get -> HttpStatusCode.OK to "[]"
+                else -> HttpStatusCode.OK to "[${studentWithIdentityRowJson(group = "1B")}]"
             }
         }
         repository.refresh()
@@ -323,10 +475,44 @@ class SupabaseStudentRepositoryImplTest {
         assertEquals("1B", assertIs<StudentUpdateResult.Updated>(result).student.group)
         assertEquals("1B", repository.students.value.single().group)
 
-        val patch = recorder.requests.first { it.url.encodedPath == STUDENTS_PATH && it.method == HttpMethod.Patch }
-        assertEquals("eq.student-1", patch.url.parameters["id"])
-        // El filtro por institucion viaja ademas de RLS.
-        assertEquals("eq.$INSTITUTION_A", patch.url.parameters["institution_id"])
+        // Una sola RPC atomica (migracion 0011), no un PATCH del nucleo
+        // seguido de un upsert separado de identidad sensible.
+        val rpcCall = recorder.requests.first { it.url.encodedPath == UPDATE_RPC_PATH }
+        assertEquals(HttpMethod.Post, rpcCall.method)
+        val body = recorder.bodyFor { it.url.encodedPath == UPDATE_RPC_PATH }
+        assertTrue(body.contains("\"p_student_id\":\"student-1\""), body)
+    }
+
+    @Test
+    fun actualizacionAtomicaNoActualizaLaCacheSiElServidorRechazaLaEscritura() = runTest {
+        // Contrato de atomicidad (P1 de Codex, "Make core and sensitive
+        // student updates atomic"): si la RPC no responde 200 (la funcion de
+        // servidor aborto la transaccion completa), el cliente no debe dejar
+        // ningun rastro de la escritura en memoria -- ni nucleo ni identidad
+        // sensible a medias.
+        val (repository, _) = repositoryWith { request ->
+            when {
+                request.url.encodedPath == STUDENTS_PATH && request.method == HttpMethod.Get ->
+                    HttpStatusCode.OK to "[${studentRow(group = "1A")}]"
+                request.method == HttpMethod.Get -> HttpStatusCode.OK to "[]"
+                else -> HttpStatusCode.InternalServerError to "{\"message\":\"SASE_STUDENT_UPDATE_REJECTED\"}"
+            }
+        }
+        repository.refresh()
+
+        val result = repository.updateStudent(
+            Student(
+                id = "student-1",
+                fullName = "ALUMNA SINTETICA UNO",
+                group = "1B",
+                enrollmentId = "S310-0001",
+                curp = "SINT010101MDFABC01"
+            )
+        )
+
+        assertIs<StudentUpdateResult.Failed>(result)
+        // La cache sigue reflejando el estado previo a la RPC fallida.
+        assertEquals("1A", repository.students.value.single().group)
     }
 
     @Test
@@ -409,7 +595,7 @@ class SupabaseStudentRepositoryImplTest {
     @Test
     fun laMatriculaVaciaSePersisteComoNula() = runTest {
         val (repository, recorder) = repositoryWith {
-            HttpStatusCode.Created to "[${studentRow(enrollmentId = null)}]"
+            HttpStatusCode.Created to "[${studentWithIdentityRowJson(enrollmentId = null)}]"
         }
 
         repository.addStudent(
@@ -417,22 +603,19 @@ class SupabaseStudentRepositoryImplTest {
         )
 
         assertTrue(
-            recorder.bodies.single().contains("\"enrollment_id\":null"),
+            recorder.bodies.single().contains("\"p_enrollment_id\":null"),
             "una matricula en blanco debe viajar como null: ${recorder.bodies.single()}"
         )
     }
 
     @Test
     fun laActualizacionEnviaTodasLasColumnasDelNucleoIncluidasLasNulas() = runTest {
-        // Con encodeDefaults=false una columna ausente del PATCH queda intacta
-        // en PostgREST: si el payload omitiera los nulos, seria imposible
-        // borrar una matricula o desligar un folio de pre-solicitud.
-        val (repository, recorder) = repositoryWith { request ->
-            if (request.url.encodedPath.endsWith("student_sensitive_identity")) {
-                HttpStatusCode.OK to "[${sensitiveIdentityRowJson()}]"
-            } else {
-                HttpStatusCode.OK to "[${studentRow(enrollmentId = null)}]"
-            }
+        // Con encodeDefaults=false un parametro ausente de la RPC queda
+        // intacto en la columna correspondiente: si el payload omitiera los
+        // nulos, seria imposible borrar una matricula o desligar un folio de
+        // pre-solicitud.
+        val (repository, recorder) = repositoryWith {
+            HttpStatusCode.OK to "[${studentWithIdentityRowJson(enrollmentId = null)}]"
         }
 
         repository.updateStudent(
@@ -446,15 +629,15 @@ class SupabaseStudentRepositoryImplTest {
             )
         )
 
-        val body = recorder.bodyFor { it.url.encodedPath == STUDENTS_PATH && it.method == HttpMethod.Patch }
+        val body = recorder.bodyFor { it.url.encodedPath == UPDATE_RPC_PATH }
         listOf(
-            "institution_id", "full_name", "student_group", "enrollment_id",
-            "curp", "shift", "school_year", "status", "pre_application_folio"
+            "p_student_id", "p_full_name", "p_student_group", "p_enrollment_id",
+            "p_curp", "p_shift", "p_school_year", "p_status", "p_pre_application_folio"
         ).forEach { column ->
-            assertTrue(body.contains("\"$column\":"), "falta la columna $column en $body")
+            assertTrue(body.contains("\"$column\":"), "falta el parametro $column en $body")
         }
-        assertTrue(body.contains("\"enrollment_id\":null"), body)
-        assertTrue(body.contains("\"pre_application_folio\":null"), body)
+        assertTrue(body.contains("\"p_enrollment_id\":null"), body)
+        assertTrue(body.contains("\"p_pre_application_folio\":null"), body)
     }
 
     @Test

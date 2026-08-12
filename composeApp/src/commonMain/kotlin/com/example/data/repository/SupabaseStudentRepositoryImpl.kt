@@ -44,28 +44,6 @@ internal data class StudentRow(
     @SerialName("pre_application_folio") val preApplicationFolio: String? = null,
 )
 
-/**
- * Cuerpo de alta/actualizacion. `id` nunca viaja: lo asigna el servidor, de
- * modo que el cliente no puede fijar la identidad de un expediente.
- *
- * Ningun campo lleva valor por omision a proposito: con `encodeDefaults = false`
- * —el ajuste por defecto de kotlinx.serialization— una propiedad igual a su
- * default no se serializa, y en un PATCH de PostgREST una columna ausente
- * queda intacta. Sin esto, borrar una matricula seria imposible.
- */
-@Serializable
-internal data class StudentWritePayload(
-    @SerialName("institution_id") val institutionId: String,
-    @SerialName("full_name") val fullName: String,
-    @SerialName("student_group") val studentGroup: String,
-    @SerialName("enrollment_id") val enrollmentId: String?,
-    val curp: String,
-    val shift: String,
-    @SerialName("school_year") val schoolYear: String,
-    val status: String,
-    @SerialName("pre_application_folio") val preApplicationFolio: String?,
-)
-
 internal fun StudentRow.toStudent(): Student = Student(
     id = id,
     fullName = fullName,
@@ -76,20 +54,6 @@ internal fun StudentRow.toStudent(): Student = Student(
     schoolYear = schoolYear,
     status = status,
     preApplicationFolio = preApplicationFolio,
-)
-
-internal fun Student.toWritePayload(institutionId: String): StudentWritePayload = StudentWritePayload(
-    institutionId = institutionId,
-    fullName = fullName.trim(),
-    studentGroup = group.trim(),
-    // Una matricula vacia se persiste como NULL: el indice parcial admite
-    // muchos expedientes sin matricula, pero ninguna matricula repetida.
-    enrollmentId = enrollmentId.trim().takeIf { it.isNotEmpty() },
-    curp = curp.trim().uppercase(),
-    shift = shift.trim(),
-    schoolYear = schoolYear.trim(),
-    status = status.trim(),
-    preApplicationFolio = preApplicationFolio?.trim()?.takeIf { it.isNotEmpty() },
 )
 
 /** Domicilio, tutor y contacto de emergencia (migracion 0005). Tabla propia, RLS separado del nucleo. */
@@ -110,42 +74,6 @@ internal data class SensitiveIdentityRow(
     @SerialName("emergency_contact_email") val emergencyContactEmail: String = "",
 )
 
-@Serializable
-internal data class SensitiveIdentityWritePayload(
-    @SerialName("student_id") val studentId: String,
-    @SerialName("institution_id") val institutionId: String,
-    @SerialName("birth_date") val birthDate: String,
-    @SerialName("birth_place") val birthPlace: String,
-    val address: String,
-    @SerialName("zip_code") val zipCode: String,
-    @SerialName("tutor_name") val tutorName: String,
-    @SerialName("tutor_relation") val tutorRelation: String,
-    @SerialName("tutor_phone") val tutorPhone: String,
-    @SerialName("tutor_email") val tutorEmail: String,
-    @SerialName("emergency_contact_name") val emergencyContactName: String,
-    @SerialName("emergency_contact_relation") val emergencyContactRelation: String,
-    @SerialName("emergency_contact_phone") val emergencyContactPhone: String,
-    @SerialName("emergency_contact_email") val emergencyContactEmail: String,
-)
-
-internal fun Student.toSensitiveIdentityPayload(institutionId: String): SensitiveIdentityWritePayload =
-    SensitiveIdentityWritePayload(
-        studentId = id,
-        institutionId = institutionId,
-        birthDate = birthDate.trim(),
-        birthPlace = birthPlace.trim(),
-        address = address.trim(),
-        zipCode = zipCode.trim(),
-        tutorName = tutorName.trim(),
-        tutorRelation = tutorRelation.trim(),
-        tutorPhone = tutorPhone.trim(),
-        tutorEmail = tutorEmail.trim(),
-        emergencyContactName = emergencyContactName.trim(),
-        emergencyContactRelation = emergencyContactRelation.trim(),
-        emergencyContactPhone = emergencyContactPhone.trim(),
-        emergencyContactEmail = emergencyContactEmail.trim(),
-    )
-
 internal fun Student.withSensitiveIdentity(row: SensitiveIdentityRow?): Student = if (row == null) this else copy(
     birthDate = row.birthDate,
     birthPlace = row.birthPlace,
@@ -160,6 +88,187 @@ internal fun Student.withSensitiveIdentity(row: SensitiveIdentityRow?): Student 
     emergencyContactPhone = row.emergencyContactPhone,
     emergencyContactEmail = row.emergencyContactEmail,
 )
+
+/**
+ * Preserva la identidad sensible de una fuente anterior en memoria (no de
+ * una fila fresca del servidor). Uso exclusivo de [SupabaseStudentRepositoryImpl.refresh]
+ * cuando el subrecurso `student_sensitive_identity` falla: refresh() nunca
+ * debe sustituir un domicilio/tutor ya conocido por valores neutros solo
+ * porque esa peticion en particular fallo (P1 de Codex, "Treat supplemental
+ * fetch failures as synchronization failures").
+ */
+internal fun Student.withSensitiveIdentityFrom(source: Student): Student = copy(
+    birthDate = source.birthDate,
+    birthPlace = source.birthPlace,
+    address = source.address,
+    zipCode = source.zipCode,
+    tutorName = source.tutorName,
+    tutorRelation = source.tutorRelation,
+    tutorPhone = source.tutorPhone,
+    tutorEmail = source.tutorEmail,
+    emergencyContactName = source.emergencyContactName,
+    emergencyContactRelation = source.emergencyContactRelation,
+    emergencyContactPhone = source.emergencyContactPhone,
+    emergencyContactEmail = source.emergencyContactEmail,
+)
+
+/**
+ * Fila combinada que devuelven las RPC atomicas `create_student_core_and_identity`
+ * / `update_student_core_and_identity` (migracion 0011): nucleo + identidad
+ * sensible en una sola respuesta, porque ambas tablas se escribieron en la
+ * misma transaccion de servidor.
+ */
+@Serializable
+internal data class StudentWithIdentityRow(
+    val id: String,
+    @SerialName("institution_id") val institutionId: String,
+    @SerialName("full_name") val fullName: String,
+    @SerialName("student_group") val studentGroup: String = "",
+    @SerialName("enrollment_id") val enrollmentId: String? = null,
+    val curp: String,
+    val shift: String = "",
+    @SerialName("school_year") val schoolYear: String = "",
+    val status: String = "",
+    @SerialName("pre_application_folio") val preApplicationFolio: String? = null,
+    @SerialName("birth_date") val birthDate: String = "",
+    @SerialName("birth_place") val birthPlace: String = "",
+    val address: String = "",
+    @SerialName("zip_code") val zipCode: String = "",
+    @SerialName("tutor_name") val tutorName: String = "",
+    @SerialName("tutor_relation") val tutorRelation: String = "",
+    @SerialName("tutor_phone") val tutorPhone: String = "",
+    @SerialName("tutor_email") val tutorEmail: String = "",
+    @SerialName("emergency_contact_name") val emergencyContactName: String = "",
+    @SerialName("emergency_contact_relation") val emergencyContactRelation: String = "",
+    @SerialName("emergency_contact_phone") val emergencyContactPhone: String = "",
+    @SerialName("emergency_contact_email") val emergencyContactEmail: String = "",
+)
+
+internal fun StudentWithIdentityRow.toStudent(): Student = Student(
+    id = id,
+    fullName = fullName,
+    group = studentGroup,
+    enrollmentId = enrollmentId.orEmpty(),
+    curp = curp,
+    shift = shift,
+    schoolYear = schoolYear,
+    status = status,
+    preApplicationFolio = preApplicationFolio,
+    birthDate = birthDate,
+    birthPlace = birthPlace,
+    address = address,
+    zipCode = zipCode,
+    tutorName = tutorName,
+    tutorRelation = tutorRelation,
+    tutorPhone = tutorPhone,
+    tutorEmail = tutorEmail,
+    emergencyContactName = emergencyContactName,
+    emergencyContactRelation = emergencyContactRelation,
+    emergencyContactPhone = emergencyContactPhone,
+    emergencyContactEmail = emergencyContactEmail,
+)
+
+/** Cuerpo de `rpc/create_student_core_and_identity` (migracion 0011). */
+@Serializable
+internal data class CreateStudentIdentityRpcPayload(
+    @SerialName("p_institution_id") val institutionId: String,
+    @SerialName("p_full_name") val fullName: String,
+    @SerialName("p_student_group") val studentGroup: String,
+    @SerialName("p_enrollment_id") val enrollmentId: String?,
+    @SerialName("p_curp") val curp: String,
+    @SerialName("p_shift") val shift: String,
+    @SerialName("p_school_year") val schoolYear: String,
+    @SerialName("p_status") val status: String,
+    @SerialName("p_pre_application_folio") val preApplicationFolio: String?,
+    @SerialName("p_birth_date") val birthDate: String,
+    @SerialName("p_birth_place") val birthPlace: String,
+    @SerialName("p_address") val address: String,
+    @SerialName("p_zip_code") val zipCode: String,
+    @SerialName("p_tutor_name") val tutorName: String,
+    @SerialName("p_tutor_relation") val tutorRelation: String,
+    @SerialName("p_tutor_phone") val tutorPhone: String,
+    @SerialName("p_tutor_email") val tutorEmail: String,
+    @SerialName("p_emergency_contact_name") val emergencyContactName: String,
+    @SerialName("p_emergency_contact_relation") val emergencyContactRelation: String,
+    @SerialName("p_emergency_contact_phone") val emergencyContactPhone: String,
+    @SerialName("p_emergency_contact_email") val emergencyContactEmail: String,
+)
+
+/** Cuerpo de `rpc/update_student_core_and_identity` (migracion 0011). */
+@Serializable
+internal data class UpdateStudentIdentityRpcPayload(
+    @SerialName("p_student_id") val studentId: String,
+    @SerialName("p_full_name") val fullName: String,
+    @SerialName("p_student_group") val studentGroup: String,
+    @SerialName("p_enrollment_id") val enrollmentId: String?,
+    @SerialName("p_curp") val curp: String,
+    @SerialName("p_shift") val shift: String,
+    @SerialName("p_school_year") val schoolYear: String,
+    @SerialName("p_status") val status: String,
+    @SerialName("p_pre_application_folio") val preApplicationFolio: String?,
+    @SerialName("p_birth_date") val birthDate: String,
+    @SerialName("p_birth_place") val birthPlace: String,
+    @SerialName("p_address") val address: String,
+    @SerialName("p_zip_code") val zipCode: String,
+    @SerialName("p_tutor_name") val tutorName: String,
+    @SerialName("p_tutor_relation") val tutorRelation: String,
+    @SerialName("p_tutor_phone") val tutorPhone: String,
+    @SerialName("p_tutor_email") val tutorEmail: String,
+    @SerialName("p_emergency_contact_name") val emergencyContactName: String,
+    @SerialName("p_emergency_contact_relation") val emergencyContactRelation: String,
+    @SerialName("p_emergency_contact_phone") val emergencyContactPhone: String,
+    @SerialName("p_emergency_contact_email") val emergencyContactEmail: String,
+)
+
+internal fun Student.toCreateRpcPayload(institutionId: String): CreateStudentIdentityRpcPayload =
+    CreateStudentIdentityRpcPayload(
+        institutionId = institutionId,
+        fullName = fullName.trim(),
+        studentGroup = group.trim(),
+        enrollmentId = enrollmentId.trim().takeIf { it.isNotEmpty() },
+        curp = curp.trim().uppercase(),
+        shift = shift.trim(),
+        schoolYear = schoolYear.trim(),
+        status = status.trim(),
+        preApplicationFolio = preApplicationFolio?.trim()?.takeIf { it.isNotEmpty() },
+        birthDate = birthDate.trim(),
+        birthPlace = birthPlace.trim(),
+        address = address.trim(),
+        zipCode = zipCode.trim(),
+        tutorName = tutorName.trim(),
+        tutorRelation = tutorRelation.trim(),
+        tutorPhone = tutorPhone.trim(),
+        tutorEmail = tutorEmail.trim(),
+        emergencyContactName = emergencyContactName.trim(),
+        emergencyContactRelation = emergencyContactRelation.trim(),
+        emergencyContactPhone = emergencyContactPhone.trim(),
+        emergencyContactEmail = emergencyContactEmail.trim(),
+    )
+
+internal fun Student.toUpdateRpcPayload(): UpdateStudentIdentityRpcPayload =
+    UpdateStudentIdentityRpcPayload(
+        studentId = id,
+        fullName = fullName.trim(),
+        studentGroup = group.trim(),
+        enrollmentId = enrollmentId.trim().takeIf { it.isNotEmpty() },
+        curp = curp.trim().uppercase(),
+        shift = shift.trim(),
+        schoolYear = schoolYear.trim(),
+        status = status.trim(),
+        preApplicationFolio = preApplicationFolio?.trim()?.takeIf { it.isNotEmpty() },
+        birthDate = birthDate.trim(),
+        birthPlace = birthPlace.trim(),
+        address = address.trim(),
+        zipCode = zipCode.trim(),
+        tutorName = tutorName.trim(),
+        tutorRelation = tutorRelation.trim(),
+        tutorPhone = tutorPhone.trim(),
+        tutorEmail = tutorEmail.trim(),
+        emergencyContactName = emergencyContactName.trim(),
+        emergencyContactRelation = emergencyContactRelation.trim(),
+        emergencyContactPhone = emergencyContactPhone.trim(),
+        emergencyContactEmail = emergencyContactEmail.trim(),
+    )
 
 /** Observaciones institucionales (migracion 0005 + 0008). Historial inmutable, sin UPDATE/DELETE. */
 @Serializable
@@ -305,28 +414,68 @@ class SupabaseStudentRepositoryImpl(
 
         // Las tablas por area pueden devolver vacio si el actor no tiene el
         // permiso correspondiente (RLS filtra filas, no lanza error): eso es
-        // el comportamiento correcto, no un fallo de refresh().
-        val sensitiveByStudent = fetchByInstitution<SensitiveIdentityRow>(
+        // el comportamiento correcto, no un fallo de refresh(). Un fallo de
+        // transporte/servidor es distinto: NO se convierte en "sin datos" —
+        // se preserva lo que ya habia en memoria para esa seccion y el
+        // resultado se reporta como incompleto (P1 de Codex, "Treat
+        // supplemental fetch failures as synchronization failures").
+        val previousById = _students.value.associateBy { it.id }
+        var incompleteReason: StudentPersistenceFailure? = null
+
+        val sensitiveOutcome = fetchByInstitution<SensitiveIdentityRow>(
             session, "student_sensitive_identity", SENSITIVE_COLUMNS
-        ).associateBy { it.studentId }
-        val observationsByStudent = fetchByInstitution<ObservationRow>(
+        )
+        val sensitiveByStudent = when (sensitiveOutcome) {
+            is FetchOutcome.Ok -> sensitiveOutcome.rows.associateBy { it.studentId }
+            is FetchOutcome.Error -> { incompleteReason = sensitiveOutcome.reason; null }
+        }
+
+        val observationsOutcome = fetchByInstitution<ObservationRow>(
             session, "student_observations", OBSERVATION_COLUMNS, order = "created_at.desc"
-        ).groupBy { it.studentId }
-        val incidentsByStudent = fetchByInstitution<IncidentRow>(
+        )
+        val observationsByStudent = when (observationsOutcome) {
+            is FetchOutcome.Ok -> observationsOutcome.rows.groupBy { it.studentId }
+            is FetchOutcome.Error -> { incompleteReason = observationsOutcome.reason; null }
+        }
+
+        val incidentsOutcome = fetchByInstitution<IncidentRow>(
             session, "student_incidents", INCIDENT_COLUMNS, order = "created_at.desc"
-        ).groupBy { it.studentId }
+        )
+        val incidentsByStudent = when (incidentsOutcome) {
+            is FetchOutcome.Ok -> incidentsOutcome.rows.groupBy { it.studentId }
+            is FetchOutcome.Error -> { incompleteReason = incidentsOutcome.reason; null }
+        }
 
         val loaded = coreRows.map { row ->
-            row.toStudent()
-                .withSensitiveIdentity(sensitiveByStudent[row.id])
-                .copy(
-                    observations = observationsByStudent[row.id].orEmpty().map { it.toSaseObservation() },
-                    schoolIncidents = incidentsByStudent[row.id].orEmpty().map { it.toSaseIncident() }
-                )
+            val previous = previousById[row.id]
+            val base = row.toStudent()
+            val withSensitive = if (sensitiveByStudent != null) {
+                base.withSensitiveIdentity(sensitiveByStudent[row.id])
+            } else {
+                previous?.let { base.withSensitiveIdentityFrom(it) } ?: base
+            }
+            withSensitive.copy(
+                observations = if (observationsByStudent != null) {
+                    observationsByStudent[row.id].orEmpty().map { it.toSaseObservation() }
+                } else {
+                    previous?.observations.orEmpty()
+                },
+                schoolIncidents = if (incidentsByStudent != null) {
+                    incidentsByStudent[row.id].orEmpty().map { it.toSaseIncident() }
+                } else {
+                    previous?.schoolIncidents.orEmpty()
+                }
+            )
         }
 
         _students.value = loaded
-        return StudentSyncResult.Loaded(loaded)
+        return incompleteReason?.let { StudentSyncResult.Partial(loaded, it) }
+            ?: StudentSyncResult.Loaded(loaded)
+    }
+
+    private sealed class FetchOutcome<out T> {
+        data class Ok<T>(val rows: List<T>) : FetchOutcome<T>()
+        data class Error(val reason: StudentPersistenceFailure) : FetchOutcome<Nothing>()
     }
 
     private suspend inline fun <reified T> fetchByInstitution(
@@ -334,7 +483,7 @@ class SupabaseStudentRepositoryImpl(
         table: String,
         columns: String,
         order: String? = null
-    ): List<T> = try {
+    ): FetchOutcome<T> = try {
         val response = httpClient.get("$baseUrl/rest/v1/$table") {
             authHeaders(session)
             url {
@@ -343,11 +492,22 @@ class SupabaseStudentRepositoryImpl(
                 if (order != null) parameters.append("order", order)
             }
         }
-        if (response.status == HttpStatusCode.OK) response.body<List<T>>() else emptyList()
+        if (response.status == HttpStatusCode.OK) {
+            FetchOutcome.Ok(response.body<List<T>>())
+        } else {
+            FetchOutcome.Error(response.status.toFailure())
+        }
     } catch (e: Exception) {
-        emptyList()
+        FetchOutcome.Error(StudentPersistenceFailure.NETWORK)
     }
 
+    /**
+     * Alta atomica del nucleo + identidad sensible via `rpc/create_student_core_and_identity`
+     * (migracion 0011): una sola invocacion de servidor, una sola transaccion.
+     * Nunca se reporta un alta como exitosa con tutor/domicilio a medio
+     * escribir (P1 de Codex, "Persist sensitive identity during student
+     * creation") ni con nucleo escrito pero identidad ausente.
+     */
     override suspend fun addStudent(student: Student): StudentAddResult {
         val session = sessionProvider() ?: return StudentAddResult.Failed(
             StudentPersistenceFailure.NO_SESSION
@@ -360,12 +520,10 @@ class SupabaseStudentRepositoryImpl(
         }
 
         val response = try {
-            httpClient.post("$baseUrl/rest/v1/students") {
+            httpClient.post("$baseUrl/rest/v1/rpc/create_student_core_and_identity") {
                 authHeaders(session)
-                header("Prefer", "return=representation")
                 contentType(ContentType.Application.Json)
-                url { parameters.append("select", COLUMNS) }
-                setBody(student.toWritePayload(session.institutionId))
+                setBody(student.toCreateRpcPayload(session.institutionId))
             }
         } catch (e: Exception) {
             return StudentAddResult.Failed(StudentPersistenceFailure.NETWORK)
@@ -379,7 +537,7 @@ class SupabaseStudentRepositoryImpl(
         }
 
         val created = try {
-            response.body<List<StudentRow>>().firstOrNull()
+            response.body<List<StudentWithIdentityRow>>().firstOrNull()
         } catch (e: Exception) {
             null
         } ?: return StudentAddResult.Failed(StudentPersistenceFailure.REJECTED)
@@ -390,22 +548,27 @@ class SupabaseStudentRepositoryImpl(
         return StudentAddResult.Added(added)
     }
 
+    /**
+     * Actualizacion atomica del nucleo + identidad sensible via
+     * `rpc/update_student_core_and_identity` (migracion 0011): una sola
+     * invocacion de servidor, una sola transaccion. Si RLS rechaza el UPDATE
+     * del nucleo (expediente inexistente/de otra institucion) o el upsert de
+     * identidad sensible falla por cualquier motivo, la funcion aborta
+     * COMPLETA en el servidor — nunca queda un nucleo actualizado con
+     * identidad sensible vieja, ni al reves (P1 de Codex, "Make core and
+     * sensitive student updates atomic"). El cliente ya no intenta simular
+     * esa atomicidad con dos llamadas HTTP.
+     */
     override suspend fun updateStudent(student: Student): StudentUpdateResult {
         val session = sessionProvider() ?: return StudentUpdateResult.Failed(
             StudentPersistenceFailure.NO_SESSION
         )
 
         val response = try {
-            httpClient.patch("$baseUrl/rest/v1/students") {
+            httpClient.post("$baseUrl/rest/v1/rpc/update_student_core_and_identity") {
                 authHeaders(session)
-                header("Prefer", "return=representation")
                 contentType(ContentType.Application.Json)
-                url {
-                    parameters.append("id", "eq.${student.id}")
-                    parameters.append("institution_id", "eq.${session.institutionId}")
-                    parameters.append("select", COLUMNS)
-                }
-                setBody(student.toWritePayload(session.institutionId))
+                setBody(student.toUpdateRpcPayload())
             }
         } catch (e: Exception) {
             return StudentUpdateResult.Failed(StudentPersistenceFailure.NETWORK)
@@ -415,26 +578,18 @@ class SupabaseStudentRepositoryImpl(
             return StudentUpdateResult.Failed(response.status.toFailure())
         }
 
-        // PostgREST responde 200 con lista vacia cuando ninguna fila coincidio
-        // —expediente inexistente o de otra institucion—. Eso es un rechazo,
-        // nunca un "guardado".
+        // La RPC devuelve lista vacia (o la funcion aborta con un error, ya
+        // cubierto arriba) cuando ninguna fila del nucleo coincidio —
+        // expediente inexistente o de otra institucion—. Eso es un rechazo,
+        // nunca un "guardado", y en ese caso el servidor no escribio nada.
         val updatedRow = try {
-            response.body<List<StudentRow>>().firstOrNull()
+            response.body<List<StudentWithIdentityRow>>().firstOrNull()
         } catch (e: Exception) {
             null
         } ?: return StudentUpdateResult.Failed(StudentPersistenceFailure.REJECTED)
 
-        // El domicilio/tutor/contacto de emergencia viaja en la misma llamada
-        // porque comparten permiso (EDIT_STUDENT_IDENTITY) con el nucleo: si
-        // esto fallara, la edicion no debe reportarse como guardada aunque el
-        // PATCH del nucleo si haya tenido exito — evita el P1 de Codex
-        // ("guarda observaciones/domicilio sin persistirlos realmente").
-        val sensitiveRow = upsertSensitiveIdentity(session, student)
-            ?: return StudentUpdateResult.Failed(StudentPersistenceFailure.REJECTED)
-
         val cached = _students.value.firstOrNull { it.id == student.id }
         val updated = updatedRow.toStudent()
-            .withSensitiveIdentity(sensitiveRow)
             .copy(
                 observations = cached?.observations.orEmpty(),
                 schoolIncidents = cached?.schoolIncidents.orEmpty()
@@ -444,27 +599,6 @@ class SupabaseStudentRepositoryImpl(
             .sortedBy { it.fullName }
         return StudentUpdateResult.Updated(updated)
     }
-
-    private suspend fun upsertSensitiveIdentity(session: AuthSession, student: Student): SensitiveIdentityRow? =
-        try {
-            val response = httpClient.post("$baseUrl/rest/v1/student_sensitive_identity") {
-                authHeaders(session)
-                header("Prefer", "resolution=merge-duplicates,return=representation")
-                contentType(ContentType.Application.Json)
-                url {
-                    parameters.append("on_conflict", "student_id")
-                    parameters.append("select", SENSITIVE_COLUMNS)
-                }
-                setBody(student.toSensitiveIdentityPayload(session.institutionId))
-            }
-            if (response.status == HttpStatusCode.OK || response.status == HttpStatusCode.Created) {
-                response.body<List<SensitiveIdentityRow>>().firstOrNull()
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            null
-        }
 
     override suspend fun addObservation(studentId: String, observation: SaseObservation): StudentUpdateResult {
         val session = sessionProvider() ?: return StudentUpdateResult.Failed(
