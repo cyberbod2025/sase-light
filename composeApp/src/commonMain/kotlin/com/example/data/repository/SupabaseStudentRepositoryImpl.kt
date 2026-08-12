@@ -554,6 +554,13 @@ class SupabaseStudentRepositoryImpl(
         } ?: return StudentAddResult.Failed(StudentPersistenceFailure.REJECTED)
 
         val added = created.toStudent()
+        // La sesion pudo cerrarse (u otra abrirse) mientras esta peticion
+        // estaba en vuelo: publicar de todos modos repoblaria el StateFlow
+        // compartido con un expediente de una sesion ya obsoleta (P1 de
+        // Codex, "Discard mutation responses from obsolete sessions").
+        if (sessionProvider() != session) {
+            return StudentAddResult.Failed(StudentPersistenceFailure.NO_SESSION)
+        }
         _students.value = (_students.value.filterNot { it.id == added.id } + added)
             .sortedBy { it.fullName }
         return StudentAddResult.Added(added)
@@ -598,6 +605,10 @@ class SupabaseStudentRepositoryImpl(
         } catch (e: Exception) {
             null
         } ?: return StudentUpdateResult.Failed(StudentPersistenceFailure.REJECTED)
+
+        if (sessionProvider() != session) {
+            return StudentUpdateResult.Failed(StudentPersistenceFailure.NO_SESSION)
+        }
 
         val cached = _students.value.firstOrNull { it.id == student.id }
         val updated = updatedRow.toStudent()
@@ -644,7 +655,7 @@ class SupabaseStudentRepositoryImpl(
             null
         } ?: return StudentUpdateResult.Failed(StudentPersistenceFailure.REJECTED)
 
-        return mergeIntoCachedStudent(studentId) { it.copy(observations = listOf(created.toSaseObservation()) + it.observations) }
+        return mergeIntoCachedStudent(session, studentId) { it.copy(observations = listOf(created.toSaseObservation()) + it.observations) }
     }
 
     override suspend fun addIncident(
@@ -689,7 +700,7 @@ class SupabaseStudentRepositoryImpl(
             null
         } ?: return StudentUpdateResult.Failed(StudentPersistenceFailure.REJECTED)
 
-        return mergeIntoCachedStudent(studentId) { it.copy(schoolIncidents = listOf(created.toSaseIncident()) + it.schoolIncidents) }
+        return mergeIntoCachedStudent(session, studentId) { it.copy(schoolIncidents = listOf(created.toSaseIncident()) + it.schoolIncidents) }
     }
 
     override suspend fun advanceIncident(studentId: String, updated: SaseIncident): StudentUpdateResult {
@@ -727,12 +738,22 @@ class SupabaseStudentRepositoryImpl(
         } ?: return StudentUpdateResult.Failed(StudentPersistenceFailure.REJECTED)
         val saved = savedRow.toSaseIncident()
 
-        return mergeIntoCachedStudent(studentId) { student ->
+        return mergeIntoCachedStudent(session, studentId) { student ->
             student.copy(schoolIncidents = student.schoolIncidents.map { if (it.id == saved.id) saved else it })
         }
     }
 
-    private fun mergeIntoCachedStudent(studentId: String, transform: (Student) -> Student): StudentUpdateResult {
+    private fun mergeIntoCachedStudent(
+        session: AuthSession,
+        studentId: String,
+        transform: (Student) -> Student
+    ): StudentUpdateResult {
+        // Igual que en addStudent/updateStudent: no publicar una respuesta
+        // llegada bajo una sesion que ya no es la activa (P1 de Codex,
+        // "Discard mutation responses from obsolete sessions").
+        if (sessionProvider() != session) {
+            return StudentUpdateResult.Failed(StudentPersistenceFailure.NO_SESSION)
+        }
         val current = _students.value.firstOrNull { it.id == studentId }
             ?: return StudentUpdateResult.Failed(StudentPersistenceFailure.REJECTED)
         val updated = transform(current)

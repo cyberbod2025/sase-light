@@ -6,11 +6,17 @@ import com.example.data.SaseDocument
 import com.example.data.Student
 import com.example.data.StudentAddResult
 import com.example.data.StudentUpdateResult
+import com.example.audit.InstitutionalAuditEvent
+import com.example.audit.InstitutionalAuditResult
+import com.example.audit.InstitutionalAuditValidator
 import com.example.data.auth.AuthSession
 import com.example.data.auth.StaffAction
 import com.example.data.auth.StaffPermissions
+import com.example.data.repository.AuditRepository
+import com.example.data.repository.MockAuditRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
 import com.example.data.repository.StudentRepository
+import com.example.getPlatformName
 import com.example.data.enrollment.AnnualEnrollmentFlowCoordinator
 import com.example.data.enrollment.EnrollmentFlowMode
 import com.example.data.enrollment.AnnualEnrollmentFlowRequest
@@ -254,6 +260,18 @@ class PreApplicationViewModel {
             this.authSessionProvider = provider
         }
 
+        // confirmInitialGroup escribe el expediente maestro llamando a
+        // studentRepository directo, sin pasar por LabViewModel.updateStudent()/
+        // addStudent() -- eso significa que, sin esto, una mutacion real del
+        // expediente en SUPABASE_STAGING nunca queda en student_audit_events
+        // pese a que las demas rutas de escritura si lo exigen (P1 de Codex,
+        // "Audit official-enrollment mutations").
+        private var auditRepository: AuditRepository = MockAuditRepositoryImpl()
+
+        fun configureAuditRepository(repository: AuditRepository) {
+            this.auditRepository = repository
+        }
+
         fun approvePreApplication(folio: String) {
             updatePreApp(folio) { it.copy(status = PreApplicationStatus.ACEPTADA) }
             reconcileReadinessAfterRequirementChange(folio)
@@ -391,6 +409,7 @@ class PreApplicationViewModel {
             MockSaseData.resetDemoData()
             studentRepository = MockStudentRepositoryImpl()
             authSessionProvider = { null }
+            auditRepository = MockAuditRepositoryImpl()
         }
 
         fun resetSharedStateForTests() = resetDemoData()
@@ -1177,9 +1196,11 @@ class PreApplicationViewModel {
             // SECRETARIA); esta funcion puede ejercer cualquiera de los dos
             // segun si el expediente maestro ya existe, asi que basta con
             // exigir uno para que ambas ramas de escritura queden cubiertas.
-            if (!StaffPermissions.canPerform(authSessionProvider(), StaffAction.UPDATE_STUDENT)) {
+            val session = authSessionProvider()
+            if (!StaffPermissions.canPerform(session, StaffAction.UPDATE_STUDENT)) {
                 return OfficialEnrollmentResult.Error("Acción no autorizada para la sesión activa.")
             }
+            requireNotNull(session) { "canPerform ya confirmo una sesion activa" }
 
             val cleanGroup = selectedGroup.trim().uppercase()
             if (cleanGroup.isBlank()) {
@@ -1310,12 +1331,40 @@ class PreApplicationViewModel {
             // se confirma en memoria el cambio de estado del alta oficial.
             _officialStudents.value = recomputedOfficialStudents
             markConverted(folio)
+            recordOfficialEnrollmentAudit(session, syncedMaster.id)
             return OfficialEnrollmentResult.Success(
                 officialStudent = currentStudent,
                 masterStudent = syncedMaster,
                 masterStudentCreated = false,
                 message = "Grupo inicial confirmado y expediente maestro sincronizado."
             )
+        }
+
+        /**
+         * confirmInitialGroup muta el expediente maestro llamando a
+         * studentRepository directo (no LabViewModel.updateStudent()/
+         * addStudent()), asi que necesita su propio registro de bitacora —
+         * mismo criterio que [com.example.audit.InstitutionalAuditValidator]
+         * exige en las demas rutas de escritura (P1 de Codex, "Audit
+         * official-enrollment mutations"). No revierte la mutacion si la
+         * bitacora falla: el expediente ya quedo persistido en el backend.
+         */
+        private suspend fun recordOfficialEnrollmentAudit(session: AuthSession, masterStudentId: String) {
+            val event = InstitutionalAuditEvent(
+                institutionId = session.institutionId,
+                actorProfileId = session.profileId,
+                membershipId = session.membershipId,
+                activeRole = session.activeRole,
+                action = "official_enrollment.group_confirmed",
+                entityType = "student",
+                entityId = masterStudentId,
+                timestamp = formatTimestamp("yyyy-MM-dd HH:mm:ss"),
+                result = InstitutionalAuditResult.AUTHORIZED,
+                sourcePlatform = getPlatformName()
+            )
+            if (InstitutionalAuditValidator.validate(event).isValid) {
+                auditRepository.logAudit(event)
+            }
         }
 
         fun buildProvisionalStudent(preApp: PreApplication): com.example.data.Student {

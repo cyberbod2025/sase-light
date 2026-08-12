@@ -43,22 +43,26 @@ object SaseCompositionRoot {
         AppEnvironmentMode.DEMO_LOCAL -> {
             val studentRepository = MockStudentRepositoryImpl()
             val authRepository = MockAuthRepositoryImpl()
+            val auditRepository = MockAuditRepositoryImpl()
             // El alta oficial (PreApplicationViewModel) es estatico y no pasa
             // por este constructor: se cablea aqui al mismo repositorio que
             // usa LabViewModel para que ambos lean/escriban el mismo padron
-            // maestro segun el ambiente (P1 de Codex en PR #49), y a la misma
+            // maestro segun el ambiente (P1 de Codex en PR #49), a la misma
             // sesion activa para que confirmInitialGroup gatee por rol igual
             // que en SUPABASE_STAGING (P2 de Codex, "Gate official-enrollment
-            // writes by the active role").
+            // writes by the active role"), y a la misma bitacora para que sus
+            // mutaciones tambien queden auditadas (P1 de Codex, "Audit
+            // official-enrollment mutations").
             PreApplicationViewModel.configureRepositories(studentRepository)
             PreApplicationViewModel.configureAuthSessionProvider { authRepository.session.value }
+            PreApplicationViewModel.configureAuditRepository(auditRepository)
             SaseBootstrap.Ready(
                 environment = environment,
                 viewModel = LabViewModel(
                     appEnvironment = environment,
                     authRepository = authRepository,
                     studentRepository = studentRepository,
-                    auditRepository = MockAuditRepositoryImpl()
+                    auditRepository = auditRepository
                 )
             )
         }
@@ -78,19 +82,21 @@ object SaseCompositionRoot {
                 apiKey = supabase.publishableKey,
                 sessionProvider = sessionProvider
             )
+            val auditRepository = SupabaseAuditRepositoryImpl(
+                baseUrl = supabase.url,
+                apiKey = supabase.publishableKey,
+                sessionProvider = sessionProvider
+            )
             PreApplicationViewModel.configureRepositories(studentRepository)
             PreApplicationViewModel.configureAuthSessionProvider(sessionProvider)
+            PreApplicationViewModel.configureAuditRepository(auditRepository)
             SaseBootstrap.Ready(
                 environment = environment,
                 viewModel = LabViewModel(
                     appEnvironment = environment,
                     authRepository = authRepository,
                     studentRepository = studentRepository,
-                    auditRepository = SupabaseAuditRepositoryImpl(
-                        baseUrl = supabase.url,
-                        apiKey = supabase.publishableKey,
-                        sessionProvider = sessionProvider
-                    )
+                    auditRepository = auditRepository
                 )
             )
         }

@@ -1701,7 +1701,7 @@ fun StudentRecordScreen(
                                                             fontSize = 10.sp,
                                                             modifier = Modifier.clickable {
                                                                 scope.launch {
-                                                                    if (!viewModel.advanceIncident(student.id, incident.id, "")) {
+                                                                    if (!viewModel.advanceIncident(student.id, incident.id, "").isCommitted) {
                                                                         toast("No se pudo avanzar la incidencia")
                                                                     }
                                                                 }
@@ -1912,7 +1912,7 @@ fun StudentRecordScreen(
                             onClick = {
                                 if (incDesc.isNotBlank()) {
                                     scope.launch {
-                                        if (viewModel.reportIncident(student.id, incType, incDesc)) {
+                                        if (viewModel.reportIncident(student.id, incType, incDesc).isCommitted) {
                                             showIncidentDialog = false
                                             incDesc = ""
                                             toast("Incidencia registrada")
@@ -2000,7 +2000,7 @@ fun StudentRecordScreen(
                             onClick = {
                                 if (obsText.isNotBlank()) {
                                     scope.launch {
-                                        if (viewModel.addObservation(student.id, obsText, obsCategory)) {
+                                        if (viewModel.addObservation(student.id, obsText, obsCategory).isCommitted) {
                                             showObsDialog = false
                                             obsText = ""
                                             toast("Observación registrada")

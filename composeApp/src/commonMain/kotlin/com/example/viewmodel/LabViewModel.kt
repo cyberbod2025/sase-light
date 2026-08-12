@@ -101,14 +101,16 @@ sealed interface StudentSyncUiState {
 }
 
 /**
- * Resultado de [LabViewModel.updateStudent]: distingue un guardado
- * confirmado (con bitacora) de uno comprometido sin bitacora, de un
- * rechazo donde nada se escribio. Antes esto colapsaba a `Boolean`, asi
- * que un fallo de auditoria transitorio tras una actualizacion ya
- * comprometida en el backend se reportaba identico a un rechazo total —
- * cualquier sincronizacion dependiente (p.ej. la pre-solicitud
- * relacionada) se saltaba pese a que el expediente si cambio (P1 de
- * Codex, "Distinguish committed updates from audit failures").
+ * Resultado de las mutaciones institucionales de [LabViewModel]
+ * (updateStudent, addObservation, reportIncident, advanceIncident):
+ * distingue una escritura confirmada (con bitacora) de una comprometida
+ * sin bitacora, de un rechazo donde nada se escribio. Antes cada una
+ * colapsaba a `Boolean`, asi que un fallo de auditoria transitorio tras
+ * una mutacion ya comprometida en el backend se reportaba identico a un
+ * rechazo total — la UI invitaba a reintentar (duplicando la escritura) o
+ * saltaba sincronizaciones dependientes pese a que el expediente si
+ * cambio (P1 de Codex, "Distinguish committed updates from audit
+ * failures" / "Preserve success when observation auditing fails").
  */
 enum class StudentUpdateOutcome {
     UPDATED,
@@ -446,13 +448,13 @@ class LabViewModel(
         return result
     }
 
-    suspend fun addObservation(studentId: String, text: String, category: String): Boolean {
+    suspend fun addObservation(studentId: String, text: String, category: String): StudentUpdateOutcome {
         val active = authorizedFor(
             action = StaffAction.ADD_OBSERVATION,
             entityType = "student_observation",
             entityId = studentId
-        ) ?: return false
-        if (saseStudents.value.none { it.id == studentId }) return false
+        ) ?: return StudentUpdateOutcome.REJECTED
+        if (saseStudents.value.none { it.id == studentId }) return StudentUpdateOutcome.REJECTED
 
         val observation = SaseObservation(
             text = text,
@@ -465,14 +467,18 @@ class LabViewModel(
         // como guardado si la fila no llego a insertarse (P1 de Codex en PR
         // #49, "Reject updates for fields the backend does not persist").
         val persisted = studentRepository.addObservation(studentId, observation) is StudentUpdateResult.Updated
-        if (!persisted) return false
-        return recordAudit(
+        if (!persisted) return StudentUpdateOutcome.REJECTED
+        val audited = recordAudit(
             session = active,
             action = "student.observation.created",
             entityType = "student_observation",
             entityId = studentId,
             result = InstitutionalAuditResult.AUTHORIZED
         )
+        // La observacion ya quedo persistida: un fallo de auditoria despues
+        // no debe reportarse como "no paso nada" (invitaria a reintentar y
+        // duplicar la observacion).
+        return if (audited) StudentUpdateOutcome.UPDATED else StudentUpdateOutcome.COMMITTED_WITHOUT_AUDIT
     }
 
     /**
@@ -494,13 +500,13 @@ class LabViewModel(
         )
     }
 
-    suspend fun reportIncident(studentId: String, type: String, description: String): Boolean {
+    suspend fun reportIncident(studentId: String, type: String, description: String): StudentUpdateOutcome {
         val active = authorizedFor(
             action = StaffAction.REPORT_INCIDENT,
             entityType = "school_incident",
             entityId = studentId
-        ) ?: return false
-        if (saseStudents.value.none { it.id == studentId }) return false
+        ) ?: return StudentUpdateOutcome.REJECTED
+        if (saseStudents.value.none { it.id == studentId }) return StudentUpdateOutcome.REJECTED
 
         // Metodo dedicado, no updateStudent(): en SUPABASE_STAGING su RLS
         // real es EDIT_INCIDENTS (Prefectura/Tutor), DISTINTO del que protege
@@ -515,39 +521,41 @@ class LabViewModel(
             reportedByStaffId = active.profile.id,
             reportedByName = active.profile.fullName
         )
-        val updated = (result as? StudentUpdateResult.Updated)?.student ?: return false
-        val incidentId = updated.schoolIncidents.firstOrNull()?.id ?: return false
-        return recordAudit(
+        val updated = (result as? StudentUpdateResult.Updated)?.student ?: return StudentUpdateOutcome.REJECTED
+        val incidentId = updated.schoolIncidents.firstOrNull()?.id ?: return StudentUpdateOutcome.REJECTED
+        val audited = recordAudit(
             session = active,
             action = "school_incident.reported",
             entityType = "school_incident",
             entityId = incidentId,
             result = InstitutionalAuditResult.AUTHORIZED
         )
+        return if (audited) StudentUpdateOutcome.UPDATED else StudentUpdateOutcome.COMMITTED_WITHOUT_AUDIT
     }
 
-    suspend fun advanceIncident(studentId: String, incidentId: String, note: String): Boolean {
+    suspend fun advanceIncident(studentId: String, incidentId: String, note: String): StudentUpdateOutcome {
         val active = authorizedFor(
             action = StaffAction.ADVANCE_INCIDENT,
             entityType = "school_incident",
             entityId = incidentId
-        ) ?: return false
-        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return false
-        val incident = student.schoolIncidents.firstOrNull { it.id == incidentId } ?: return false
+        ) ?: return StudentUpdateOutcome.REJECTED
+        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return StudentUpdateOutcome.REJECTED
+        val incident = student.schoolIncidents.firstOrNull { it.id == incidentId } ?: return StudentUpdateOutcome.REJECTED
 
         val updated = when (val transition = IncidentWorkflow.advance(incident, note)) {
-            is IncidentTransitionResult.IllegalTransition -> return false
+            is IncidentTransitionResult.IllegalTransition -> return StudentUpdateOutcome.REJECTED
             is IncidentTransitionResult.Success -> transition.incident
         }
         val persisted = studentRepository.advanceIncident(studentId, updated) is StudentUpdateResult.Updated
-        if (!persisted) return false
-        return recordAudit(
+        if (!persisted) return StudentUpdateOutcome.REJECTED
+        val audited = recordAudit(
             session = active,
             action = "school_incident.advanced.${updated.status}",
             entityType = "school_incident",
             entityId = incidentId,
             result = InstitutionalAuditResult.AUTHORIZED
         )
+        return if (audited) StudentUpdateOutcome.UPDATED else StudentUpdateOutcome.COMMITTED_WITHOUT_AUDIT
     }
 
     suspend fun escalateCase(studentId: String): Boolean {
