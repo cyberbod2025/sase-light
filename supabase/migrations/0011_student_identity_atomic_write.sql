@@ -35,8 +35,12 @@
 -- funciones derivan `institution_id` exclusivamente de la fila servidor via
 -- `returning`, nunca del parametro del cliente para la segunda escritura.
 --
--- ESTADO: escrita, NO aplicada. Requiere autorizacion explicita de Hugo
--- antes de tocar el proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh).
+-- ESTADO: APLICADA al proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh)
+-- el 2026-08-12 con autorizacion explicita de Hugo (incluida la correccion
+-- de institution_id server-derivado). Verificado tras aplicarla: alta
+-- atomica end-to-end exitosa; rollback atomico confirmado en dos casos
+-- (CURP duplicada en create, id inexistente en update) -- ninguna fila
+-- parcial quedo en students ni en student_sensitive_identity.
 
 create or replace function public.create_student_core_and_identity(
   p_institution_id uuid,

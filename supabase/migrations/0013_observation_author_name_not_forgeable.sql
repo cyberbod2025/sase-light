@@ -18,8 +18,12 @@
 -- observaciones son historial inmutable, sin politica de UPDATE (0005 lo
 -- deja asi a proposito), asi que no hay una segunda superficie que congelar.
 --
--- ESTADO: escrita, NO aplicada. Requiere autorizacion explicita de Hugo
--- antes de tocar el proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh).
+-- ESTADO: APLICADA al proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh)
+-- el 2026-08-12 con autorizacion explicita de Hugo. Verificado tras
+-- aplicarla: intento de insertar con author_name falso (author_profile_id
+-- correcto) quedo sobrescrito por el nombre real del actor; intento con
+-- author_profile_id ajeno rechazado por la politica RLS existente
+-- (violacion de student_observations_insert_by_permission).
 
 create or replace function public.sase_stamp_observation_author_name()
 returns trigger

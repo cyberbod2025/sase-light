@@ -41,12 +41,14 @@
 -- migracion (verificado antes de escribirla, mismo criterio que 0007/0008);
 -- el ALTER COLUMN ... SET NOT NULL no requiere backfill.
 --
--- ESTADO: escrita, NO aplicada. Requiere autorizacion explicita de Hugo
--- antes de tocar el proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh).
--- Antes de aplicar, reverificar que la tabla sigue vacia en remoto: si ya
--- hay incidencias reales, el ALTER COLUMN...SET NOT NULL fallaria sobre
--- cualquier fila con reported_by_profile_id nulo y requeriria backfill
--- previo (fuera del alcance de esta migracion).
+-- ESTADO: APLICADA al proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh)
+-- el 2026-08-12 con autorizacion explicita de Hugo. Precondicion
+-- reverificada antes de aplicar: 0 filas en student_incidents (sin
+-- reported_by_profile_id nulo que backfillear). Verificado tras aplicarla:
+-- intento de impersonacion en INSERT (reported_by_profile_id/reporter_name
+-- ajenos) quedo sobrescrito por el actor real; intento de reescritura en
+-- UPDATE quedo congelado a los valores originales; insert como `anon` (sin
+-- sesion) rechazado.
 
 create or replace function public.sase_stamp_incident_reporter()
 returns trigger

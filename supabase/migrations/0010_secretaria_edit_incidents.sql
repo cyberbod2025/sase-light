@@ -29,8 +29,11 @@
 -- primer otorgamiento. Se agrega VIEW_INCIDENTS junto con EDIT_INCIDENTS
 -- para que el permiso de escritura sea utilizable de verdad.
 --
--- ESTADO: escrita, NO aplicada. Requiere autorizacion explicita de Hugo
--- antes de tocar el proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh).
+-- ESTADO: APLICADA al proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh)
+-- el 2026-08-12 con autorizacion explicita de Hugo. Verificado tras
+-- aplicarla: SECRETARIA tiene EDIT_INCIDENTS y VIEW_INCIDENTS en
+-- role_permissions; prueba end-to-end (insert + select) exitosa
+-- impersonando la membresia real de SECRETARIA DEMO.
 
 insert into public.role_permissions (role_id, permission_id)
 select r.id, p.id
