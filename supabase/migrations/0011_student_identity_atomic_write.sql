@@ -25,6 +25,16 @@
 -- cliente), para que sea imposible adjuntar una identidad sensible a la
 -- institucion equivocada.
 --
+-- CORRECCION (revision previa a aplicar, Hugo 2026-08-12): la version
+-- original de `create_student_core_and_identity` afirmaba esta garantia en
+-- el comentario de arriba pero no la cumplia -- reutilizaba `p_institution_id`
+-- (el parametro del cliente) directamente para el INSERT de
+-- `student_sensitive_identity` en vez de leerlo de la fila de `students` ya
+-- insertada. `update_student_core_and_identity` si lo hacia bien
+-- (`returning ... institution_id into v_institution_id`). Ahora ambas
+-- funciones derivan `institution_id` exclusivamente de la fila servidor via
+-- `returning`, nunca del parametro del cliente para la segunda escritura.
+--
 -- ESTADO: escrita, NO aplicada. Requiere autorizacion explicita de Hugo
 -- antes de tocar el proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh).
 
@@ -81,6 +91,7 @@ set search_path = ''
 as $$
 declare
   v_student_id uuid;
+  v_institution_id uuid;
 begin
   insert into public.students (
     institution_id, full_name, student_group, enrollment_id, curp, shift,
@@ -89,14 +100,17 @@ begin
     p_institution_id, p_full_name, p_student_group, p_enrollment_id, p_curp, p_shift,
     p_school_year, p_status, p_pre_application_folio
   )
-  returning public.students.id into v_student_id;
+  returning public.students.id, public.students.institution_id into v_student_id, v_institution_id;
 
+  -- v_institution_id (leido de vuelta de la fila insertada), NO
+  -- p_institution_id (el parametro del cliente): la segunda escritura nunca
+  -- confia otra vez en lo que el cliente afirmo.
   insert into public.student_sensitive_identity (
     student_id, institution_id, birth_date, birth_place, address, zip_code,
     tutor_name, tutor_relation, tutor_phone, tutor_email,
     emergency_contact_name, emergency_contact_relation, emergency_contact_phone, emergency_contact_email
   ) values (
-    v_student_id, p_institution_id, p_birth_date, p_birth_place, p_address, p_zip_code,
+    v_student_id, v_institution_id, p_birth_date, p_birth_place, p_address, p_zip_code,
     p_tutor_name, p_tutor_relation, p_tutor_phone, p_tutor_email,
     p_emergency_contact_name, p_emergency_contact_relation, p_emergency_contact_phone, p_emergency_contact_email
   );
