@@ -69,6 +69,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
     val familyViewModel = remember { PreApplicationViewModel() }
     val currentStep by familyViewModel.currentStep.collectAsState()
     val submittedFolio by familyViewModel.submittedFolio.collectAsState()
+    val submittedAccessToken by familyViewModel.submittedAccessToken.collectAsState()
     val errors by familyViewModel.errors.collectAsState()
     val isSubmitting by familyViewModel.isSubmitting.collectAsState()
     var showLookupDialog by remember { mutableStateOf(false) }
@@ -252,7 +253,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                     }
                 } else {
                     Button(
-                        onClick = { familyViewModel.submitApplication() },
+                        onClick = { coroutineScope.launch { familyViewModel.submitApplication() } },
                         colors = ButtonDefaults.buttonColors(containerColor = SaseGreen, contentColor = Color.White),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -300,6 +301,33 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                             softWrap = true,
                             textAlign = TextAlign.Center
                         )
+                    }
+
+                    if (submittedAccessToken != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            "Guarda también tu código de acceso -- lo necesitarás para consultar o corregir tu pre-registro después. No se envía por correo ni SMS, y no se puede recuperar si lo pierdes:",
+                            textAlign = TextAlign.Center, color = PortalMuted, fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(PortalCardBg, RoundedCornerShape(12.dp))
+                                .border(1.dp, SaseOrange.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                submittedAccessToken!!,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SaseOrange,
+                                maxLines = 3,
+                                softWrap = true,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -361,8 +389,10 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
 
 @Composable
 private fun FamilyPreApplicationLookupDialog(onDismiss: () -> Unit) {
+    val coroutineScope = rememberCoroutineScope()
     var folio by remember { mutableStateOf("") }
     var curp by remember { mutableStateOf("") }
+    var accessToken by remember { mutableStateOf("") }
     var lookupResult by remember { mutableStateOf<FamilyPreApplicationLookupResult?>(null) }
 
     fun clearResult() {
@@ -389,7 +419,7 @@ private fun FamilyPreApplicationLookupDialog(onDismiss: () -> Unit) {
                     color = PortalText
                 )
                 Text(
-                    "Ingresa el folio y la CURP usados en la solicitud.",
+                    "Ingresa el folio, la CURP y el código de acceso que recibiste al enviar la solicitud.",
                     fontSize = 12.sp,
                     color = PortalMuted
                 )
@@ -420,10 +450,25 @@ private fun FamilyPreApplicationLookupDialog(onDismiss: () -> Unit) {
                     textStyle = TextStyle(fontSize = 14.sp, color = PortalText),
                     colors = portalTextFieldColors()
                 )
+                OutlinedTextField(
+                    value = accessToken,
+                    onValueChange = {
+                        accessToken = it
+                        clearResult()
+                    },
+                    label = { Text("Código de acceso") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    textStyle = TextStyle(fontSize = 14.sp, color = PortalText),
+                    colors = portalTextFieldColors()
+                )
 
                 Button(
                     onClick = {
-                        lookupResult = PreApplicationViewModel.lookupFamilyPreApplication(folio, curp)
+                        coroutineScope.launch {
+                            lookupResult = PreApplicationViewModel.lookupFamilyPreApplication(folio, curp, accessToken)
+                        }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = PortalAccent),

@@ -3,6 +3,7 @@ package com.example.viewmodel
 import com.example.data.MockSaseData
 import com.example.data.presolicitud.PreApplication
 import com.example.data.presolicitud.ReadinessStatus
+import kotlinx.coroutines.test.runTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -50,14 +51,14 @@ class PreApplicationCurpCorrectionTest {
     // ── Caso A + B — CURP válida nueva, con espacios y minúsculas ─────────
 
     @Test
-    fun validCurpWithSpacesAndLowercaseIsNormalizedAndPersisted() {
+    fun validCurpWithSpacesAndLowercaseIsNormalizedAndPersisted() = runTest {
         PreApplicationViewModel.updatePreApplicationCurp(FOLIO_NEW, "  newd020202hdfxyz88  ")
 
         assertEquals(CURP_UNIQUE_A, stored(FOLIO_NEW).alumnoCurp)
     }
 
     @Test
-    fun validCurpUpdateOnCoherentReadyPreservesReadiness() {
+    fun validCurpUpdateOnCoherentReadyPreservesReadiness() = runTest {
         // Post-D6 el fixture READY no tiene pendientes: una corrección válida
         // que no introduce bloqueos reconcilia sin degradar (contrato: READY
         // con pendientes vacíos permanece READY).
@@ -74,7 +75,7 @@ class PreApplicationCurpCorrectionTest {
     // ── Caso C — Longitud inválida: rechazo silencioso, sin efectos ───────
 
     @Test
-    fun curpWithInvalidLengthLeavesRecordAndReadinessUntouched() {
+    fun curpWithInvalidLengthLeavesRecordAndReadinessUntouched() = runTest {
         val before = stored(FOLIO_NEW)
 
         PreApplicationViewModel.updatePreApplicationCurp(FOLIO_NEW, "NEWD020202HDFXYZ8")   // 17
@@ -89,7 +90,7 @@ class PreApplicationCurpCorrectionTest {
     // ── Caso D — Folio inexistente: no-op sin excepción ───────────────────
 
     @Test
-    fun unknownFolioIsASilentNoOpAndTouchesNothing() {
+    fun unknownFolioIsASilentNoOpAndTouchesNothing() = runTest {
         val before = PreApplicationViewModel.sharedPreApplications.value
 
         PreApplicationViewModel.updatePreApplicationCurp("PRE-NO-EXISTE", CURP_UNIQUE_A)
@@ -100,7 +101,7 @@ class PreApplicationCurpCorrectionTest {
     // ── Caso E — CURP duplicada por llamada directa ───────────────────────
 
     @Test
-    fun duplicateCurpByDirectCallIsPermittedButReadinessDegrades() {
+    fun duplicateCurpByDirectCallIsPermittedButReadinessDegrades() = runTest {
         // La API NO rechaza la duplicada (la validación visual solo protege la UI).
         // La protección de dominio es la degradación de readiness + guardas de alta.
         assertEquals(ReadinessStatus.READY, stored(FOLIO_NEW).readinessStatus)
@@ -118,7 +119,7 @@ class PreApplicationCurpCorrectionTest {
     }
 
     @Test
-    fun correctingCurpResolvesTheDuplicateConflict() {
+    fun correctingCurpResolvesTheDuplicateConflict() = runTest {
         // PRE-CONFLICT-001 nace con CURP duplicada del padrón (NUEVO INGRESO).
         assertNotNull(
             PreApplicationViewModel.curpDuplicateInfo(
@@ -139,7 +140,7 @@ class PreApplicationCurpCorrectionTest {
     // ── Caso F — Reconciliación READY→BLOCKED y corrección parcial ────────
 
     @Test
-    fun readinessDegradesWhenCurpChangeIntroducesBlockAndCurpPendingClearsAfterFix() {
+    fun readinessDegradesWhenCurpChangeIntroducesBlockAndCurpPendingClearsAfterFix() = runTest {
         // 1) READY + CURP duplicada → BLOCKED con pendiente de CURP.
         PreApplicationViewModel.updatePreApplicationCurp(FOLIO_NEW, CURP_DUPLICATED_MASTER)
         val blocked = stored(FOLIO_NEW)
@@ -164,7 +165,7 @@ class PreApplicationCurpCorrectionTest {
     // ── D5 — Pre-solicitud CONVERTED: identidad institucional inmutable ──
 
     @Test
-    fun convertedPreApplicationCurpIsImmutableAndTouchesNoInstitutionalRecord() {
+    fun convertedPreApplicationCurpIsImmutableAndTouchesNoInstitutionalRecord() = runTest {
         // PRE-X1A2 es CONVERTED en el fixture: ya generó alumno oficial y
         // pertenece al dominio institucional. La corrección de CURP desde la
         // pre-solicitud debe ser un no-op total (D5).
@@ -184,7 +185,7 @@ class PreApplicationCurpCorrectionTest {
     }
 
     @Test
-    fun pendingItemsReflectCurpStateConsistentlyWithDomainRule() {
+    fun pendingItemsReflectCurpStateConsistentlyWithDomainRule() = runTest {
         // La misma regla de dominio (curpDuplicateInfo) alimenta pendingItems:
         // sin duplicado no hay ítem de CURP; con duplicado sí (NUEVO INGRESO).
         val pendingsBefore = PreApplicationViewModel.officialEnrollmentPendingItems(stored(FOLIO_NEW))

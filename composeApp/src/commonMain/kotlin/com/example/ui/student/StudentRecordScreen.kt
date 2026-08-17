@@ -110,6 +110,7 @@ import com.example.ui.components.fields.SaseTextField
 import com.example.ui.components.navigation.SaseSectionTabs
 import com.example.ui.theme.SaseColors
 import com.example.util.LocalToast
+import com.example.data.repository.PreApplicationUpdateResult
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.OfficialEnrollmentResult
 import com.example.viewmodel.PreApplicationViewModel
@@ -302,6 +303,7 @@ private fun InstitutionalStudentRecordContent(
     onSaveStudent: (Student) -> Unit,
     onLogAudit: (String, String) -> Unit
 ) {
+    val institutionalScope = rememberCoroutineScope()
     var isEditing by remember { mutableStateOf(false) }
     var editName by remember(student) { mutableStateOf(student?.fullName ?: "") }
     var editCurp by remember(student) { mutableStateOf(student?.curp ?: "") }
@@ -462,10 +464,16 @@ private fun InstitutionalStudentRecordContent(
                                     field.label == "Folio de pre-solicitud" && presentation.acceptFolioVisible -> {
                                         val folio = presentation.folio
                                         {
-                        PreApplicationViewModel.approvePreApplication(folio)
-                            showFolioAcceptedNotice = true
-                            toast("Folio $folio aceptado")
-                            onLogAudit("Folio aceptado", "Folio: $folio")
+                        institutionalScope.launch {
+                            if (PreApplicationViewModel.approvePreApplication(folio) is PreApplicationUpdateResult.Updated) {
+                                showFolioAcceptedNotice = true
+                                toast("Folio $folio aceptado")
+                                onLogAudit("Folio aceptado", "Folio: $folio")
+                            } else {
+                                toast("No fue posible aceptar el folio. Intenta de nuevo.")
+                            }
+                        }
+                        Unit
                                         }
                                     }
                                     field.label == "Grupo" && field.value == "Pendiente de asignación" -> {
@@ -550,11 +558,21 @@ private fun InstitutionalStudentRecordContent(
                                     onClick = {
                                         val folio = (presentation as? InstitutionalStudentRecordPresentation.Content)?.folio
                                         if (!folio.isNullOrBlank()) {
-                                            PreApplicationViewModel.markReadyForOfficialEnrollment(folio)
+                                            institutionalScope.launch {
+                                                when (PreApplicationViewModel.markReadyForOfficialEnrollment(folio)) {
+                                                    is ReadinessResult.Success, is ReadinessResult.AlreadyReady -> {
+                                                        showValidationNotice = true
+                                                        toast("Expediente validado correctamente")
+                                                        onLogAudit("Expediente validado", student?.fullName ?: "")
+                                                    }
+                                                    else -> toast("No fue posible validar el expediente. Intenta de nuevo.")
+                                                }
+                                            }
+                                        } else {
+                                            showValidationNotice = true
+                                            toast("Expediente validado correctamente")
+                                            onLogAudit("Expediente validado", student?.fullName ?: "")
                                         }
-                                        showValidationNotice = true
-                                        toast("Expediente validado correctamente")
-                                        onLogAudit("Expediente validado", student?.fullName ?: "")
                                     },
                                     icon = Icons.Default.CheckCircle,
                                     containerColor = SaseGreen,
@@ -566,10 +584,15 @@ private fun InstitutionalStudentRecordContent(
                                 SasePrimaryButton(
                                     text = "Aceptar folio",
                                     onClick = {
-                                        PreApplicationViewModel.approvePreApplication(presentation.folio)
-                                        showFolioAcceptedNotice = true
-                                        toast("Folio ${presentation.folio} aceptado")
-                                        onLogAudit("Folio aceptado", "Folio: ${presentation.folio}")
+                                        institutionalScope.launch {
+                                            if (PreApplicationViewModel.approvePreApplication(presentation.folio) is PreApplicationUpdateResult.Updated) {
+                                                showFolioAcceptedNotice = true
+                                                toast("Folio ${presentation.folio} aceptado")
+                                                onLogAudit("Folio aceptado", "Folio: ${presentation.folio}")
+                                            } else {
+                                                toast("No fue posible aceptar el folio. Intenta de nuevo.")
+                                            }
+                                        }
                                     },
                                     icon = Icons.Default.Description,
                                     containerColor = SaseBlue,
@@ -581,9 +604,14 @@ private fun InstitutionalStudentRecordContent(
                                 SasePrimaryButton(
                                     text = "Reabrir revisión",
                                     onClick = {
-                                        PreApplicationViewModel.reopenReview(presentation.folio)
-                                        toast("Revisión reabierta")
-                                        onLogAudit("Revisión reabierta", "Folio: ${presentation.folio}")
+                                        institutionalScope.launch {
+                                            if (PreApplicationViewModel.reopenReview(presentation.folio)) {
+                                                toast("Revisión reabierta")
+                                                onLogAudit("Revisión reabierta", "Folio: ${presentation.folio}")
+                                            } else {
+                                                toast("No fue posible reabrir la revisión.")
+                                            }
+                                        }
                                     },
                                     icon = Icons.Default.Refresh,
                                     containerColor = SaseOrange,

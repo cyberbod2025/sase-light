@@ -3,8 +3,10 @@ package com.example
 import com.example.data.auth.MockAuthRepositoryImpl
 import com.example.data.auth.SupabaseAuthRepositoryImpl
 import com.example.data.repository.MockAuditRepositoryImpl
+import com.example.data.repository.MockPreApplicationRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
 import com.example.data.repository.SupabaseAuditRepositoryImpl
+import com.example.data.repository.SupabasePreApplicationRepositoryImpl
 import com.example.data.repository.SupabaseStudentRepositoryImpl
 import com.example.environment.AppEnvironment
 import com.example.environment.AppEnvironmentMode
@@ -44,6 +46,7 @@ object SaseCompositionRoot {
             val studentRepository = MockStudentRepositoryImpl()
             val authRepository = MockAuthRepositoryImpl()
             val auditRepository = MockAuditRepositoryImpl()
+            val preApplicationRepository = MockPreApplicationRepositoryImpl()
             // El alta oficial (PreApplicationViewModel) es estatico y no pasa
             // por este constructor: se cablea aqui al mismo repositorio que
             // usa LabViewModel para que ambos lean/escriban el mismo padron
@@ -52,10 +55,14 @@ object SaseCompositionRoot {
             // que en SUPABASE_STAGING (P2 de Codex, "Gate official-enrollment
             // writes by the active role"), y a la misma bitacora para que sus
             // mutaciones tambien queden auditadas (P1 de Codex, "Audit
-            // official-enrollment mutations").
+            // official-enrollment mutations"). D-018 (corregido): la sesion
+            // familiar ya no viene de un repositorio de auth externo -- la
+            // familia no tiene cuenta, solo un token de acceso que el propio
+            // PreApplicationViewModel administra tras un submit exitoso.
             PreApplicationViewModel.configureRepositories(studentRepository)
             PreApplicationViewModel.configureAuthSessionProvider { authRepository.session.value }
             PreApplicationViewModel.configureAuditRepository(auditRepository)
+            PreApplicationViewModel.configurePreApplicationRepository(preApplicationRepository)
             SaseBootstrap.Ready(
                 environment = environment,
                 viewModel = LabViewModel(
@@ -75,8 +82,12 @@ object SaseCompositionRoot {
             )
             // Expedientes y bitacora leen la sesion viva del repositorio de
             // autenticacion: sin sesion no leen ni escriben nada, y la
-            // institucion de cada operacion sale siempre de ahi.
+            // institucion de cada operacion sale siempre de ahi. La sesion
+            // familiar (D-018, corregido) no viene de un repositorio de auth
+            // externo -- es el token de acceso que el propio
+            // PreApplicationViewModel administra tras submit()/reingreso.
             val sessionProvider = { authRepository.session.value }
+            val familySessionProvider = { PreApplicationViewModel.activeFamilySession }
             val studentRepository = SupabaseStudentRepositoryImpl(
                 baseUrl = supabase.url,
                 apiKey = supabase.publishableKey,
@@ -87,9 +98,20 @@ object SaseCompositionRoot {
                 apiKey = supabase.publishableKey,
                 sessionProvider = sessionProvider
             )
+            // D-018: SupabasePreApplicationRepositoryImpl acepta AMBOS
+            // proveedores (personal y familia) -- un actor u otro, nunca los
+            // dos a la vez, y ninguno cae en Mock: la migracion 0015 (RPCs
+            // atomicas) y su RLS son la unica autorizacion real.
+            val preApplicationRepository = SupabasePreApplicationRepositoryImpl(
+                baseUrl = supabase.url,
+                apiKey = supabase.publishableKey,
+                staffSessionProvider = sessionProvider,
+                familySessionProvider = familySessionProvider
+            )
             PreApplicationViewModel.configureRepositories(studentRepository)
             PreApplicationViewModel.configureAuthSessionProvider(sessionProvider)
             PreApplicationViewModel.configureAuditRepository(auditRepository)
+            PreApplicationViewModel.configurePreApplicationRepository(preApplicationRepository)
             SaseBootstrap.Ready(
                 environment = environment,
                 viewModel = LabViewModel(

@@ -28,6 +28,7 @@ import com.example.ui.student.InstitutionalStudentRecordPresentation
 import com.example.ui.student.institutionalStudentRecordPresentation
 import com.example.ui.student.resolveInstitutionalStudentRecordForRoute
 import com.example.data.auth.StaffRole
+import kotlinx.coroutines.test.runTest
 import com.example.viewmodel.FamilySubmissionResult
 import com.example.viewmodel.InstitutionalAnnualEnrollmentResult
 import com.example.viewmodel.InstitutionalEnrollmentGuardCause
@@ -58,7 +59,7 @@ class InstitutionalGoldenPathTest {
     }
 
     @Test
-    fun completedConversionNavigationPresentationAndReplayKeepOneIdentity() {
+    fun completedConversionNavigationPresentationAndReplayKeepOneIdentity() = runTest {
         val ready = prepareReadyPreApplication(
             folio = "PRE-L7-NEW",
             curp = "LSEV100101HDFABC01",
@@ -94,7 +95,7 @@ class InstitutionalGoldenPathTest {
     }
 
     @Test
-    fun needsDecisionKeepsConfirmedIdentityWhileGroupRemainsPending() {
+    fun needsDecisionKeepsConfirmedIdentityWhileGroupRemainsPending() = runTest {
         val ready = prepareReadyPreApplication(
             folio = "PRE-L7-RE",
             curp = "LSER100101HDFABC02",
@@ -130,7 +131,7 @@ class InstitutionalGoldenPathTest {
     }
 
     @Test
-    fun blockedAndUnsynchronizedOutcomesStayNonNavigableWithoutSilentMutation() {
+    fun blockedAndUnsynchronizedOutcomesStayNonNavigableWithoutSilentMutation() = runTest {
         val accepted = prepareAcceptedPreApplication(
             folio = "PRE-L7-BLOCK",
             curp = "LSEB100101HDFABC03",
@@ -174,7 +175,7 @@ class InstitutionalGoldenPathTest {
     }
 
     @Test
-    fun studentIdOnlyRouteRejectsHistoricalAmbiguityWithoutSelectingByOrder() {
+    fun studentIdOnlyRouteRejectsHistoricalAmbiguityWithoutSelectingByOrder() = runTest {
         val student = Student(
             id = "MASTER-L7-HISTORY",
             fullName = "ALUMNA HISTÓRICA L7",
@@ -210,7 +211,7 @@ class InstitutionalGoldenPathTest {
     }
 
     @Test
-    fun realStaffActorIsRecordedInTheInstitutionalAuditTrail() {
+    fun realStaffActorIsRecordedInTheInstitutionalAuditTrail() = runTest {
         val ready = prepareReadyPreApplication(
             folio = "PRE-L7-ACTOR",
             curp = "LSEA100101HDFABC09",
@@ -235,7 +236,7 @@ class InstitutionalGoldenPathTest {
     }
 
     @Test
-    fun defaultActorStaysBackwardCompatibleWhenCallerOmitsIt() {
+    fun defaultActorStaysBackwardCompatibleWhenCallerOmitsIt() = runTest {
         val ready = prepareReadyPreApplication(
             folio = "PRE-L7-ACTORDEF",
             curp = "LSEA100101HDFABC10",
@@ -250,7 +251,7 @@ class InstitutionalGoldenPathTest {
         )
     }
 
-    private fun prepareReadyPreApplication(
+    private suspend fun prepareReadyPreApplication(
         folio: String,
         curp: String,
         movement: String,
@@ -262,7 +263,7 @@ class InstitutionalGoldenPathTest {
         ).preApplication
     }
 
-    private fun prepareAcceptedPreApplication(
+    private suspend fun prepareAcceptedPreApplication(
         folio: String,
         curp: String,
         movement: String,
@@ -314,7 +315,7 @@ class InstitutionalGoldenPathTest {
             readinessNotes = ""
         )
 
-    private fun process(preApplication: PreApplication): InstitutionalAnnualEnrollmentResult =
+    private suspend fun process(preApplication: PreApplication): InstitutionalAnnualEnrollmentResult =
         PreApplicationViewModel.processAnnualEnrollmentV2(
             declaredMovement = preApplication.tramite,
             normalizedCurp = preApplication.alumnoCurp,

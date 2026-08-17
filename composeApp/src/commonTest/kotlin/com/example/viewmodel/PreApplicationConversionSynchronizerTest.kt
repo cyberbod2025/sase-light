@@ -3,6 +3,7 @@ package com.example.viewmodel
 import com.example.data.presolicitud.MockPreApplicationData
 import com.example.data.presolicitud.PreApplicationStatus
 import com.example.data.presolicitud.ReadinessStatus
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -14,7 +15,7 @@ class PreApplicationConversionSynchronizerTest {
     )
 
     @Test
-    fun firstCasFailureAndCompatibleRereadUseExactlyTwoAttempts() {
+    fun firstCasFailureAndCompatibleRereadUseExactlyTwoAttempts() = runTest {
         val source = readySource()
         var state = listOf(source)
         var attempts = 0
@@ -22,9 +23,9 @@ class PreApplicationConversionSynchronizerTest {
         val result = synchronizePreApplicationConversion(
             source = source,
             readState = { state },
-            compareAndSet = { _, updated ->
+            commit = { candidate ->
                 attempts += 1
-                if (attempts == 1) false else true.also { state = updated }
+                if (attempts == 1) false else true.also { state = listOf(candidate) }
             }
         )
 
@@ -34,7 +35,7 @@ class PreApplicationConversionSynchronizerTest {
     }
 
     @Test
-    fun incompatibleRereadStopsWithoutSecondCas() {
+    fun incompatibleRereadStopsWithoutSecondCas() = runTest {
         val source = readySource()
         var state = listOf(source)
         var attempts = 0
@@ -42,7 +43,7 @@ class PreApplicationConversionSynchronizerTest {
         val result = synchronizePreApplicationConversion(
             source = source,
             readState = { state },
-            compareAndSet = { _, _ ->
+            commit = { _ ->
                 attempts += 1
                 state = listOf(source.copy(readinessStatus = ReadinessStatus.BLOCKED))
                 false
@@ -55,14 +56,14 @@ class PreApplicationConversionSynchronizerTest {
     }
 
     @Test
-    fun secondCasFailureReturnsIncompleteWithoutThirdAttempt() {
+    fun secondCasFailureReturnsIncompleteWithoutThirdAttempt() = runTest {
         val source = readySource()
         var attempts = 0
 
         val result = synchronizePreApplicationConversion(
             source = source,
             readState = { listOf(source) },
-            compareAndSet = { _, _ ->
+            commit = { _ ->
                 attempts += 1
                 false
             }
@@ -74,7 +75,7 @@ class PreApplicationConversionSynchronizerTest {
     }
 
     @Test
-    fun concurrentNameChangeIsIdentityConflictWithoutSecondCas() {
+    fun concurrentNameChangeIsIdentityConflictWithoutSecondCas() = runTest {
         val source = readySource()
         var state = listOf(source)
         var attempts = 0
@@ -82,7 +83,7 @@ class PreApplicationConversionSynchronizerTest {
         val result = synchronizePreApplicationConversion(
             source = source,
             readState = { state },
-            compareAndSet = { _, _ ->
+            commit = { _ ->
                 attempts += 1
                 state = listOf(source.copy(alumnoNombreCompleto = "OTRO NOMBRE"))
                 false
@@ -95,7 +96,7 @@ class PreApplicationConversionSynchronizerTest {
     }
 
     @Test
-    fun alreadyConvertedReturnsWithoutCasOrMetadataChanges() {
+    fun alreadyConvertedReturnsWithoutCasOrMetadataChanges() = runTest {
         val source = readySource().copy(
             readinessStatus = ReadinessStatus.CONVERTED,
             readyAt = "Hoy 10:00",
@@ -106,7 +107,7 @@ class PreApplicationConversionSynchronizerTest {
         val result = synchronizePreApplicationConversion(
             source = source,
             readState = { listOf(source) },
-            compareAndSet = { _, _ ->
+            commit = { _ ->
                 attempts += 1
                 false
             }

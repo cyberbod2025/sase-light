@@ -58,7 +58,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `editar domicilio y telefono actualiza PreApplication`() {
+    fun `editar domicilio y telefono actualiza PreApplication`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
 
@@ -81,7 +81,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `guardar y reabrir muestra los nuevos valores`() {
+    fun `guardar y reabrir muestra los nuevos valores`() = runTest {
         val s = nextSeq()
         val (preApp, student, annual) = createEnvironment(s)
         val content = resolveContent(student, annual)
@@ -105,7 +105,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `editar nombre CURP grupo tutor actualiza Student`() {
+    fun `editar nombre CURP grupo tutor actualiza Student`() = runTest {
         val s = nextSeq()
         val (_, student, _) = createEnvironment(s)
 
@@ -127,7 +127,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `cancelar no modifica Student ni PreApplication`() {
+    fun `cancelar no modifica Student ni PreApplication`() = runTest {
         val s = nextSeq()
         val (preApp, student, _) = createEnvironment(s)
 
@@ -145,7 +145,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `Validar cambia readinessStatus a READY y la accion desaparece`() {
+    fun `Validar cambia readinessStatus a READY y la accion desaparece`() = runTest {
         val s = nextSeq()
         val (preApp, student, annual) = createEnvironment(s)
 
@@ -172,7 +172,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `Aceptar folio cambia status a ACEPTADA y la accion desaparece`() {
+    fun `Aceptar folio cambia status a ACEPTADA y la accion desaparece`() = runTest {
         val s = nextSeq()
         val (preApp, student, annual) = createEnvironment(s)
 
@@ -189,7 +189,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `ejecutar ambas acciones deja ambos estados correctos`() {
+    fun `ejecutar ambas acciones deja ambos estados correctos`() = runTest {
         val s = nextSeq()
         val (preApp, student, annual) = createEnvironment(s)
 
@@ -214,7 +214,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `canReopenReview es true cuando readinessStatus es READY`() {
+    fun `canReopenReview es true cuando readinessStatus es READY`() = runTest {
         val s = nextSeq()
         val (preApp, student, annual) = createEnvironment(s)
 
@@ -230,7 +230,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `reopenReview resetea readiness a PENDING`() {
+    fun `reopenReview resetea readiness a PENDING`() = runTest {
         val s = nextSeq()
         val (preApp, student, annual) = createEnvironment(s)
 
@@ -251,7 +251,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `markDocumentNoAplica establece noAplica en true`() {
+    fun `markDocumentNoAplica establece noAplica en true`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
 
@@ -265,7 +265,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `documento con noAplica no cuenta como pendiente`() {
+    fun `documento con noAplica no cuenta como pendiente`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
 
@@ -285,7 +285,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `no quedan datos contradictorios entre Student y PreApplication`() {
+    fun `no quedan datos contradictorios entre Student y PreApplication`() = runTest {
         val s = nextSeq()
         val (preApp, student, _) = createEnvironment(s)
 
@@ -303,7 +303,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `Secretaria no tiene acciones para registrar incidencias en el resolvedor`() {
+    fun `Secretaria no tiene acciones para registrar incidencias en el resolvedor`() = runTest {
         val s = nextSeq()
         val (_, student, annual) = createEnvironment(s)
         val resolved = resolveResolved(student, annual)
@@ -322,7 +322,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `abrir tarjeta conserva el Student id exacto`() {
+    fun `abrir tarjeta conserva el Student id exacto`() = runTest {
         val s = nextSeq()
         val id = "MASTER-TEST-ID-$s"
         val student = Student(
@@ -350,7 +350,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     // Helpers
     // ------------------------------------------------------------------
 
-    private fun createEnvironment(seq: Int, addAnnual: Boolean = true): Triple<PreApplication, Student, AnnualEnrollmentRecord> {
+    private suspend fun createEnvironment(seq: Int, addAnnual: Boolean = true): Triple<PreApplication, Student, AnnualEnrollmentRecord> {
         val s = seq.toString().padStart(2, '0')
         val folio = "PRE-EDIT-$seq"
         val curp = "EDIT${s}0101HDFABC01"
@@ -442,7 +442,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     // ── Nuevos tests: Documentos acciones completas ──
 
     @Test
-    fun `toggleDocumentCotejado solo funciona en docs declarados`() {
+    fun `toggleDocumentCotejado solo funciona en docs declarados`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
 
@@ -456,7 +456,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `markDocumentValidado requiere cotejado previo`() {
+    fun `markDocumentValidado requiere cotejado previo`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
 
@@ -474,7 +474,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `markDocumentRechazado resetea cotejado`() {
+    fun `markDocumentRechazado resetea cotejado`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
 
@@ -488,7 +488,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `setDocumentObservacion persiste en el documento`() {
+    fun `setDocumentObservacion persiste en el documento`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
 
@@ -498,7 +498,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `contador documental refleja validado y noAplica`() {
+    fun `contador documental refleja validado y noAplica`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
 
@@ -522,7 +522,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `reabrir tras acciones documentales mantiene estados`() {
+    fun `reabrir tras acciones documentales mantiene estados`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
 
@@ -543,7 +543,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `deep link documentos pendientes en pendingItems`() {
+    fun `deep link documentos pendientes en pendingItems`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
 
@@ -553,7 +553,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `markDocumentRechazado requiere cotejadoSecretaria`() {
+    fun `markDocumentRechazado requiere cotejadoSecretaria`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
 
@@ -571,7 +571,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `toggleDocumentCotejado en rechazado lo recoteja`() {
+    fun `toggleDocumentCotejado en rechazado lo recoteja`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
 
@@ -595,7 +595,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `officialEnrollmentPendingItems usa solo noAplica y validado`() {
+    fun `officialEnrollmentPendingItems usa solo noAplica y validado`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
 
@@ -627,7 +627,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     // ── Requisito B: Faltantes documentales ──
 
     @Test
-    fun `B primera falta identifica primer doc no declarado`() {
+    fun `B primera falta identifica primer doc no declarado`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironmentWithDocs(s, listOf(
             DocumentoDeclarado("Acta", declarado = true),
@@ -641,7 +641,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `B sin faltantes retorna null`() {
+    fun `B sin faltantes retorna null`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironmentWithDocs(s, listOf(
             DocumentoDeclarado("Acta", declarado = true),
@@ -654,7 +654,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     // ── Requisito C: BOLETA / CERTIFICADO acciones ──
 
     @Test
-    fun `C BOLETA cotejar funciona`() {
+    fun `C BOLETA cotejar funciona`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironmentWithDocs(s, listOf(
             DocumentoDeclarado("BOLETA / CERTIFICADO", declarado = true, cotejadoSecretaria = false)
@@ -665,7 +665,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `C BOLETA validar requiere cotejar previo`() {
+    fun `C BOLETA validar requiere cotejar previo`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironmentWithDocs(s, listOf(
             DocumentoDeclarado("BOLETA / CERTIFICADO", declarado = true)
@@ -681,7 +681,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `C BOLETA rechazar resetea cotejado`() {
+    fun `C BOLETA rechazar resetea cotejado`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironmentWithDocs(s, listOf(
             DocumentoDeclarado("BOLETA / CERTIFICADO", declarado = true)
@@ -695,7 +695,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `C BOLETA noAplica funciona`() {
+    fun `C BOLETA noAplica funciona`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironmentWithDocs(s, listOf(
             DocumentoDeclarado("BOLETA / CERTIFICADO", declarado = true)
@@ -709,7 +709,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `C BOLETA observacion persiste`() {
+    fun `C BOLETA observacion persiste`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironmentWithDocs(s, listOf(
             DocumentoDeclarado("BOLETA / CERTIFICADO", declarado = true)
@@ -720,7 +720,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `C BOLETA acciones persisten al reabrir`() {
+    fun `C BOLETA acciones persisten al reabrir`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironmentWithDocs(s, listOf(
             DocumentoDeclarado("BOLETA / CERTIFICADO", declarado = true)
@@ -735,7 +735,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `C BOLETA resuelto actualiza contador`() {
+    fun `C BOLETA resuelto actualiza contador`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironmentWithDocs(s, listOf(
             DocumentoDeclarado("Acta", declarado = true),
@@ -756,7 +756,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     // ── Requisito G: cicloEscolar ──
 
     @Test
-    fun `G cicloEscolar en presentacion institucional`() {
+    fun `G cicloEscolar en presentacion institucional`() = runTest {
         val s = nextSeq()
         val (_, student, annual) = createEnvironment(s)
         val content = resolveContent(student, annual)
@@ -766,7 +766,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `G cicloEscolar en dashboard list`() {
+    fun `G cicloEscolar en dashboard list`() = runTest {
         val preApps = PreApplicationViewModel.sharedPreApplications.value
         assertTrue(preApps.isNotEmpty())
         assertTrue(preApps.all { it.cicloEscolar.isNotBlank() },
@@ -776,7 +776,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `G cicloEscolar en detalle tarjeta`() {
+    fun `G cicloEscolar en detalle tarjeta`() = runTest {
         val preApps = PreApplicationViewModel.sharedPreApplications.value
         assertTrue(preApps.first().cicloEscolar.isNotBlank(),
             "G: cicloEscolar no vacio en tarjeta detalle")
@@ -785,7 +785,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     // ── Requisito H: isConverted oculta bloques ──
 
     @Test
-    fun `H no CONVERTED esconde asistencias faltas calificaciones incidencias institucional`() {
+    fun `H no CONVERTED esconde asistencias faltas calificaciones incidencias institucional`() = runTest {
         val s = nextSeq()
         val (preApp, student, annual) = createEnvironment(s)
         val folio = preApp.folio
@@ -825,7 +825,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     // ── Requisito I: Sin textos de correccion en UI ──
 
     @Test
-    fun `I filtro default excluye PENDIENTE_CORRECCION`() {
+    fun `I filtro default excluye PENDIENTE_CORRECCION`() = runTest {
         val preApps = PreApplicationViewModel.sharedPreApplications.value
         val filtradas = preApps.filter { it.status in listOf(PreApplicationStatus.ENVIADA, PreApplicationStatus.ACEPTADA) }
         assertFalse(filtradas.any { it.status == PreApplicationStatus.PENDIENTE_CORRECCION },
@@ -833,7 +833,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `I status badge PENDIENTE_CORRECCION se muestra como Pendiente`() {
+    fun `I status badge PENDIENTE_CORRECCION se muestra como Pendiente`() = runTest {
         // El badge en StatusBadge mapea PENDIENTE_CORRECCION a "Pendiente"
         // Verificar que el label del enum es "Requiere correccion" pero el when lo cambia
         val pendienteLabel = PreApplicationStatus.PENDIENTE_CORRECCION.label
@@ -844,7 +844,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     // ── Requisito J: Folio pendiente → aceptar ──
 
     @Test
-    fun `J folio pendiente acceptFolioVisible cuando ENVIADA`() {
+    fun `J folio pendiente acceptFolioVisible cuando ENVIADA`() = runTest {
         val s = nextSeq()
         val (preApp, student, annual) = createEnvironment(s)
         assertEquals(PreApplicationStatus.ENVIADA, preApp.status)
@@ -854,7 +854,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `J folio pendiente aprueba y desaparece accion`() {
+    fun `J folio pendiente aprueba y desaparece accion`() = runTest {
         val s = nextSeq()
         val (preApp, student, annual) = createEnvironment(s)
         PreApplicationViewModel.approvePreApplication(preApp.folio)
@@ -868,7 +868,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     // ── Requisito K: Grupo pendiente → decision real ──
 
     @Test
-    fun `K grupo pendiente campo muestra Pendiente de asignacion`() {
+    fun `K grupo pendiente campo muestra Pendiente de asignacion`() = runTest {
         val s = nextSeq()
         val (_, student, annual) = createEnvironment(s)
         val content = resolveContent(student, annual)
@@ -879,7 +879,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
     }
 
     @Test
-    fun `K groupOptionsForGrade devuelve opciones`() {
+    fun `K groupOptionsForGrade devuelve opciones`() = runTest {
         val s = nextSeq()
         val (preApp, _, _) = createEnvironment(s)
         val options = PreApplicationViewModel.groupOptionsForGrade(preApp.gradoSolicitado)
@@ -913,7 +913,7 @@ class InstitutionalRecordSecretaryEditingIntegrationTest {
 
     // ── Helper con documentos personalizados ──
 
-    private fun createEnvironmentWithDocs(
+    private suspend fun createEnvironmentWithDocs(
         seq: Int,
         docs: List<DocumentoDeclarado>
     ): Triple<PreApplication, Student, AnnualEnrollmentRecord> {
