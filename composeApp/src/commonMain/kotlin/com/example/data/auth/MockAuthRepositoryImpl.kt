@@ -164,6 +164,15 @@ object MockStaffDirectory {
             roles = listOf(StaffRole.DOCENTE),
             demoEntryRole = StaffRole.DOCENTE
         ),
+        // Segundo docente: existe para que el modo demo reproduzca el mismo
+        // escenario de aislamiento que supabase/seed.sql (un docente asignado
+        // al grupo objetivo y otro que NO lo esta).
+        credential(
+            id = "teacher2-demo",
+            email = "docente2@example.invalid",
+            fullName = "Docente Demo Dos",
+            roles = listOf(StaffRole.DOCENTE)
+        ),
         credential("social-demo", "trabajosocial@example.invalid", "Trabajo Social Demo", listOf(StaffRole.TRABAJO_SOCIAL)),
         credential("medical-demo", "medico@example.invalid", "Médico Escolar Demo", listOf(StaffRole.MEDICO_ESCOLAR)),
         credential("udeii-demo", "udeii@example.invalid", "UDEII Demo", listOf(StaffRole.UDEII)),

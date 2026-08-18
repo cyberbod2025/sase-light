@@ -38,6 +38,7 @@ import com.example.ui.student.StudentRecordScreen
 import com.example.ui.CredentialPreviewScreen
 import com.example.ui.StudentCredentialDashboardScreen
 import com.example.data.StudentAddResult
+import com.example.ui.attendance.TeacherAttendanceScreen
 import com.example.ui.auth.LoginScreen
 import com.example.ui.auth.SessionHomeScreen
 import com.example.ui.auth.SessionIdentityHeader
@@ -1410,6 +1411,10 @@ fun SaseAppContent(viewModel: LabViewModel) {
                         )
                         is Screen.StudentCredentialDashboard -> StudentCredentialDashboardScreen(
                             viewModel = viewModel
+                        )
+                        is Screen.TeacherAttendance -> TeacherAttendanceScreen(
+                            viewModel = viewModel,
+                            session = activeSession
                         )
                     }
                 }

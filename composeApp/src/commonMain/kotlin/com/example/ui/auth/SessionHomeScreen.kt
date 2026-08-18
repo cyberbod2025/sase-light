@@ -54,6 +54,9 @@ fun SessionHomeScreen(viewModel: LabViewModel, session: AuthSession) {
         if (StaffPermissions.canAccess(session, SaseArea.ALTA_OFICIAL)) {
             add("Inscripciones" to Screen.EnrollmentDashboard)
         }
+        if (StaffPermissions.canAccess(session, SaseArea.DOCENCIA)) {
+            add("Asistencia" to Screen.TeacherAttendance)
+        }
     }
 
     Box(
