@@ -29,6 +29,7 @@ fun screenArea(screen: Screen): SaseArea? = when (screen) {
     is Screen.OfficialEnrollmentDashboard -> SaseArea.ALTA_OFICIAL
     is Screen.CredentialPreview -> SaseArea.CREDENCIAL
     is Screen.StudentCredentialDashboard -> SaseArea.CREDENCIAL
+    is Screen.TeacherAttendance -> SaseArea.DOCENCIA
     // Portal de la familia: pensado como acceso publico (URL/QR) sin sesion
     // de staff, pero SaseAppContent todavia lo gatea igual que el resto de
     // Screen detras del login. No tiene area institucional de staff; se

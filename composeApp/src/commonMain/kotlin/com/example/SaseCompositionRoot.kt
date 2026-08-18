@@ -1,5 +1,7 @@
 package com.example
 
+import com.example.data.attendance.MockAttendanceRepositoryImpl
+import com.example.data.attendance.SupabaseAttendanceRepositoryImpl
 import com.example.data.auth.MockAuthRepositoryImpl
 import com.example.data.auth.SupabaseAuthRepositoryImpl
 import com.example.data.repository.MockAuditRepositoryImpl
@@ -43,7 +45,8 @@ object SaseCompositionRoot {
                 appEnvironment = environment,
                 authRepository = MockAuthRepositoryImpl(),
                 studentRepository = MockStudentRepositoryImpl(),
-                auditRepository = MockAuditRepositoryImpl()
+                auditRepository = MockAuditRepositoryImpl(),
+                attendanceRepository = MockAttendanceRepositoryImpl()
             )
         )
 
@@ -58,7 +61,11 @@ object SaseCompositionRoot {
                         apiKey = supabase.publishableKey
                     ),
                     studentRepository = MockStudentRepositoryImpl(),
-                    auditRepository = MockAuditRepositoryImpl()
+                    auditRepository = MockAuditRepositoryImpl(),
+                    attendanceRepository = SupabaseAttendanceRepositoryImpl(
+                        baseUrl = supabase.url,
+                        apiKey = supabase.publishableKey
+                    )
                 )
             )
         }

@@ -16,6 +16,8 @@ import com.example.data.auth.RoleSelectionContext
 import com.example.data.auth.StaffAction
 import com.example.data.auth.StaffPermissions
 import com.example.data.auth.StaffRole
+import com.example.data.attendance.AttendanceRepository
+import com.example.data.attendance.MockAttendanceRepositoryImpl
 import com.example.data.repository.AuditRepository
 import com.example.data.repository.MockAuditRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
@@ -57,6 +59,9 @@ sealed class Screen {
     data object OfficialEnrollmentDashboard : Screen()
     data class CredentialPreview(val studentId: String) : Screen()
     data object StudentCredentialDashboard : Screen()
+
+    /** Rebanada docente: grupos asignados y pase de lista de la fecha. */
+    data object TeacherAttendance : Screen()
 }
 
 internal fun secretarySidebarDestination(item: String): Screen? = when (item) {
@@ -90,6 +95,7 @@ class LabViewModel(
     private val authRepository: AuthRepository,
     private val studentRepository: StudentRepository = MockStudentRepositoryImpl(),
     private val auditRepository: AuditRepository = MockAuditRepositoryImpl(),
+    val attendanceRepository: AttendanceRepository = MockAttendanceRepositoryImpl(),
     coroutineScope: CoroutineScope? = null,
     private val nowMillis: () -> Long = ::currentEpochMillis
 ) {
@@ -157,6 +163,7 @@ class LabViewModel(
             try {
                 expirationJob?.cancel()
                 authRepository.resetDemo()
+                attendanceRepository.resetDemoData()
                 PreApplicationViewModel.resetDemoData()
                 _currentScreen.value = Screen.SessionHome
                 _loginState.value = LoginUiState.Idle
