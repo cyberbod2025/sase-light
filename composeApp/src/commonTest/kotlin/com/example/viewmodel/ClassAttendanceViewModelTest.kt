@@ -205,6 +205,46 @@ class ClassAttendanceViewModelTest {
     }
 
     @Test
+    fun closingGroupWhileSavingDiscardsTheStaleResultOnArrival() = runTest {
+        // Regresion: closeGroup() dejaba el guardado en vuelo intacto, y al
+        // resolver mas tarde pisaba el estado (o el de OTRO grupo ya abierto)
+        // con la snapshot del grupo abandonado.
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val viewModel = viewModelFor(MockAttendanceRepositoryImpl(), assignedTeacherSession(), scope)
+        viewModel.openGroup(MockAttendanceData.GROUP_1A_ID)
+        advanceUntilIdle()
+
+        viewModel.save()
+        // No se deja avanzar la corrutina de guardado todavia.
+        viewModel.closeGroup()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertNull(state.snapshot)
+        assertFalse(state.saving)
+        assertNull(state.successMessage)
+    }
+
+    @Test
+    fun retryLastOpenAttemptReopensTheSameGroupWithoutNewInput() = runTest {
+        val flaky = FailOnceThenSucceedOpenRepository(MockAttendanceRepositoryImpl())
+        val viewModel = viewModelFor(flaky, assignedTeacherSession(), this)
+
+        viewModel.openGroup(MockAttendanceData.GROUP_1A_ID)
+        advanceUntilIdle()
+        assertNull(viewModel.state.value.snapshot)
+        assertEquals(AttendanceFailureReason.NETWORK, viewModel.state.value.error)
+
+        viewModel.retryLastOpenAttempt()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertNotNull(state.snapshot)
+        assertEquals(MockAttendanceData.GROUP_1A_ID, state.snapshot?.groupId)
+        assertNull(state.error)
+    }
+
+    @Test
     fun markAllPresentRestoresTheInitialState() = runTest {
         val viewModel = viewModelFor(MockAttendanceRepositoryImpl(), assignedTeacherSession(), this)
         viewModel.openGroup(MockAttendanceData.GROUP_1A_ID)
@@ -244,6 +284,34 @@ private class RecordingAttendanceRepository(
         lastSavedEntries = entries
         return delegate.saveClassAttendance(session, classSessionId, entries)
     }
+}
+
+/** Falla la primera apertura (NETWORK) y delega normalmente desde la segunda. */
+private class FailOnceThenSucceedOpenRepository(
+    private val delegate: AttendanceRepository
+) : AttendanceRepository {
+    private var attempts = 0
+
+    override suspend fun groupsForTeacher(session: AuthSession): AttendanceResult<List<TeacherGroup>> =
+        delegate.groupsForTeacher(session)
+
+    override suspend fun openClassSession(
+        session: AuthSession,
+        groupId: String,
+        date: String
+    ): AttendanceResult<ClassAttendanceSnapshot> {
+        attempts += 1
+        if (attempts == 1) {
+            return AttendanceResult.Failure(AttendanceFailureReason.NETWORK)
+        }
+        return delegate.openClassSession(session, groupId, date)
+    }
+
+    override suspend fun saveClassAttendance(
+        session: AuthSession,
+        classSessionId: String,
+        entries: List<Pair<String, AttendanceStatus>>
+    ): AttendanceResult<ClassAttendanceSnapshot> = delegate.saveClassAttendance(session, classSessionId, entries)
 }
 
 private class FailingSaveRepository(

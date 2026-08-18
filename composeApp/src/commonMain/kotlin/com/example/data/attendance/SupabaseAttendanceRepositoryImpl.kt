@@ -88,6 +88,7 @@ class SupabaseAttendanceRepositoryImpl(
                 }
             )
         } catch (e: Exception) {
+            logAttendanceError("groupsForTeacher", e)
             AttendanceResult.Failure(AttendanceFailureReason.NETWORK)
         }
     }
@@ -157,6 +158,7 @@ class SupabaseAttendanceRepositoryImpl(
             parseSnapshot(text)
         }
     } catch (e: Exception) {
+        logAttendanceError("callSnapshotRpc($function)", e)
         AttendanceResult.Failure(AttendanceFailureReason.NETWORK)
     }
 
@@ -195,6 +197,7 @@ class SupabaseAttendanceRepositoryImpl(
             )
         )
         } catch (e: Exception) {
+            logAttendanceError("parseSnapshot", e)
             AttendanceResult.Failure(AttendanceFailureReason.UNEXPECTED)
         }
     }
@@ -220,5 +223,14 @@ class SupabaseAttendanceRepositoryImpl(
     private fun io.ktor.client.request.HttpRequestBuilder.authHeaders(session: AuthSession) {
         header("apikey", apiKey)
         header("Authorization", "Bearer ${session.accessToken}")
+    }
+
+    /**
+     * La causa real de una excepcion (JSON malformado, TLS, DNS...) no debe
+     * perderse: sin esto, todo error de red o de forma de respuesta se ve
+     * identico desde el reporte de campo (solo "NETWORK"/"UNEXPECTED").
+     */
+    private fun logAttendanceError(where: String, e: Exception) {
+        println("[SupabaseAttendanceRepositoryImpl] $where failed: ${e::class.simpleName}: ${e.message}")
     }
 }

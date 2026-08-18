@@ -87,14 +87,20 @@ fun TeacherAttendanceScreen(viewModel: LabViewModel, session: AuthSession) {
             if (state.snapshot == null) {
                 GroupPickerSection(
                     state = state,
-                    onRetry = attendanceViewModel::loadGroups,
+                    // Si el error viene de un intento de apertura fallido,
+                    // "Reintentar" reabre ESE grupo; si no (p. ej. fallo al
+                    // listar grupos), recarga la lista completa.
+                    onRetry = if (state.lastOpenAttempt != null) {
+                        attendanceViewModel::retryLastOpenAttempt
+                    } else {
+                        attendanceViewModel::loadGroups
+                    },
                     onOpen = { attendanceViewModel.openGroup(it.id) }
                 )
             } else {
                 AttendanceCaptureSection(
                     state = state,
                     onBack = attendanceViewModel::closeGroup,
-                    onReload = attendanceViewModel::reloadOpenGroup,
                     onAllPresent = attendanceViewModel::markAllPresent,
                     onStatus = attendanceViewModel::setStatus,
                     onSave = attendanceViewModel::save
@@ -166,7 +172,6 @@ private fun ColumnScope.GroupPickerSection(
 private fun ColumnScope.AttendanceCaptureSection(
     state: ClassAttendanceUiState,
     onBack: () -> Unit,
-    onReload: () -> Unit,
     onAllPresent: () -> Unit,
     onStatus: (String, AttendanceStatus) -> Unit,
     onSave: () -> Unit
@@ -202,10 +207,14 @@ private fun ColumnScope.AttendanceCaptureSection(
     }
 
     state.error?.let { reason ->
+        // Este error solo puede venir de un guardado fallido (un fallo al
+        // abrir el grupo regresa a GroupPickerSection, ver TeacherAttendanceScreen).
+        // La accion de recuperacion reintenta guardar, NUNCA recarga desde el
+        // servidor: recargar descartaria el borrador que el docente ya capturo.
         RecoverableError(
             message = attendanceErrorMessage(reason).orEmpty(),
-            actionLabel = "Recargar grupo",
-            onAction = onReload
+            actionLabel = "Reintentar guardado",
+            onAction = onSave
         )
     }
 

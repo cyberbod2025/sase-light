@@ -34,7 +34,14 @@ data class ClassAttendanceUiState(
     val saving: Boolean = false,
     val savedAtLeastOnce: Boolean = false,
     val successMessage: String? = null,
-    val error: AttendanceFailureReason? = null
+    val error: AttendanceFailureReason? = null,
+    /**
+     * Grupo+fecha del ultimo intento de apertura, exitoso o no. Permite que
+     * "Reintentar" tras un fallo de apertura reintente ESE grupo en vez de
+     * solo recargar la lista (que exigiria al docente volver a tocar la
+     * misma tarjeta para lograr algo).
+     */
+    val lastOpenAttempt: Pair<String, String>? = null
 ) {
     /** Lista mostrada: roster del snapshot con el estado del borrador aplicado. */
     val roster: List<AttendanceEntry>
@@ -87,9 +94,25 @@ class ClassAttendanceViewModel(
     private val _state = MutableStateFlow(ClassAttendanceUiState())
     val state: StateFlow<ClassAttendanceUiState> = _state.asStateFlow()
 
+    // Se incrementa cada vez que cambia "de que grupo se habla" (abrir uno
+    // nuevo o cerrar el detalle). openGroup()/save() capturan el valor
+    // vigente al lanzar la corrutina; si al resolver ya no coincide, el
+    // resultado es de un grupo abandonado y se descarta sin tocar _state —
+    // evita que un guardado o una apertura tardia (p. ej. tras closeGroup()
+    // + abrir otro grupo) sobreescriba el estado del grupo actual.
+    private var groupContextToken: Int = 0
+
     fun loadGroups() {
         if (_state.value.loadingGroups) return
-        _state.value = _state.value.copy(loadingGroups = true, error = null, successMessage = null)
+        // Limpia el ultimo intento de apertura: un error que surja de ESTA
+        // llamada es del listado, no de abrir un grupo puntual, y no debe
+        // hacer que "Reintentar" reabra un grupo viejo por error.
+        _state.value = _state.value.copy(
+            loadingGroups = true,
+            error = null,
+            successMessage = null,
+            lastOpenAttempt = null
+        )
         scope.launch {
             when (val result = repository.groupsForTeacher(session)) {
                 is AttendanceResult.Success -> _state.value = _state.value.copy(
@@ -111,15 +134,19 @@ class ClassAttendanceViewModel(
     /** Inicia o recupera la sesion de clase de hoy para [groupId]. */
     fun openGroup(groupId: String, date: String = today()) {
         if (_state.value.openingGroup) return
+        val token = ++groupContextToken
         _state.value = _state.value.copy(
             openingGroup = true,
             error = null,
             successMessage = null,
             snapshot = null,
-            draft = emptyMap()
+            draft = emptyMap(),
+            lastOpenAttempt = groupId to date
         )
         scope.launch {
-            when (val result = repository.openClassSession(session, groupId, date)) {
+            val result = repository.openClassSession(session, groupId, date)
+            if (token != groupContextToken) return@launch
+            when (result) {
                 is AttendanceResult.Success -> _state.value = _state.value.copy(
                     openingGroup = false,
                     snapshot = result.value,
@@ -167,12 +194,18 @@ class ClassAttendanceViewModel(
         val current = _state.value
         val snapshot = current.snapshot ?: return
         if (current.saving) return
+        val token = groupContextToken
         _state.value = current.copy(saving = true, error = null, successMessage = null)
         val payload = snapshot.entries.map { entry ->
             entry.student.id to (current.draft[entry.student.id] ?: entry.status)
         }
         scope.launch {
-            when (val result = repository.saveClassAttendance(session, snapshot.sessionId, payload)) {
+            val result = repository.saveClassAttendance(session, snapshot.sessionId, payload)
+            // El docente ya salio de este grupo (closeGroup()/otro openGroup())
+            // mientras el guardado seguia en vuelo: aplicar el resultado ahora
+            // pisaria el estado del grupo que esta viendo. Se descarta.
+            if (token != groupContextToken) return@launch
+            when (result) {
                 is AttendanceResult.Success -> _state.value = _state.value.copy(
                     saving = false,
                     snapshot = result.value,
@@ -193,7 +226,10 @@ class ClassAttendanceViewModel(
 
     /** Vuelve a la lista de grupos descartando el detalle abierto. */
     fun closeGroup() {
+        groupContextToken++
         _state.value = _state.value.copy(
+            openingGroup = false,
+            saving = false,
             snapshot = null,
             draft = emptyMap(),
             successMessage = null,
@@ -209,6 +245,18 @@ class ClassAttendanceViewModel(
     fun reloadOpenGroup() {
         val snapshot = _state.value.snapshot ?: return
         openGroup(snapshot.groupId, snapshot.date)
+    }
+
+    /**
+     * Reintenta el ultimo grupo que se intento abrir y fallo. Es la accion de
+     * "Reintentar" que ve el docente en la lista de grupos tras un fallo de
+     * apertura (p. ej. NETWORK/SESSION_NOT_FOUND transitorio) — sin esto,
+     * "Reintentar" solo recargaba la lista de grupos y el docente tenia que
+     * volver a tocar la misma tarjeta para lograr algo.
+     */
+    fun retryLastOpenAttempt() {
+        val (groupId, date) = _state.value.lastOpenAttempt ?: return
+        openGroup(groupId, date)
     }
 }
 

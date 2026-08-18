@@ -175,6 +175,44 @@ class MockAttendanceRepositoryImplTest {
     }
 
     @Test
+    fun openingWithABlankGroupIdIsInvalidDataNotUnassigned() = runTest {
+        // Mismo contrato que SupabaseAttendanceRepositoryImpl: un groupId en
+        // blanco es un dato invalido, no "el docente no atiende ese grupo".
+        val result = MockAttendanceRepositoryImpl().openClassSession(
+            session = assignedTeacherSession(),
+            groupId = "",
+            date = date
+        )
+
+        assertEquals(
+            AttendanceFailureReason.INVALID_DATA,
+            assertIs<AttendanceResult.Failure>(result).reason
+        )
+    }
+
+    @Test
+    fun savingWithNoEntriesIsInvalidDataNotIncompleteRoster() = runTest {
+        // Mismo contrato que SupabaseAttendanceRepositoryImpl: una lista vacia
+        // de entradas es un dato invalido, distinto de un roster parcial.
+        val repository = MockAttendanceRepositoryImpl()
+        val session = assignedTeacherSession()
+        val opened = assertIs<AttendanceResult.Success<ClassAttendanceSnapshot>>(
+            repository.openClassSession(session, MockAttendanceData.GROUP_1A_ID, date)
+        ).value
+
+        val result = repository.saveClassAttendance(
+            session = session,
+            classSessionId = opened.sessionId,
+            entries = emptyList()
+        )
+
+        assertEquals(
+            AttendanceFailureReason.INVALID_DATA,
+            assertIs<AttendanceResult.Failure>(result).reason
+        )
+    }
+
+    @Test
     fun capturesOfDifferentDatesDoNotShareSession() = runTest {
         val repository = MockAttendanceRepositoryImpl()
         val session = assignedTeacherSession()

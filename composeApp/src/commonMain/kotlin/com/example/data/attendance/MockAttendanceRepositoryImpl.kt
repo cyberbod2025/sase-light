@@ -43,11 +43,14 @@ class MockAttendanceRepositoryImpl : AttendanceRepository {
         groupId: String,
         date: String
     ): AttendanceResult<ClassAttendanceSnapshot> {
-        val group = authorizedGroup(session, groupId)
-            ?: return AttendanceResult.Failure(AttendanceFailureReason.NOT_ASSIGNED_TO_GROUP)
-        if (date.isBlank()) {
+        // Mismo orden de validacion que SupabaseAttendanceRepositoryImpl: un
+        // groupId o date en blanco es INVALID_DATA, no "no asignado" — el
+        // modo demo no debe divergir del contrato del backend real.
+        if (groupId.isBlank() || date.isBlank()) {
             return AttendanceResult.Failure(AttendanceFailureReason.INVALID_DATA)
         }
+        val group = authorizedGroup(session, groupId)
+            ?: return AttendanceResult.Failure(AttendanceFailureReason.NOT_ASSIGNED_TO_GROUP)
 
         val key = SessionKey(groupId, session.membershipId, date)
         val stored = sessions.getOrPut(key) {
@@ -62,6 +65,13 @@ class MockAttendanceRepositoryImpl : AttendanceRepository {
         classSessionId: String,
         entries: List<Pair<String, AttendanceStatus>>
     ): AttendanceResult<ClassAttendanceSnapshot> {
+        // Mismo orden de validacion que SupabaseAttendanceRepositoryImpl: un
+        // classSessionId en blanco o una lista de entradas vacia es
+        // INVALID_DATA, no INCOMPLETE_ROSTER (a la que llegaria igual, pero
+        // por el camino equivocado) ni "no asignado".
+        if (classSessionId.isBlank() || entries.isEmpty()) {
+            return AttendanceResult.Failure(AttendanceFailureReason.INVALID_DATA)
+        }
         // Sesion inexistente y sesion ajena responden igual: nunca se revela la
         // existencia de la sesion de otro docente.
         val stored = sessionsById[classSessionId]
