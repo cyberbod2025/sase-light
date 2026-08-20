@@ -277,6 +277,13 @@ class PreApplicationViewModel {
             preApplicationRepository = repository
         }
 
+        suspend fun refreshPreApplications(): PreApplicationSyncResult =
+            preApplicationRepository.refresh()
+
+        fun clearPreApplicationState() {
+            clearFamilySessionAndCache()
+        }
+
         // La familia no tiene AuthSession (sin membresia institucional, sin
         // cuenta de ningun tipo -- ver FamilySession) -- su unica identidad
         // efectiva para las operaciones que le pertenecen (enviar/corregir su
@@ -613,7 +620,7 @@ class PreApplicationViewModel {
                 }
 
             if (preApplication == null) {
-                _activeFamilySession.value = null
+                clearFamilySessionAndCache()
                 return FamilyPreApplicationLookupResult.Error()
             }
 
@@ -841,6 +848,11 @@ class PreApplicationViewModel {
                 is PreApplicationSubmitResult.DuplicateFolio -> FamilySubmissionResult.DuplicateFolio(result.folio)
                 is PreApplicationSubmitResult.Failed -> FamilySubmissionResult.BackendFailure(result.reason)
             }
+        }
+
+        private fun clearFamilySessionAndCache() {
+            _activeFamilySession.value = null
+            preApplicationRepository.clear()
         }
 
         suspend fun resubmitCorrectedPreApplication(
@@ -2538,7 +2550,8 @@ class PreApplicationViewModel {
         _isSubmitting.value = false
     }
 
-    fun resetForm() {
+        fun resetForm() {
+            clearFamilySessionAndCache()
         _currentStep.value = 0
         _tipoTramite.value = "Nuevo Ingreso"
         _cicloEscolar.value = "2026-2027"

@@ -94,8 +94,14 @@ private fun clientFor(engine: MockEngine) = HttpClient(engine) {
 class SupabasePreApplicationRepositoryImplTest {
 
     @Test
-    fun submitWithoutAnySessionFailsClosed() = runTest {
-        val engine = MockEngine { respond("[]", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json")) }
+    fun submitWithoutAnySessionUsesAnonymousCreate() = runTest {
+        val engine = MockEngine { request ->
+            if (request.url.encodedPath == CREATE_RPC_PATH) {
+                respond(createResponseJson("PRE-TEST-01"), HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            } else {
+                respond("[]", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+        }
         val repo = SupabasePreApplicationRepositoryImpl(
             baseUrl = BASE_URL,
             apiKey = "anon-key",
@@ -104,8 +110,9 @@ class SupabasePreApplicationRepositoryImplTest {
             httpClient = clientFor(engine)
         )
         val result = repo.submit(draftPreApplication())
-        assertIs<PreApplicationSubmitResult.Failed>(result)
-        assertEquals(PreApplicationPersistenceFailure.NO_SESSION, result.reason)
+        val submitted = assertIs<PreApplicationSubmitResult.Submitted>(result)
+        assertEquals("PRE-TEST-01", submitted.preApplication.folio)
+        assertEquals("family-token-1", submitted.accessToken)
     }
 
     @Test
@@ -117,12 +124,14 @@ class SupabasePreApplicationRepositoryImplTest {
                     status = HttpStatusCode.Conflict,
                     headers = headersOf(HttpHeaders.ContentType, "application/json")
                 )
-            } else {
+            } else if (request.url.encodedPath == PARENT_PATH) {
                 respond(
                     content = ByteReadChannel("[${parentRowJson("PRE-EXISTING")}]"),
                     status = HttpStatusCode.OK,
                     headers = headersOf(HttpHeaders.ContentType, "application/json")
                 )
+            } else {
+                respond("[]", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
             }
         }
         val repo = SupabasePreApplicationRepositoryImpl(
@@ -226,8 +235,9 @@ class SupabasePreApplicationRepositoryImplTest {
             httpClient = clientFor(engine)
         )
         val result = repo.submit(draftPreApplication(folio = "PRE-RACE"))
-        assertIs<PreApplicationSubmitResult.Failed>(result)
-        assertTrue(repo.preApplications.value.none { it.folio == "PRE-RACE" })
+        val submitted = assertIs<PreApplicationSubmitResult.Submitted>(result)
+        assertEquals("PRE-RACE", submitted.preApplication.folio)
+        assertTrue(repo.preApplications.value.any { it.folio == "PRE-RACE" })
     }
 
     @Test

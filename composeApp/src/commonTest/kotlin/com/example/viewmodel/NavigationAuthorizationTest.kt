@@ -80,10 +80,11 @@ class NavigationAuthorizationTest {
     }
 
     @Test
-    fun canOpenScreenDeniesEveryScreenWithoutSession() {
-        allScreens.forEach { screen ->
+    fun canOpenInstitutionalScreensDeniesWithoutSession() {
+        allScreens.filterNot { it is Screen.PreApplicationFamilyPortal }.forEach { screen ->
             assertFalse(canOpenScreen(session = null, screen = screen), "no debería autorizar $screen sin sesión")
         }
+        assertTrue(canOpenScreen(null, Screen.PreApplicationFamilyPortal))
     }
 
     @Test
@@ -127,6 +128,7 @@ class NavigationAuthorizationTest {
     @Test
     fun authorizedScreenForReturnsNullWithoutAnActiveSession() {
         assertNull(authorizedScreenFor(null, Screen.SecretaryDashboard))
+        assertEquals(Screen.PreApplicationFamilyPortal, authorizedScreenFor(null, Screen.PreApplicationFamilyPortal))
         assertNull(
             authorizedScreenFor(
                 sessionFor(StaffRole.SECRETARIA, active = false),

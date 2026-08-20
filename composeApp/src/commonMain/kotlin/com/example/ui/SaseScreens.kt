@@ -1354,9 +1354,17 @@ fun SaseAppContent(viewModel: LabViewModel) {
         return
     }
 
-    // Compuerta de acceso: sin sesion no se muestra ningun contenido institucional.
+    // Sin sesion solo puede renderizarse el portal publico familiar; cualquier
+    // otra pantalla cae a LoginScreen.
     val activeSession = session
     if (activeSession == null) {
+        if (authorizedScreenFor(null, currentScreen) is Screen.PreApplicationFamilyPortal) {
+            PreApplicationFamilyPortalScreen(
+                viewModel = viewModel,
+                onNavigateBack = { viewModel.navigateBack() }
+            )
+            return
+        }
         LoginScreen(viewModel = viewModel)
         return
     }

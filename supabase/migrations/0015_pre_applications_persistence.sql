@@ -222,16 +222,26 @@ alter table public.pre_applications enable row level security;
 -- definer, bypassa RLS).
 create policy pre_applications_select_reviewer on public.pre_applications
   for select using (
-    has_permission(institution_id, 'REVIEW_PRE_APPLICATION')
+     public.has_permission(institution_id, 'PRE_SOLICITUD')
   );
 
 create policy pre_applications_update_reviewer on public.pre_applications
   for update using (
-    has_permission(institution_id, 'REVIEW_PRE_APPLICATION')
+     public.has_permission(institution_id, 'PRE_SOLICITUD')
   )
   with check (
-    has_permission(institution_id, 'REVIEW_PRE_APPLICATION')
+     public.has_permission(institution_id, 'PRE_SOLICITUD')
   );
+
+-- El token es un bearer credential de familia, no un dato de Secretaría.
+-- PostgREST debe rechazar una selección explícita de esa columna aunque la
+-- fila sea visible por RLS; las RPC security definer siguen pudiendo validarlo.
+revoke select (access_token) on table public.pre_applications from anon, authenticated;
+
+-- Todas las mutaciones pasan por las RPC para conservar la propiedad de
+-- campos y la atomicidad padre/hijas. Las políticas de escritura directas
+-- ampliarían la superficie y permitirían saltarse esos guardrails.
+drop policy pre_applications_update_reviewer on public.pre_applications;
 
 -- === Responsables (1:N) ======================================================
 
@@ -264,7 +274,7 @@ create policy pre_application_responsables_select on public.pre_application_resp
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-        and has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
+         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
     )
   );
 
@@ -273,17 +283,19 @@ create policy pre_application_responsables_write on public.pre_application_respo
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-        and has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
+         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
     )
   )
   with check (
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-        and has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
+         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
         and pa.institution_id = institution_id
     )
   );
+
+drop policy pre_application_responsables_write on public.pre_application_responsables;
 
 -- === Autorizados para recoger (1:N) =========================================
 
@@ -308,7 +320,7 @@ create policy pre_application_autorizados_select on public.pre_application_autor
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-        and has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
+         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
     )
   );
 
@@ -317,17 +329,19 @@ create policy pre_application_autorizados_write on public.pre_application_autori
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-        and has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
+         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
     )
   )
   with check (
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-        and has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
+         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
         and pa.institution_id = institution_id
     )
   );
+
+drop policy pre_application_autorizados_write on public.pre_application_autorizados;
 
 -- === Documentos declarados (1:N) ============================================
 
@@ -355,7 +369,7 @@ create policy pre_application_documentos_select on public.pre_application_docume
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-        and has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
+         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
     )
   );
 
@@ -364,17 +378,19 @@ create policy pre_application_documentos_write on public.pre_application_documen
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-        and has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
+         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
     )
   )
   with check (
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-        and has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
+         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
         and pa.institution_id = institution_id
     )
   );
+
+drop policy pre_application_documentos_write on public.pre_application_documentos;
 
 -- === RPCs (fila padre + 3 tablas hijas en una transaccion, acceso familiar) ==
 --
@@ -432,7 +448,7 @@ begin
     observaciones_secretaria, motivo_correccion, readiness_status, ready_at, readiness_notes
   )
   select
-    x.folio, x.status, x.submitted_at, x.tramite, x.ciclo_escolar, x.grado_solicitado,
+    x.folio, 'ENVIADA', now()::text, x.tramite, x.ciclo_escolar, x.grado_solicitado,
     x.alumno_nombre_completo, x.alumno_curp, x.alumno_fecha_nacimiento, x.alumno_sexo,
     x.alumno_nacionalidad, x.alumno_entidad_nacimiento, x.alumno_domicilio, x.alumno_telefono_casa,
     x.escuela_procedencia, x.promedio_grado_anterior,
@@ -455,7 +471,7 @@ begin
     x.consentimiento_foto_alumno, x.consentimiento_foto_credencial, x.consentimiento_foto_autorizados,
     x.consentimiento_comunicacion_whatsapp, x.consentimiento_reglamento_interno,
     x.consentimiento_marco_convivencia, x.consentimiento_corresponsabilidad_familiar,
-    x.observaciones_secretaria, x.motivo_correccion, x.readiness_status, x.ready_at, x.readiness_notes
+    '', '', 'PENDING', null, ''
   from jsonb_to_record(p_record) as x(
     folio text, status text, submitted_at text, tramite text, ciclo_escolar text, grado_solicitado int,
     alumno_nombre_completo text, alumno_curp text, alumno_fecha_nacimiento text, alumno_sexo text,
@@ -490,7 +506,7 @@ begin
     horario_contacto, identificacion_a_presentar
   )
   select v_folio, v_institution_id,
-    r.position, r.nombre_completo, r.parentesco, r.telefono, r.correo, r.domicilio_distinto, r.domicilio,
+     r.position, r.nombre_completo, r.parentesco, r.telefono, r.correo, r.domicilio_distinto, r.domicilio,
     r.vive_con_alumno, r.contacto_principal, r.puede_recoger, r.ocupacion, r.horario_contacto, r.identificacion_a_presentar
   from jsonb_to_recordset(p_responsables) as r(
     position int, nombre_completo text, parentesco text, telefono text, correo text,
@@ -511,7 +527,7 @@ begin
     pre_application_folio, institution_id, position, nombre, declarado, cotejado_secretaria, validado, rechazado, no_aplica, observacion
   )
   select v_folio, v_institution_id,
-    d.position, d.nombre, d.declarado, d.cotejado_secretaria, d.validado, d.rechazado, d.no_aplica, d.observacion
+     d.position, d.nombre, d.declarado, false, false, false, false, ''
   from jsonb_to_recordset(p_documentos) as d(
     position int, nombre text, declarado boolean, cotejado_secretaria boolean, validado boolean, rechazado boolean, no_aplica boolean, observacion text
   );
@@ -564,14 +580,14 @@ begin
     end if;
   else
     v_actor := (select auth.uid());
-    if v_actor is null or not has_permission(v_institution_id, 'REVIEW_PRE_APPLICATION') then
+     if v_actor is null or not public.has_permission(v_institution_id, 'PRE_SOLICITUD') then
       raise exception 'SASE_PRE_APPLICATION_UPDATE_REJECTED';
     end if;
   end if;
 
   update public.pre_applications as pa set
-    status = x.status,
-    submitted_at = x.submitted_at,
+     status = case when p_access_token is not null then 'ENVIADA' else x.status end,
+     submitted_at = case when p_access_token is not null then pa.submitted_at else x.submitted_at end,
     tramite = x.tramite,
     ciclo_escolar = x.ciclo_escolar,
     grado_solicitado = x.grado_solicitado,
@@ -638,11 +654,11 @@ begin
     consentimiento_reglamento_interno = x.consentimiento_reglamento_interno,
     consentimiento_marco_convivencia = x.consentimiento_marco_convivencia,
     consentimiento_corresponsabilidad_familiar = x.consentimiento_corresponsabilidad_familiar,
-    observaciones_secretaria = x.observaciones_secretaria,
-    motivo_correccion = x.motivo_correccion,
-    readiness_status = x.readiness_status,
-    ready_at = x.ready_at,
-    readiness_notes = x.readiness_notes
+     observaciones_secretaria = case when p_access_token is not null then pa.observaciones_secretaria else x.observaciones_secretaria end,
+     motivo_correccion = case when p_access_token is not null then pa.motivo_correccion else x.motivo_correccion end,
+     readiness_status = case when p_access_token is not null then 'PENDING' else x.readiness_status end,
+     ready_at = case when p_access_token is not null then null else x.ready_at end,
+     readiness_notes = case when p_access_token is not null then '' else x.readiness_notes end
   from jsonb_to_record(p_record) as x(
     status text, submitted_at text, tramite text, ciclo_escolar text, grado_solicitado int,
     alumno_nombre_completo text, alumno_curp text, alumno_fecha_nacimiento text, alumno_sexo text,
@@ -676,9 +692,11 @@ begin
     raise exception 'SASE_PRE_APPLICATION_UPDATE_REJECTED';
   end if;
 
-  delete from public.pre_application_responsables where pre_application_folio = p_folio;
-  delete from public.pre_application_autorizados where pre_application_folio = p_folio;
-  delete from public.pre_application_documentos where pre_application_folio = p_folio;
+   delete from public.pre_application_responsables where pre_application_folio = p_folio;
+   delete from public.pre_application_autorizados where pre_application_folio = p_folio;
+   if p_access_token is null then
+     delete from public.pre_application_documentos where pre_application_folio = p_folio;
+   end if;
 
   insert into public.pre_application_responsables (
     pre_application_folio, institution_id, position, nombre_completo, parentesco, telefono, correo,
@@ -703,14 +721,27 @@ begin
     position int, nombre_completo text, parentesco text, telefono text, observaciones text
   );
 
-  insert into public.pre_application_documentos (
+   if p_access_token is null then
+     insert into public.pre_application_documentos (
     pre_application_folio, institution_id, position, nombre, declarado, cotejado_secretaria, validado, rechazado, no_aplica, observacion
   )
-  select p_folio, v_institution_id,
-    d.position, d.nombre, d.declarado, d.cotejado_secretaria, d.validado, d.rechazado, d.no_aplica, d.observacion
-  from jsonb_to_recordset(p_documentos) as d(
+     select p_folio, v_institution_id,
+     d.position, d.nombre, d.declarado,
+     d.cotejado_secretaria, d.validado, d.rechazado, d.no_aplica, d.observacion
+     from jsonb_to_recordset(p_documentos) as d(
     position int, nombre text, declarado boolean, cotejado_secretaria boolean, validado boolean, rechazado boolean, no_aplica boolean, observacion text
-  );
+   )
+     ;
+   else
+     update public.pre_application_documentos as existing
+     set declarado = d.declarado
+     from jsonb_to_recordset(p_documentos) as d(
+       position int, nombre text, declarado boolean, cotejado_secretaria boolean,
+       validado boolean, rechazado boolean, no_aplica boolean, observacion text
+     )
+     where existing.pre_application_folio = p_folio
+       and existing.nombre = d.nombre;
+   end if;
 
   return p_folio;
 end;

@@ -61,6 +61,7 @@ import com.example.ui.components.feedback.SaseAlertVariant
 import com.example.ui.theme.SaseColors
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.LoginUiState
+import com.example.viewmodel.Screen
 
 @Composable
 fun LoginScreen(viewModel: LabViewModel) {
@@ -271,6 +272,14 @@ fun LoginScreen(viewModel: LabViewModel) {
                             enabled = canSubmit,
                             modifier = Modifier.fillMaxWidth()
                         )
+
+                        OutlinedButton(
+                            onClick = { viewModel.navigateTo(Screen.PreApplicationFamilyPortal) },
+                            enabled = !loading,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Portal familiar")
+                        }
 
                         if (viewModel.demoAccessAvailable) {
                             OutlinedButton(

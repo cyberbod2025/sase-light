@@ -18,11 +18,13 @@ import com.example.data.auth.RoleSelectionContext
 import com.example.data.auth.StaffAction
 import com.example.data.auth.StaffPermissions
 import com.example.data.auth.StaffRole
+import com.example.data.auth.SaseArea
 import com.example.data.repository.AuditRepository
 import com.example.data.repository.MockAuditRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
 import com.example.data.repository.StudentRepository
 import com.example.data.repository.StudentSyncResult
+import com.example.data.repository.PreApplicationSyncResult
 import com.example.environment.AppEnvironment
 import com.example.formatTimestamp
 import com.example.getPlatformName
@@ -190,6 +192,14 @@ class LabViewModel(
         if (!auditRepository.refresh()) {
             auditRepository.clear()
         }
+        if (StaffPermissions.canAccess(session.value, SaseArea.PRE_SOLICITUD)) {
+            when (PreApplicationViewModel.refreshPreApplications()) {
+                is PreApplicationSyncResult.Loaded -> Unit
+                is PreApplicationSyncResult.Failed -> PreApplicationViewModel.clearPreApplicationState()
+            }
+        } else {
+            PreApplicationViewModel.clearPreApplicationState()
+        }
     }
 
     fun signIn(email: String, password: String) {
@@ -263,6 +273,7 @@ class LabViewModel(
                 authRepository.signOut()
                 studentRepository.clear()
                 auditRepository.clear()
+                PreApplicationViewModel.clearPreApplicationState()
                 _currentScreen.value = Screen.SessionHome
                 _loginState.value = LoginUiState.Idle
                 _studentSync.value = StudentSyncUiState.Idle
@@ -317,6 +328,7 @@ class LabViewModel(
         // anterior (P1 de Codex en PR #49).
         studentRepository.clear()
         auditRepository.clear()
+        PreApplicationViewModel.clearPreApplicationState()
         _currentScreen.value = Screen.SessionHome
         _loginState.value = LoginUiState.Idle
         recordAudit(
@@ -360,6 +372,7 @@ class LabViewModel(
                 authRepository.signOut()
                 studentRepository.clear()
                 auditRepository.clear()
+                PreApplicationViewModel.clearPreApplicationState()
                 _currentScreen.value = Screen.SessionHome
                 _loginState.value = LoginUiState.Error(AuthFailureReason.SESSION_EXPIRED)
             } finally {
@@ -369,6 +382,10 @@ class LabViewModel(
     }
 
     fun navigateTo(screen: Screen) {
+        if (session.value == null) {
+            if (canOpenScreen(null, screen)) _currentScreen.value = screen
+            return
+        }
         if (!revalidateSession()) return
         if (canOpenScreen(session.value, screen)) {
             _currentScreen.value = screen
@@ -380,6 +397,10 @@ class LabViewModel(
     }
 
     fun navigateBack() {
+        if (session.value == null) {
+            _currentScreen.value = Screen.SessionHome
+            return
+        }
         navigateTo(Screen.SessionHome)
     }
 

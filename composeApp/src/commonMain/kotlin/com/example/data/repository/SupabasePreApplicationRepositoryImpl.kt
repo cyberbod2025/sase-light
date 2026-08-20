@@ -609,14 +609,15 @@ class SupabasePreApplicationRepositoryImpl(
     }
 
     override suspend fun submit(preApplication: PreApplication): PreApplicationSubmitResult {
-        val auth = currentAuth() ?: return PreApplicationSubmitResult.Failed(PreApplicationPersistenceFailure.NO_SESSION)
         if (preApplication.alumnoNombreCompleto.isBlank() || preApplication.alumnoCurp.isBlank()) {
             return PreApplicationSubmitResult.Failed(PreApplicationPersistenceFailure.REJECTED)
         }
 
         val response = try {
             httpClient.post("$baseUrl/rest/v1/rpc/create_pre_application_with_children") {
-                authHeaders(auth)
+                // El primer envio familiar es publico: el token nace en la
+                // transaccion y no existe una sesion previa que presentar.
+                header("apikey", apiKey)
                 contentType(ContentType.Application.Json)
                 setBody(buildJsonObject {
                     put("p_record", preApplication.toRecordJson())
@@ -638,7 +639,7 @@ class SupabasePreApplicationRepositoryImpl(
             // autoriza fuera de su propio folio+token, que aqui todavia no
             // conoce): solo SECRETARIA puede resolver el registro existente.
             val normalizedCurp = preApplication.alumnoCurp.trim().uppercase()
-            val existing = (auth as? PreApplicationAuthContext.Staff)?.let { findByCurp(it, normalizedCurp) }
+            val existing = staffSessionProvider()?.let { findByCurp(PreApplicationAuthContext.Staff(it), normalizedCurp) }
             return existing?.let { PreApplicationSubmitResult.DuplicateCurp(normalizedCurp, it) }
                 ?: PreApplicationSubmitResult.Failed(PreApplicationPersistenceFailure.REJECTED)
         }
@@ -652,14 +653,10 @@ class SupabasePreApplicationRepositoryImpl(
             return PreApplicationSubmitResult.Failed(PreApplicationPersistenceFailure.REJECTED)
         }
 
-        if (currentAuth()?.accessToken != auth.accessToken) {
-            return PreApplicationSubmitResult.Failed(PreApplicationPersistenceFailure.NO_SESSION)
-        }
-
-        val created = when (auth) {
-            is PreApplicationAuthContext.Staff -> fetchOne(auth, createdRef.folio)
-            is PreApplicationAuthContext.Family -> fetchByToken(createdRef.folio, createdRef.accessToken)
-        } ?: return PreApplicationSubmitResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+        // La RPC ya confirmo el agregado. No se hace una segunda lectura que
+        // pueda perder el token de un solo uso si la red falla despues.
+        val created = fetchByToken(createdRef.folio, createdRef.accessToken)
+            ?: preApplication.copy(folio = createdRef.folio)
         _preApplications.value = (_preApplications.value.filterNot { it.folio == created.folio } + created)
         return PreApplicationSubmitResult.Submitted(created, createdRef.accessToken)
     }
@@ -724,8 +721,11 @@ class SupabasePreApplicationRepositoryImpl(
         } ?: return null
 
         val responsables = fetchChildren<ResponsableRow>(auth, "pre_application_responsables", RESPONSABLE_COLUMNS, folio)
+            ?: return null
         val autorizados = fetchChildren<AutorizadoRow>(auth, "pre_application_autorizados", AUTORIZADO_COLUMNS, folio)
+            ?: return null
         val documentos = fetchChildren<DocumentoRow>(auth, "pre_application_documentos", DOCUMENTO_COLUMNS, folio)
+            ?: return null
         return parent.toDomain(responsables, autorizados, documentos)
     }
 
@@ -734,7 +734,7 @@ class SupabasePreApplicationRepositoryImpl(
         table: String,
         columns: String,
         folio: String
-    ): List<T> = try {
+    ): List<T>? = try {
         val response = httpClient.get("$baseUrl/rest/v1/$table") {
             authHeaders(auth)
             url {
@@ -743,9 +743,9 @@ class SupabasePreApplicationRepositoryImpl(
                 parameters.append("order", "position.asc")
             }
         }
-        if (response.status == HttpStatusCode.OK) response.body<List<T>>() else emptyList()
+        if (response.status == HttpStatusCode.OK) response.body<List<T>>() else null
     } catch (e: Exception) {
-        emptyList()
+        null
     }
 
     private suspend fun findByCurp(auth: PreApplicationAuthContext.Staff, curp: String): PreApplication? = try {
