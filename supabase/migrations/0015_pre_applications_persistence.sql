@@ -236,7 +236,34 @@ create policy pre_applications_update_reviewer on public.pre_applications
 -- El token es un bearer credential de familia, no un dato de Secretaría.
 -- PostgREST debe rechazar una selección explícita de esa columna aunque la
 -- fila sea visible por RLS; las RPC security definer siguen pudiendo validarlo.
-revoke select (access_token) on table public.pre_applications from anon, authenticated;
+revoke all on table public.pre_applications from anon, authenticated;
+grant select (
+  folio, institution_id, status, submitted_at, tramite, ciclo_escolar,
+  grado_solicitado, alumno_nombre_completo, alumno_curp, alumno_fecha_nacimiento,
+  alumno_sexo, alumno_nacionalidad, alumno_entidad_nacimiento, alumno_domicilio,
+  alumno_telefono_casa, escuela_procedencia, promedio_grado_anterior,
+  persona_tramite_nombre, persona_tramite_parentesco, persona_tramite_telefono,
+  persona_tramite_identificacion, persona_tramite_contacto_principal,
+  ficha_servicio_medico, ficha_numero_afiliacion, ficha_tipo_sangre, ficha_alergias,
+  ficha_padecimientos, ficha_medicamentos, ficha_restriccion_fisica, ficha_usa_lentes,
+  ficha_dificultad_visual_auditiva, ficha_salud_bucal, ficha_cartilla_vacunacion,
+  contexto_vive_con_quien, contexto_tipo_familia, contexto_hijo_unico,
+  contexto_lugar_entre_hermanos, contexto_hermanos_en_escuela, contexto_integrantes_hogar,
+  contexto_sosten_economico, contexto_ingreso_rangos, contexto_tipo_vivienda,
+  contexto_servicios_basicos, contexto_internet, contexto_dispositivo_tareas,
+  contexto_beca_apoyo, contexto_transporte, contexto_dificultad_materiales,
+  contexto_atiende_avisos, contexto_horario_comunicacion, contexto_puede_acudir_citatorios,
+  udeii_antecedente_apoyo, udeii_terapia_lenguaje, udeii_apoyo_psicologico,
+  udeii_apoyo_pedagogico, udeii_documentos_disponibles, udeii_informe_escuela_anterior,
+  udeii_evaluacion_psicopedagogica, udeii_plan_intervencion, udeii_portafolio,
+  udeii_observaciones_familiares, consentimiento_aviso_privacidad,
+  consentimiento_uso_datos_expediente, consentimiento_foto_alumno,
+  consentimiento_foto_credencial, consentimiento_foto_autorizados,
+  consentimiento_comunicacion_whatsapp, consentimiento_reglamento_interno,
+  consentimiento_marco_convivencia, consentimiento_corresponsabilidad_familiar,
+  observaciones_secretaria, motivo_correccion, readiness_status, ready_at,
+  readiness_notes
+) on table public.pre_applications to authenticated;
 
 -- Todas las mutaciones pasan por las RPC para conservar la propiedad de
 -- campos y la atomicidad padre/hijas. Las políticas de escritura directas
@@ -576,6 +603,10 @@ begin
 
   if p_access_token is not null then
     if v_stored_token is distinct from p_access_token then
+      raise exception 'SASE_PRE_APPLICATION_UPDATE_REJECTED';
+    end if;
+    if (select status from public.pre_applications where folio = p_folio)
+        <> 'PENDIENTE_CORRECCION' then
       raise exception 'SASE_PRE_APPLICATION_UPDATE_REJECTED';
     end if;
   else
