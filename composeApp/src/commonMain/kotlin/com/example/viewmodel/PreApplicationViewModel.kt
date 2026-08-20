@@ -1587,6 +1587,13 @@ class PreApplicationViewModel {
                 return rejected
             }
 
+            if (_enrollmentFlowMode.value != EnrollmentFlowMode.ANNUAL_V2) {
+                return reject(
+                    InstitutionalEnrollmentGuardCause.FLOW_DISABLED,
+                    "La inscripción anual V2 no está habilitada en este ambiente conectado."
+                )
+            }
+
             val normalizedFolio = folio.trim().uppercase()
             val matchingPreApplications = _sharedPreApplications.value.filter {
                 it.folio.trim().uppercase() == normalizedFolio

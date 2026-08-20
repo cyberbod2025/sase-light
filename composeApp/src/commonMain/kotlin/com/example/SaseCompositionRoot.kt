@@ -2,6 +2,7 @@ package com.example
 
 import com.example.data.auth.MockAuthRepositoryImpl
 import com.example.data.auth.SupabaseAuthRepositoryImpl
+import com.example.data.enrollment.EnrollmentFlowMode
 import com.example.data.repository.MockAuditRepositoryImpl
 import com.example.data.repository.MockPreApplicationRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
@@ -43,6 +44,7 @@ object SaseCompositionRoot {
 
     fun create(environment: AppEnvironment): SaseBootstrap = when (environment.mode) {
         AppEnvironmentMode.DEMO_LOCAL -> {
+            PreApplicationViewModel.setEnrollmentFlowMode(EnrollmentFlowMode.ANNUAL_V2)
             val studentRepository = MockStudentRepositoryImpl()
             val authRepository = MockAuthRepositoryImpl()
             val auditRepository = MockAuditRepositoryImpl()
@@ -75,6 +77,9 @@ object SaseCompositionRoot {
         }
 
         AppEnvironmentMode.SUPABASE_STAGING -> {
+            // Annual V2 still persists its annual record in MockSaseData. Keep
+            // it disabled in connected mode until that flow has durable storage.
+            PreApplicationViewModel.setEnrollmentFlowMode(EnrollmentFlowMode.LEGACY)
             val supabase = requireNotNull(environment.supabase)
             val authRepository = SupabaseAuthRepositoryImpl(
                 baseUrl = supabase.url,

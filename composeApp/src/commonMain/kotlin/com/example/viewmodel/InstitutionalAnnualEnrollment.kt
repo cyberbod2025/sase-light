@@ -12,7 +12,8 @@ enum class InstitutionalEnrollmentGuardCause {
     NOT_ACCEPTED,
     NOT_READY,
     PENDING_REQUIREMENTS,
-    SOURCE_MISMATCH
+    SOURCE_MISMATCH,
+    FLOW_DISABLED
 }
 
 enum class PreApplicationSynchronizationCause {
