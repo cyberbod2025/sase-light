@@ -71,6 +71,32 @@
 -- ESTADO: escrita, NO aplicada. Requiere autorizacion explicita de Hugo
 -- antes de tocar el proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh).
 
+-- Precondiciones fail-fast: esta migracion debe usar el permiso institucional
+-- ya existente y asignado a SECRETARIA. No crea aliases ni modifica el
+-- catalogo de permisos.
+do $$
+begin
+  if not exists (
+    select 1
+    from public.permissions
+    where code = 'REVIEW_PRE_APPLICATION'
+  ) then
+    raise exception 'SASE_PRE_APPLICATIONS_PRECONDITION_FAILED: falta permissions.code = REVIEW_PRE_APPLICATION';
+  end if;
+
+  if not exists (
+    select 1
+    from public.roles r
+    join public.role_permissions rp on rp.role_id = r.id
+    join public.permissions p on p.id = rp.permission_id
+    where r.code = 'SECRETARIA'
+      and p.code = 'REVIEW_PRE_APPLICATION'
+  ) then
+    raise exception 'SASE_PRE_APPLICATIONS_PRECONDITION_FAILED: REVIEW_PRE_APPLICATION no esta asignado a SECRETARIA';
+  end if;
+end;
+$$;
+
 -- === Nucleo de la pre-solicitud ===============================================
 
 create table public.pre_applications (
@@ -217,20 +243,20 @@ alter table public.pre_applications enable row level security;
 -- REVIEW_PRE_APPLICATION). DIRECCION no recibe ninguna politica: el
 -- catalogo real no le da hoy ningun permiso de pre-solicitud (ver
 -- comentario de StaffPermissions.actionMatrix en el cliente) -- coherente
--- con que el cliente tampoco le ofrece el area PRE_SOLICITUD. No existe
+-- con que el cliente tampoco le ofrece el area de pre-solicitudes. No existe
 -- politica de INSERT: la unica via de creacion es la RPC (security
 -- definer, bypassa RLS).
 create policy pre_applications_select_reviewer on public.pre_applications
   for select using (
-     public.has_permission(institution_id, 'PRE_SOLICITUD')
+     public.has_permission(institution_id, 'REVIEW_PRE_APPLICATION')
   );
 
 create policy pre_applications_update_reviewer on public.pre_applications
   for update using (
-     public.has_permission(institution_id, 'PRE_SOLICITUD')
+     public.has_permission(institution_id, 'REVIEW_PRE_APPLICATION')
   )
   with check (
-     public.has_permission(institution_id, 'PRE_SOLICITUD')
+     public.has_permission(institution_id, 'REVIEW_PRE_APPLICATION')
   );
 
 -- El token es un bearer credential de familia, no un dato de Secretaría.
@@ -301,7 +327,7 @@ create policy pre_application_responsables_select on public.pre_application_resp
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
+         and public.has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
     )
   );
 
@@ -310,14 +336,14 @@ create policy pre_application_responsables_write on public.pre_application_respo
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
+         and public.has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
     )
   )
   with check (
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
+         and public.has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
         and pa.institution_id = institution_id
     )
   );
@@ -347,7 +373,7 @@ create policy pre_application_autorizados_select on public.pre_application_autor
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
+         and public.has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
     )
   );
 
@@ -356,14 +382,14 @@ create policy pre_application_autorizados_write on public.pre_application_autori
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
+         and public.has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
     )
   )
   with check (
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
+         and public.has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
         and pa.institution_id = institution_id
     )
   );
@@ -396,7 +422,7 @@ create policy pre_application_documentos_select on public.pre_application_docume
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
+         and public.has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
     )
   );
 
@@ -405,14 +431,14 @@ create policy pre_application_documentos_write on public.pre_application_documen
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
+         and public.has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
     )
   )
   with check (
     exists (
       select 1 from public.pre_applications pa
       where pa.folio = pre_application_folio
-         and public.has_permission(pa.institution_id, 'PRE_SOLICITUD')
+         and public.has_permission(pa.institution_id, 'REVIEW_PRE_APPLICATION')
         and pa.institution_id = institution_id
     )
   );
@@ -611,7 +637,7 @@ begin
     end if;
   else
     v_actor := (select auth.uid());
-     if v_actor is null or not public.has_permission(v_institution_id, 'PRE_SOLICITUD') then
+     if v_actor is null or not public.has_permission(v_institution_id, 'REVIEW_PRE_APPLICATION') then
       raise exception 'SASE_PRE_APPLICATION_UPDATE_REJECTED';
     end if;
   end if;
