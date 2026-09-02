@@ -5,6 +5,25 @@ import com.example.data.SaseAudit
 import com.example.data.SaseDocument
 import com.example.data.Student
 import com.example.data.StudentAddResult
+import com.example.data.StudentUpdateResult
+import com.example.audit.InstitutionalAuditEvent
+import com.example.audit.InstitutionalAuditResult
+import com.example.audit.InstitutionalAuditValidator
+import com.example.data.auth.AuthSession
+import com.example.data.auth.FamilySession
+import com.example.data.auth.StaffAction
+import com.example.data.auth.StaffPermissions
+import com.example.data.repository.AuditRepository
+import com.example.data.repository.MockAuditRepositoryImpl
+import com.example.data.repository.MockPreApplicationRepositoryImpl
+import com.example.data.repository.MockStudentRepositoryImpl
+import com.example.data.repository.PreApplicationPersistenceFailure
+import com.example.data.repository.PreApplicationRepository
+import com.example.data.repository.PreApplicationSubmitResult
+import com.example.data.repository.PreApplicationSyncResult
+import com.example.data.repository.PreApplicationUpdateResult
+import com.example.data.repository.StudentRepository
+import com.example.getPlatformName
 import com.example.data.enrollment.AnnualEnrollmentFlowCoordinator
 import com.example.data.enrollment.EnrollmentFlowMode
 import com.example.data.enrollment.AnnualEnrollmentFlowRequest
@@ -24,10 +43,10 @@ private const val FAMILY_LOOKUP_ERROR =
     "No fue posible consultar la pre-solicitud con los datos proporcionados."
 
 internal fun interface InstitutionalPreApplicationSynchronizer {
-    fun synchronize(
+    suspend fun synchronize(
         source: PreApplication,
         readState: () -> List<PreApplication>,
-        compareAndSet: (List<PreApplication>, List<PreApplication>) -> Boolean
+        commit: suspend (PreApplication) -> Boolean
     ): PreApplicationConversionResult
 }
 
@@ -49,6 +68,15 @@ sealed class FamilySubmissionResult {
 
     data class Success(
         val preApplication: PreApplication,
+        /**
+         * Token de acceso opaco (migracion 0015) -- unica identidad de la
+         * familia sin cuenta/login. Se devuelve una sola vez; la UI debe
+         * mostrarlo junto al folio con instruccion de guardarlo, igual que
+         * el folio ya se mostraba antes. [PreApplicationViewModel] ya lo
+         * dejo activo en [PreApplicationViewModel.activeFamilySession]
+         * antes de devolver este resultado.
+         */
+        val accessToken: String,
         override val message: String = "Pre-solicitud enviada."
     ) : FamilySubmissionResult()
 
@@ -64,6 +92,11 @@ sealed class FamilySubmissionResult {
 
     data class InsufficientData(
         override val message: String
+    ) : FamilySubmissionResult()
+
+    data class BackendFailure(
+        val reason: PreApplicationPersistenceFailure,
+        override val message: String = "No fue posible guardar la pre-solicitud. Intenta de nuevo."
     ) : FamilySubmissionResult()
 }
 
@@ -83,6 +116,10 @@ sealed class FamilyResubmissionResult {
 
     data class DuplicateCurp(
         val curp: String
+    ) : FamilyResubmissionResult()
+
+    data class BackendFailure(
+        val reason: PreApplicationPersistenceFailure
     ) : FamilyResubmissionResult()
 }
 
@@ -201,79 +238,167 @@ sealed class CorrectionRequestResult {
     data object AlreadyConverted : CorrectionRequestResult() {
         override val message: String = "La pre-solicitud ya fue convertida a alta oficial."
     }
+
+    data class BackendFailure(
+        val reason: PreApplicationPersistenceFailure,
+        override val message: String = "No fue posible registrar la corrección. Intenta de nuevo."
+    ) : CorrectionRequestResult()
 }
 
 class PreApplicationViewModel {
     companion object {
-        private val _sharedPreApplications = MutableStateFlow(MockPreApplicationData.preApplications)
-        val sharedPreApplications: StateFlow<List<PreApplication>> = _sharedPreApplications.asStateFlow()
+        // RIESGO CONOCIDO (Codex, cierre de PR #49, "Block mock pre-applications
+        // in connected mode" -- documentado, NO resuelto en este cierre por
+        // decision explicita de Hugo): a diferencia de studentRepository/
+        // authSessionProvider, esta lista NUNCA se conecta a Supabase segun el
+        // ambiente. En SUPABASE_STAGING, Secretaria puede convertir una
+        // pre-solicitud de DEMO_LOCAL en un alumno real, y cualquier
+        // pre-solicitud real que la familia envie se pierde al reiniciar la
+        // app -- nunca llega al backend. El primer recorrido institucional
+        // completo (familia -> pre-solicitud -> secretaria -> alta oficial)
+        // sigue sin persistir su primera mitad en el piloto real. Requiere
+        // almacenamiento conectado de pre-solicitudes (tablas + RLS +
+        // repositorio) como trabajo aparte antes de considerar ese recorrido
+        // cerrado para el piloto.
+        // Persistencia real de pre-solicitudes (D-018): el listado ya no es un
+        // MutableStateFlow en memoria propiedad del companion object -- es
+        // preApplicationRepository.preApplications, que en SUPABASE_STAGING
+        // esta respaldado por Postgres (migracion 0015) via
+        // SupabasePreApplicationRepositoryImpl. En DEMO_LOCAL sigue siendo
+        // MockPreApplicationRepositoryImpl (fixtures de MockPreApplicationData
+        // detras del mismo contrato) -- ningun caso cae en fallback silencioso.
+        private var preApplicationRepository: PreApplicationRepository = MockPreApplicationRepositoryImpl()
+        val sharedPreApplications: StateFlow<List<PreApplication>> get() = preApplicationRepository.preApplications
+
+        /** Alias interno: el resto de este companion object leia `_sharedPreApplications.value`. */
+        private val _sharedPreApplications: StateFlow<List<PreApplication>> get() = preApplicationRepository.preApplications
+
+        fun configurePreApplicationRepository(repository: PreApplicationRepository) {
+            preApplicationRepository = repository
+        }
+
+        suspend fun refreshPreApplications(): PreApplicationSyncResult =
+            preApplicationRepository.refresh()
+
+        fun clearPreApplicationState() {
+            clearFamilySessionAndCache()
+        }
+
+        // La familia no tiene AuthSession (sin membresia institucional, sin
+        // cuenta de ningun tipo -- ver FamilySession) -- su unica identidad
+        // efectiva para las operaciones que le pertenecen (enviar/corregir su
+        // propia pre-solicitud) es el token de acceso opaco que el servidor
+        // genera al crear la pre-solicitud (migracion 0015). A diferencia de
+        // authSessionProvider (alimentado desde afuera por AuthRepository),
+        // esta sesion nace AQUI, dentro del propio ViewModel, justo despues
+        // de un submit() exitoso -- no hay login ni repositorio de auth
+        // familiar externo. SaseCompositionRoot lee [activeFamilySession]
+        // directamente para construir el familySessionProvider que necesita
+        // SupabasePreApplicationRepositoryImpl. Nunca se mezcla con
+        // authSessionProvider.
+        private val _activeFamilySession = MutableStateFlow<FamilySession?>(null)
+        val activeFamilySession: FamilySession? get() = _activeFamilySession.value
+
         private val preApplicationFolioChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         private const val preApplicationTimestampPrefix = "Hoy "
         private val officialCurpPattern = Regex("^[A-Z]{4}\\d{6}[HM][A-Z]{5}[A-Z0-9]\\d$")
 
-        fun approvePreApplication(folio: String) {
-            updatePreApp(folio) { it.copy(status = PreApplicationStatus.ACEPTADA) }
-            reconcileReadinessAfterRequirementChange(folio)
+        // El alta oficial se apoyaba en MockSaseData sin importar el ambiente
+        // (P1 de Codex en PR #49): SaseCompositionRoot inyecta aqui el mismo
+        // repositorio que ya resuelve LabViewModel por ambiente. El default
+        // preserva el comportamiento actual en DEMO_LOCAL/tests (delega en
+        // MockSaseData igual que antes).
+        private var studentRepository: StudentRepository = MockStudentRepositoryImpl()
+
+        fun configureRepositories(studentRepository: StudentRepository) {
+            this.studentRepository = studentRepository
         }
 
-        fun setObservaciones(folio: String, text: String) {
+        // Sin sesion configurada, ninguna escritura institucional se autoriza
+        // (P2 de Codex, "Gate official-enrollment writes by the active
+        // role"): confirmInitialGroup escribe el expediente maestro y antes
+        // no distinguia DEMO_LOCAL de SUPABASE_STAGING, asi que un rol sin
+        // permiso real (p.ej. DIRECCION tras la correccion de la matriz de
+        // permisos) podia ejecutar en DEMO_LOCAL lo que RLS ya rechaza en
+        // staging.
+        private var authSessionProvider: () -> AuthSession? = { null }
+
+        fun configureAuthSessionProvider(provider: () -> AuthSession?) {
+            this.authSessionProvider = provider
+        }
+
+        // confirmInitialGroup escribe el expediente maestro llamando a
+        // studentRepository directo, sin pasar por LabViewModel.updateStudent()/
+        // addStudent() -- eso significa que, sin esto, una mutacion real del
+        // expediente en SUPABASE_STAGING nunca queda en student_audit_events
+        // pese a que las demas rutas de escritura si lo exigen (P1 de Codex,
+        // "Audit official-enrollment mutations").
+        private var auditRepository: AuditRepository = MockAuditRepositoryImpl()
+
+        fun configureAuditRepository(repository: AuditRepository) {
+            this.auditRepository = repository
+        }
+
+        suspend fun approvePreApplication(folio: String): PreApplicationUpdateResult {
+            val result = updatePreApp(folio) { it.copy(status = PreApplicationStatus.ACEPTADA) }
+            if (result is PreApplicationUpdateResult.Updated) {
+                reconcileReadinessAfterRequirementChange(folio)
+            }
+            return result
+        }
+
+        suspend fun setObservaciones(folio: String, text: String): PreApplicationUpdateResult =
             updatePreApp(folio) { it.copy(observacionesSecretaria = text) }
-        }
 
-        fun requestCorrection(folio: String, reason: String): CorrectionRequestResult {
+        suspend fun requestCorrection(folio: String, reason: String): CorrectionRequestResult {
             val normalizedFolio = folio.trim().uppercase()
             val normalizedReason = reason.trim()
             if (normalizedReason.isBlank()) {
                 return CorrectionRequestResult.InvalidReason
             }
 
-            while (true) {
-                val currentPreApplications = _sharedPreApplications.value
-                val matchingIndexes = currentPreApplications.indices.filter { index ->
-                    currentPreApplications[index].folio.trim().uppercase() == normalizedFolio
-                }
-                if (matchingIndexes.isEmpty()) {
-                    return CorrectionRequestResult.NotFound(normalizedFolio)
-                }
-                if (matchingIndexes.size > 1) {
-                    return CorrectionRequestResult.AmbiguousFolio
-                }
+            val currentPreApplications = _sharedPreApplications.value
+            val matchingIndexes = currentPreApplications.indices.filter { index ->
+                currentPreApplications[index].folio.trim().uppercase() == normalizedFolio
+            }
+            if (matchingIndexes.isEmpty()) {
+                return CorrectionRequestResult.NotFound(normalizedFolio)
+            }
+            if (matchingIndexes.size > 1) {
+                return CorrectionRequestResult.AmbiguousFolio
+            }
 
-                val index = matchingIndexes.single()
-                val current = currentPreApplications[index]
-                if (current.readinessStatus == ReadinessStatus.CONVERTED ||
-                    _officialStudents.value.any { it.preApplicationFolio == current.folio }
-                ) {
-                    return CorrectionRequestResult.AlreadyConverted
-                }
-                if (current.status !in setOf(
-                        PreApplicationStatus.ENVIADA,
-                        PreApplicationStatus.ACEPTADA,
-                        PreApplicationStatus.PENDIENTE_CORRECCION
-                    )
-                ) {
-                    return CorrectionRequestResult.NotEditable(current.status)
-                }
-                if (current.status == PreApplicationStatus.PENDIENTE_CORRECCION &&
-                    current.motivoCorreccion.trim() == normalizedReason &&
-                    current.readinessStatus == ReadinessStatus.PENDING
-                ) {
-                    return CorrectionRequestResult.AlreadyRequested(current)
-                }
-
-                val updated = current.copy(
-                    status = PreApplicationStatus.PENDIENTE_CORRECCION,
-                    motivoCorreccion = normalizedReason,
-                    readinessStatus = ReadinessStatus.PENDING,
-                    readyAt = null,
-                    readinessNotes = ""
+            val current = currentPreApplications[matchingIndexes.single()]
+            if (current.readinessStatus == ReadinessStatus.CONVERTED ||
+                _officialStudents.value.any { it.preApplicationFolio == current.folio }
+            ) {
+                return CorrectionRequestResult.AlreadyConverted
+            }
+            if (current.status !in setOf(
+                    PreApplicationStatus.ENVIADA,
+                    PreApplicationStatus.ACEPTADA,
+                    PreApplicationStatus.PENDIENTE_CORRECCION
                 )
-                val updatedPreApplications = currentPreApplications.toMutableList().apply {
-                    this[index] = updated
-                }
-                if (_sharedPreApplications.compareAndSet(currentPreApplications, updatedPreApplications)) {
-                    return CorrectionRequestResult.Success(updated)
-                }
+            ) {
+                return CorrectionRequestResult.NotEditable(current.status)
+            }
+            if (current.status == PreApplicationStatus.PENDIENTE_CORRECCION &&
+                current.motivoCorreccion.trim() == normalizedReason &&
+                current.readinessStatus == ReadinessStatus.PENDING
+            ) {
+                return CorrectionRequestResult.AlreadyRequested(current)
+            }
+
+            val updated = current.copy(
+                status = PreApplicationStatus.PENDIENTE_CORRECCION,
+                motivoCorreccion = normalizedReason,
+                readinessStatus = ReadinessStatus.PENDING,
+                readyAt = null,
+                readinessNotes = ""
+            )
+            return when (val result = preApplicationRepository.update(updated)) {
+                is PreApplicationUpdateResult.Updated -> CorrectionRequestResult.Success(result.preApplication)
+                is PreApplicationUpdateResult.Failed -> CorrectionRequestResult.BackendFailure(result.reason)
             }
         }
 
@@ -338,7 +463,7 @@ class PreApplicationViewModel {
         }
 
         fun resetDemoData() {
-            _sharedPreApplications.value = MockPreApplicationData.preApplications
+            preApplicationRepository = MockPreApplicationRepositoryImpl()
             _photos.value = demoPhotoStates()
             _reviewObservations.value = emptyMap()
             _officialStudents.value = MockOfficialStudentData.officialStudents
@@ -346,69 +471,78 @@ class PreApplicationViewModel {
             _v2Result.value = null
             _isProcessingAnnualEnrollmentV2.value = false
             MockSaseData.resetDemoData()
+            studentRepository = MockStudentRepositoryImpl()
+            authSessionProvider = { null }
+            _activeFamilySession.value = null
+            auditRepository = MockAuditRepositoryImpl()
         }
 
         fun resetSharedStateForTests() = resetDemoData()
 
-        fun toggleDocumentCotejado(folio: String, docNombre: String) {
-            updatePreApp(folio) { app ->
+        suspend fun toggleDocumentCotejado(folio: String, docNombre: String): PreApplicationUpdateResult {
+            val result = updatePreApp(folio) { app ->
                 app.copy(documentosDeclarados = app.documentosDeclarados.map { doc ->
                     if (doc.nombre != docNombre || !doc.declarado || doc.noAplica || doc.validado) doc
                     else if (doc.rechazado) doc.copy(rechazado = false, cotejadoSecretaria = true)
                     else doc.copy(cotejadoSecretaria = !doc.cotejadoSecretaria)
                 })
             }
-            reconcileReadinessAfterRequirementChange(folio)
+            if (result is PreApplicationUpdateResult.Updated) reconcileReadinessAfterRequirementChange(folio)
+            return result
         }
 
-        fun markDocumentNoAplica(folio: String, docNombre: String) {
-            updatePreApp(folio) { app ->
+        suspend fun markDocumentNoAplica(folio: String, docNombre: String): PreApplicationUpdateResult {
+            val result = updatePreApp(folio) { app ->
                 app.copy(documentosDeclarados = app.documentosDeclarados.map { doc ->
                     if (doc.nombre != docNombre) doc
                     else doc.copy(noAplica = true, cotejadoSecretaria = false, validado = false, rechazado = false)
                 })
             }
-            reconcileReadinessAfterRequirementChange(folio)
+            if (result is PreApplicationUpdateResult.Updated) reconcileReadinessAfterRequirementChange(folio)
+            return result
         }
 
-        fun markDocumentValidado(folio: String, docNombre: String) {
-            updatePreApp(folio) { app ->
+        suspend fun markDocumentValidado(folio: String, docNombre: String): PreApplicationUpdateResult {
+            val result = updatePreApp(folio) { app ->
                 app.copy(documentosDeclarados = app.documentosDeclarados.map { doc ->
                     if (doc.nombre != docNombre || !doc.declarado || !doc.cotejadoSecretaria) doc
                     else doc.copy(validado = true, rechazado = false)
                 })
             }
-            reconcileReadinessAfterRequirementChange(folio)
+            if (result is PreApplicationUpdateResult.Updated) reconcileReadinessAfterRequirementChange(folio)
+            return result
         }
 
-        fun markDocumentRechazado(folio: String, docNombre: String) {
-            updatePreApp(folio) { app ->
+        suspend fun markDocumentRechazado(folio: String, docNombre: String): PreApplicationUpdateResult {
+            val result = updatePreApp(folio) { app ->
                 app.copy(documentosDeclarados = app.documentosDeclarados.map { doc ->
                     if (doc.nombre != docNombre || !doc.declarado || !doc.cotejadoSecretaria) doc
                     else doc.copy(rechazado = true, validado = false, cotejadoSecretaria = false)
                 })
             }
-            reconcileReadinessAfterRequirementChange(folio)
+            if (result is PreApplicationUpdateResult.Updated) reconcileReadinessAfterRequirementChange(folio)
+            return result
         }
 
-        fun setDocumentObservacion(folio: String, docNombre: String, observacion: String) {
-            updatePreApp(folio) { app ->
+        suspend fun setDocumentObservacion(folio: String, docNombre: String, observacion: String): PreApplicationUpdateResult {
+            val result = updatePreApp(folio) { app ->
                 app.copy(documentosDeclarados = app.documentosDeclarados.map { doc ->
                     if (doc.nombre != docNombre) doc
                     else doc.copy(observacion = observacion.take(220))
                 })
             }
-            reconcileReadinessAfterRequirementChange(folio)
+            if (result is PreApplicationUpdateResult.Updated) reconcileReadinessAfterRequirementChange(folio)
+            return result
         }
 
-        fun simulateCaptureStudentPhoto(folio: String) {
+        suspend fun simulateCaptureStudentPhoto(folio: String) {
             val current = _photos.value.toMutableMap()
             current[folio] = (current[folio] ?: PreApplicationPhotoState()).copy(studentPhotoMockUrl = "mock://photo/student/$folio.jpg")
             _photos.value = current
             reconcileReadinessAfterRequirementChange(folio)
         }
 
-        fun simulateCaptureResponsablePhoto(folio: String) {
+        suspend fun simulateCaptureResponsablePhoto(folio: String) {
             val current = _photos.value.toMutableMap()
             current[folio] = (current[folio] ?: PreApplicationPhotoState()).copy(responsablePhotoMockUrl = "mock://photo/responsable/$folio.jpg")
             _photos.value = current
@@ -449,20 +583,46 @@ class PreApplicationViewModel {
         private fun normalizeFamilyLookupValue(value: String): String =
             value.filterNot { it.isWhitespace() }.uppercase()
 
-        fun lookupFamilyPreApplication(
+        /**
+         * Reingreso familiar: folio + CURP + token de acceso (migracion
+         * 0015). Sin cuenta/login, el token es la unica identidad real de la
+         * familia -- ver [FamilySession]. En SUPABASE_STAGING no existe una
+         * via de "solo consultar" sin token: RLS no autoriza a la familia
+         * por session (no tiene JWT), asi que hasta la simple consulta de
+         * estado pasa por la RPC `get_pre_application_with_children`, que
+         * exige el token igual que una edicion. CURP se sigue validando
+         * contra la fila devuelta (defensa adicional contra un folio/token
+         * correctos pegados con la CURP equivocada).
+         *
+         * Si el token no es valido -- o, en DEMO_LOCAL, si folio/CURP no
+         * coinciden con nada (el Mock no valida el token, ver
+         * [MockPreApplicationRepositoryImpl]) -- no deja sesion activa.
+         */
+        suspend fun lookupFamilyPreApplication(
             folio: String,
-            curp: String
+            curp: String,
+            accessToken: String
         ): FamilyPreApplicationLookupResult {
             val normalizedFolio = normalizeFamilyLookupValue(folio)
             val normalizedCurp = normalizeFamilyLookupValue(curp)
-            if (normalizedFolio.isBlank() || normalizedCurp.isBlank()) {
+            val normalizedToken = accessToken.trim()
+            if (normalizedFolio.isBlank() || normalizedCurp.isBlank() || normalizedToken.isBlank()) {
                 return FamilyPreApplicationLookupResult.Error()
             }
 
-            val preApplication = _sharedPreApplications.value.firstOrNull { preApplication ->
-                normalizeFamilyLookupValue(preApplication.folio) == normalizedFolio &&
-                    normalizeFamilyLookupValue(preApplication.alumnoCurp) == normalizedCurp
-            } ?: return FamilyPreApplicationLookupResult.Error()
+            _activeFamilySession.value = FamilySession(folio = normalizedFolio, accessToken = normalizedToken)
+            val syncResult = preApplicationRepository.refresh()
+            val preApplication = (syncResult as? PreApplicationSyncResult.Loaded)
+                ?.preApplications
+                ?.firstOrNull { preApplication ->
+                    normalizeFamilyLookupValue(preApplication.folio) == normalizedFolio &&
+                        normalizeFamilyLookupValue(preApplication.alumnoCurp) == normalizedCurp
+                }
+
+            if (preApplication == null) {
+                clearFamilySessionAndCache()
+                return FamilyPreApplicationLookupResult.Error()
+            }
 
             return FamilyPreApplicationLookupResult.Success(
                 folio = preApplication.folio,
@@ -479,132 +639,141 @@ class PreApplicationViewModel {
         private fun ingresoAnioCorto(cicloEscolar: String): Int? =
             Regex("\\d{4}").find(cicloEscolar)?.value?.takeLast(2)?.toIntOrNull()
 
-        fun updatePreApplicationAdministrativeData(
+        suspend fun updatePreApplicationAdministrativeData(
             request: UpdatePreApplicationAdministrativeDataRequest
         ): UpdatePreApplicationAdministrativeDataResult {
             val normalizedFolio = request.folio.trim().uppercase()
-            while (true) {
-                val currentPreApplications = _sharedPreApplications.value
-                val matchingIndexes = currentPreApplications.indices.filter { index ->
-                    currentPreApplications[index].folio.trim().uppercase() == normalizedFolio
-                }
-                if (matchingIndexes.isEmpty()) {
-                    return UpdatePreApplicationAdministrativeDataResult.NotFound
-                }
-                if (matchingIndexes.size > 1) {
-                    return UpdatePreApplicationAdministrativeDataResult.Conflict(
-                        PreApplicationAdministrativeConflictReason.AMBIGUOUS_FOLIO
-                    )
-                }
+            val currentPreApplications = _sharedPreApplications.value
+            val matchingIndexes = currentPreApplications.indices.filter { index ->
+                currentPreApplications[index].folio.trim().uppercase() == normalizedFolio
+            }
+            if (matchingIndexes.isEmpty()) {
+                return UpdatePreApplicationAdministrativeDataResult.NotFound
+            }
+            if (matchingIndexes.size > 1) {
+                return UpdatePreApplicationAdministrativeDataResult.Conflict(
+                    PreApplicationAdministrativeConflictReason.AMBIGUOUS_FOLIO
+                )
+            }
 
-                val targetIndex = matchingIndexes.single()
-                val current = currentPreApplications[targetIndex]
-                if (current.status != PreApplicationStatus.ENVIADA &&
-                    current.status != PreApplicationStatus.PENDIENTE_CORRECCION
-                ) {
-                    return UpdatePreApplicationAdministrativeDataResult.Conflict(
-                        PreApplicationAdministrativeConflictReason.NOT_EDITABLE
-                    )
-                }
-                if (current.readinessStatus == ReadinessStatus.CONVERTED ||
-                    _officialStudents.value.any { it.preApplicationFolio == current.folio }
-                ) {
-                    return UpdatePreApplicationAdministrativeDataResult.Conflict(
-                        PreApplicationAdministrativeConflictReason.OFFICIAL_ENROLLMENT_EXISTS
-                    )
-                }
+            val current = currentPreApplications[matchingIndexes.single()]
+            if (current.status != PreApplicationStatus.ENVIADA &&
+                current.status != PreApplicationStatus.PENDIENTE_CORRECCION
+            ) {
+                return UpdatePreApplicationAdministrativeDataResult.Conflict(
+                    PreApplicationAdministrativeConflictReason.NOT_EDITABLE
+                )
+            }
+            if (current.readinessStatus == ReadinessStatus.CONVERTED ||
+                _officialStudents.value.any { it.preApplicationFolio == current.folio }
+            ) {
+                return UpdatePreApplicationAdministrativeDataResult.Conflict(
+                    PreApplicationAdministrativeConflictReason.OFFICIAL_ENROLLMENT_EXISTS
+                )
+            }
 
-                val phone = when (val change = request.changes.phone) {
-                    PreApplicationAdministrativeFieldChange.Omitted -> null
-                    is PreApplicationAdministrativeFieldChange.Replace -> change.value.trim()
-                }
-                val address = when (val change = request.changes.address) {
-                    PreApplicationAdministrativeFieldChange.Omitted -> null
-                    is PreApplicationAdministrativeFieldChange.Replace -> change.value.trim()
-                }
-                val errors = buildMap {
-                    if (phone != null) {
-                        when {
-                            phone.isBlank() -> put(
-                                PreApplicationAdministrativeField.PHONE,
-                                PreApplicationAdministrativeValidationError.REQUIRED
-                            )
-                            !phone.matches(Regex("\\d{10}")) -> put(
-                                PreApplicationAdministrativeField.PHONE,
-                                PreApplicationAdministrativeValidationError.INVALID_FORMAT
-                            )
-                        }
-                    }
-                    if (address != null && address.isBlank()) {
-                        put(
-                            PreApplicationAdministrativeField.ADDRESS,
+            val phone = when (val change = request.changes.phone) {
+                PreApplicationAdministrativeFieldChange.Omitted -> null
+                is PreApplicationAdministrativeFieldChange.Replace -> change.value.trim()
+            }
+            val address = when (val change = request.changes.address) {
+                PreApplicationAdministrativeFieldChange.Omitted -> null
+                is PreApplicationAdministrativeFieldChange.Replace -> change.value.trim()
+            }
+            val errors = buildMap {
+                if (phone != null) {
+                    when {
+                        phone.isBlank() -> put(
+                            PreApplicationAdministrativeField.PHONE,
                             PreApplicationAdministrativeValidationError.REQUIRED
+                        )
+                        !phone.matches(Regex("\\d{10}")) -> put(
+                            PreApplicationAdministrativeField.PHONE,
+                            PreApplicationAdministrativeValidationError.INVALID_FORMAT
                         )
                     }
                 }
-                if (errors.isNotEmpty()) {
-                    return UpdatePreApplicationAdministrativeDataResult.Invalid(errors)
-                }
-
-                val changedFields = buildSet {
-                    if (phone != null && phone != current.alumnoTelefonoCasa.trim()) {
-                        add(PreApplicationAdministrativeField.PHONE)
-                    }
-                    if (address != null && address != current.alumnoDomicilio.trim()) {
-                        add(PreApplicationAdministrativeField.ADDRESS)
-                    }
-                }
-                if (changedFields.isEmpty()) {
-                    return UpdatePreApplicationAdministrativeDataResult.NoChanges
-                }
-
-                val stalePhone = PreApplicationAdministrativeField.PHONE in changedFields &&
-                    current.alumnoTelefonoCasa.trim() != request.expected.phone.trim()
-                val staleAddress = PreApplicationAdministrativeField.ADDRESS in changedFields &&
-                    current.alumnoDomicilio.trim() != request.expected.address.trim()
-                if (stalePhone || staleAddress) {
-                    return UpdatePreApplicationAdministrativeDataResult.Conflict(
-                        PreApplicationAdministrativeConflictReason.STALE_DATA
+                if (address != null && address.isBlank()) {
+                    put(
+                        PreApplicationAdministrativeField.ADDRESS,
+                        PreApplicationAdministrativeValidationError.REQUIRED
                     )
                 }
+            }
+            if (errors.isNotEmpty()) {
+                return UpdatePreApplicationAdministrativeDataResult.Invalid(errors)
+            }
 
-                val updated = current.copy(
-                    alumnoTelefonoCasa = phone ?: current.alumnoTelefonoCasa,
-                    alumnoDomicilio = address ?: current.alumnoDomicilio
+            val changedFields = buildSet {
+                if (phone != null && phone != current.alumnoTelefonoCasa.trim()) {
+                    add(PreApplicationAdministrativeField.PHONE)
+                }
+                if (address != null && address != current.alumnoDomicilio.trim()) {
+                    add(PreApplicationAdministrativeField.ADDRESS)
+                }
+            }
+            if (changedFields.isEmpty()) {
+                return UpdatePreApplicationAdministrativeDataResult.NoChanges
+            }
+
+            val stalePhone = PreApplicationAdministrativeField.PHONE in changedFields &&
+                current.alumnoTelefonoCasa.trim() != request.expected.phone.trim()
+            val staleAddress = PreApplicationAdministrativeField.ADDRESS in changedFields &&
+                current.alumnoDomicilio.trim() != request.expected.address.trim()
+            if (stalePhone || staleAddress) {
+                return UpdatePreApplicationAdministrativeDataResult.Conflict(
+                    PreApplicationAdministrativeConflictReason.STALE_DATA
                 )
-                val updatedPreApplications = currentPreApplications.toMutableList().apply {
-                    this[targetIndex] = updated
-                }
-                if (_sharedPreApplications.compareAndSet(currentPreApplications, updatedPreApplications)) {
-                    return UpdatePreApplicationAdministrativeDataResult.Updated(changedFields)
-                }
+            }
+
+            val updated = current.copy(
+                alumnoTelefonoCasa = phone ?: current.alumnoTelefonoCasa,
+                alumnoDomicilio = address ?: current.alumnoDomicilio
+            )
+            return when (val result = preApplicationRepository.update(updated)) {
+                is PreApplicationUpdateResult.Updated -> UpdatePreApplicationAdministrativeDataResult.Updated(changedFields)
+                is PreApplicationUpdateResult.Failed -> UpdatePreApplicationAdministrativeDataResult.BackendFailure(result.reason)
             }
         }
 
-        private fun updatePreApp(
+        /**
+         * Lee la pre-solicitud actual del repositorio, aplica [transform] y
+         * confirma el resultado contra el backend antes de devolver exito --
+         * ninguna llamada publica de este companion object vuelve a mutar
+         * `_sharedPreApplications` directamente (ese StateFlow ya no existe:
+         * es una vista de [preApplicationRepository]).
+         */
+        private suspend fun updatePreApp(
             folio: String,
             transform: (PreApplication) -> PreApplication
-        ) {
-            _sharedPreApplications.value = _sharedPreApplications.value.map {
-                if (it.folio == folio) transform(it) else it
-            }
+        ): PreApplicationUpdateResult {
+            val current = _sharedPreApplications.value.firstOrNull { it.folio == folio }
+                ?: return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+            return preApplicationRepository.update(transform(current))
         }
 
-        fun updatePreApplicationCurp(folio: String, newCurp: String) {
+        suspend fun updatePreApplicationCurp(folio: String, newCurp: String): PreApplicationUpdateResult {
             val normalized = normalizeCurp(newCurp)
-            if (normalized.length != 18) return
+            if (normalized.length != 18) {
+                return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+            }
             // D5: una pre-solicitud CONVERTED ya generó identidad institucional
             // (alumno oficial / anualidad). Su CURP no se corrige aquí; la ruta
             // válida es el expediente institucional.
-            val current = _sharedPreApplications.value.firstOrNull { it.folio == folio } ?: return
-            if (current.readinessStatus == ReadinessStatus.CONVERTED) return
-            updatePreApp(folio) { it.copy(alumnoCurp = normalized) }
-            reconcileReadinessAfterRequirementChange(folio)
+            val current = _sharedPreApplications.value.firstOrNull { it.folio == folio }
+                ?: return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+            if (current.readinessStatus == ReadinessStatus.CONVERTED) {
+                return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+            }
+            val result = updatePreApp(folio) { it.copy(alumnoCurp = normalized) }
+            if (result is PreApplicationUpdateResult.Updated) {
+                reconcileReadinessAfterRequirementChange(folio)
+            }
+            return result
         }
 
-        private fun buildStoredPreApplication(preApplication: PreApplication): PreApplication {
+        private fun buildStoredPreApplication(preApplication: PreApplication, existingFolios: Set<String>): PreApplication {
             val normalizedCurp = normalizeCurp(preApplication.alumnoCurp)
-            val existingFolios = _sharedPreApplications.value.map { it.folio }.toSet()
             val startingFolio = preApplication.folio.trim()
             val finalFolio = if (startingFolio.isNotBlank() && startingFolio !in existingFolios) {
                 startingFolio
@@ -620,7 +789,17 @@ class PreApplicationViewModel {
             )
         }
 
-        fun submitFamilyPreApplication(preApplication: PreApplication): FamilySubmissionResult {
+        /**
+         * Alta de una pre-solicitud familiar. Los duplicados de folio/CURP se
+         * revalidan aqui contra el ultimo estado conocido antes de enviar
+         * (evita una llamada de red predecible al backend), pero la
+         * autorizacion real y el duplicado definitivo los decide el servidor
+         * (constraint unico + RLS) -- [PreApplicationRepository.submit] ya
+         * traduce un 409 real a [PreApplicationSubmitResult.DuplicateCurp]/
+         * [PreApplicationSubmitResult.DuplicateFolio] si esta revalidacion
+         * local quedo desactualizada.
+         */
+        suspend fun submitFamilyPreApplication(preApplication: PreApplication): FamilySubmissionResult {
             val normalizedCurp = normalizeCurp(preApplication.alumnoCurp)
             if (preApplication.alumnoNombreCompleto.isBlank() ||
                 normalizedCurp.length != 18 ||
@@ -637,8 +816,9 @@ class PreApplicationViewModel {
                 return FamilySubmissionResult.InsufficientData("Faltan datos obligatorios para enviar la pre-solicitud.")
             }
 
+            val existingFolios = _sharedPreApplications.value.map { it.folio }.toSet()
             val duplicateFolio = preApplication.folio.trim().takeIf { it.isNotBlank() }?.let { folio ->
-                _sharedPreApplications.value.any { it.folio == folio }
+                folio in existingFolios
             } == true
             if (duplicateFolio) {
                 return FamilySubmissionResult.DuplicateFolio(preApplication.folio.trim())
@@ -646,17 +826,36 @@ class PreApplicationViewModel {
 
             val duplicateCurp = _sharedPreApplications.value.any { normalizeCurp(it.alumnoCurp) == normalizedCurp } ||
                 _officialStudents.value.any { normalizeCurp(it.curp) == normalizedCurp } ||
-                MockSaseData.students.value.any { normalizeCurp(it.curp) == normalizedCurp }
+                studentRepository.students.value.any { normalizeCurp(it.curp) == normalizedCurp }
             if (duplicateCurp) {
                 return FamilySubmissionResult.DuplicateCurp(normalizedCurp)
             }
 
-            val stored = buildStoredPreApplication(preApplication)
-            _sharedPreApplications.value = _sharedPreApplications.value + stored
-            return FamilySubmissionResult.Success(stored)
+            val stored = buildStoredPreApplication(preApplication, existingFolios)
+            return when (val result = preApplicationRepository.submit(stored)) {
+                is PreApplicationSubmitResult.Submitted -> {
+                    // Unica vez que el servidor devuelve el token: se deja
+                    // activo de inmediato para que las mutaciones siguientes
+                    // (documentos, corrección) ya lo encuentren via
+                    // familySessionProvider.
+                    _activeFamilySession.value = FamilySession(
+                        folio = result.preApplication.folio,
+                        accessToken = result.accessToken
+                    )
+                    FamilySubmissionResult.Success(result.preApplication, result.accessToken)
+                }
+                is PreApplicationSubmitResult.DuplicateCurp -> FamilySubmissionResult.DuplicateCurp(result.curp)
+                is PreApplicationSubmitResult.DuplicateFolio -> FamilySubmissionResult.DuplicateFolio(result.folio)
+                is PreApplicationSubmitResult.Failed -> FamilySubmissionResult.BackendFailure(result.reason)
+            }
         }
 
-        fun resubmitCorrectedPreApplication(
+        private fun clearFamilySessionAndCache() {
+            _activeFamilySession.value = null
+            preApplicationRepository.clear()
+        }
+
+        suspend fun resubmitCorrectedPreApplication(
             preApplication: PreApplication
         ): FamilyResubmissionResult {
             val normalizedFolio = preApplication.folio.trim()
@@ -712,10 +911,10 @@ class PreApplicationViewModel {
                 readinessNotes = ""
             )
 
-            val updatedPreApplications = currentPreApplications.toMutableList()
-            updatedPreApplications[storedIndex] = resubmitted
-            _sharedPreApplications.value = updatedPreApplications
-            return FamilyResubmissionResult.Success(resubmitted)
+            return when (val result = preApplicationRepository.update(resubmitted)) {
+                is PreApplicationUpdateResult.Updated -> FamilyResubmissionResult.Success(result.preApplication)
+                is PreApplicationUpdateResult.Failed -> FamilyResubmissionResult.BackendFailure(result.reason)
+            }
         }
 
         fun officialEnrollmentPendingItems(preApp: PreApplication): List<String> {
@@ -750,39 +949,36 @@ class PreApplicationViewModel {
         fun isReadyForOfficialEnrollment(preApp: PreApplication): Boolean =
             officialEnrollmentPendingItems(preApp).isEmpty()
 
-        private fun reconcileReadinessAfterRequirementChange(folio: String) {
-            while (true) {
-                val currentPreApplications = _sharedPreApplications.value
-                val index = currentPreApplications.indexOfFirst { it.folio == folio }
-                if (index < 0) return
-                val current = currentPreApplications[index]
-                if (current.readinessStatus == ReadinessStatus.CONVERTED) return
+        private suspend fun reconcileReadinessAfterRequirementChange(folio: String) {
+            val currentPreApplications = _sharedPreApplications.value
+            val current = currentPreApplications.firstOrNull { it.folio == folio } ?: return
+            if (current.readinessStatus == ReadinessStatus.CONVERTED) return
 
-                val pendingItems = officialEnrollmentPendingItems(current)
-                val updated = when {
-                    pendingItems.isNotEmpty() && current.readinessStatus in setOf(
-                        ReadinessStatus.BLOCKED,
-                        ReadinessStatus.READY
-                    ) -> current.copy(
-                        readinessStatus = ReadinessStatus.BLOCKED,
+            val pendingItems = officialEnrollmentPendingItems(current)
+            val updated = when {
+                pendingItems.isNotEmpty() && current.readinessStatus in setOf(
+                    ReadinessStatus.BLOCKED,
+                    ReadinessStatus.READY
+                ) -> current.copy(
+                    readinessStatus = ReadinessStatus.BLOCKED,
+                    readyAt = null,
+                    readinessNotes = pendingItems.joinToString("; ")
+                )
+                pendingItems.isEmpty() && current.readinessStatus == ReadinessStatus.BLOCKED ->
+                    current.copy(
                         readyAt = null,
-                        readinessNotes = pendingItems.joinToString("; ")
+                        readinessNotes = "Pendientes resueltos; requiere declaración institucional READY."
                     )
-                    pendingItems.isEmpty() && current.readinessStatus == ReadinessStatus.BLOCKED ->
-                        current.copy(
-                            readyAt = null,
-                            readinessNotes = "Pendientes resueltos; requiere declaración institucional READY."
-                        )
-                    else -> return
-                }
-                val updatedPreApplications = currentPreApplications.toMutableList().apply {
-                    this[index] = updated
-                }
-                if (_sharedPreApplications.compareAndSet(currentPreApplications, updatedPreApplications)) return
+                else -> return
             }
+            // Mejor esfuerzo: si esta reconciliacion automatica no confirma
+            // contra el backend, la siguiente lectura de readiness la vuelve a
+            // calcular igual -- no hay resultado que reportar a un llamador
+            // (los callers publicos ya reportaron su propio exito/fallo).
+            preApplicationRepository.update(updated)
         }
 
-        fun markReadyForOfficialEnrollment(folio: String): ReadinessResult {
+        suspend fun markReadyForOfficialEnrollment(folio: String): ReadinessResult {
             val preApp = _sharedPreApplications.value.firstOrNull { it.folio == folio }
                 ?: return ReadinessResult.NotFound(folio)
             if (preApp.readinessStatus == ReadinessStatus.CONVERTED) {
@@ -798,8 +994,10 @@ class PreApplicationViewModel {
                     readinessStatus = ReadinessStatus.BLOCKED,
                     readinessNotes = pendingItems.joinToString("; ")
                 )
-                updatePreApp(folio) { blocked }
-                return ReadinessResult.NotReady(pendingItems)
+                return when (preApplicationRepository.update(blocked)) {
+                    is PreApplicationUpdateResult.Updated -> ReadinessResult.NotReady(pendingItems)
+                    is PreApplicationUpdateResult.Failed -> ReadinessResult.Error("No fue posible registrar los pendientes de readiness.")
+                }
             }
 
             val ready = preApp.copy(
@@ -807,22 +1005,24 @@ class PreApplicationViewModel {
                 readyAt = "$preApplicationTimestampPrefix${com.example.formatTimestamp("hh:mm a")}",
                 readinessNotes = "Validación institucional lista: documentos y fotos mock completos."
             )
-            updatePreApp(folio) { ready }
-            return ReadinessResult.Success(ready)
+            return when (val result = preApplicationRepository.update(ready)) {
+                is PreApplicationUpdateResult.Updated -> ReadinessResult.Success(result.preApplication)
+                is PreApplicationUpdateResult.Failed -> ReadinessResult.Error("No fue posible declarar la pre-solicitud lista.")
+            }
         }
 
-        fun reopenReview(folio: String): Boolean {
+        suspend fun reopenReview(folio: String): Boolean {
             val preApp = _sharedPreApplications.value.firstOrNull { it.folio.trim().uppercase() == folio.trim().uppercase() }
                 ?: return false
             if (preApp.readinessStatus != ReadinessStatus.READY) return false
-            updatePreApp(folio) {
+            val result = updatePreApp(folio) {
                 it.copy(
                     readinessStatus = ReadinessStatus.PENDING,
                     readyAt = null,
                     readinessNotes = "Revisión reabierta por Secretaría."
                 )
             }
-            return true
+            return result is PreApplicationUpdateResult.Updated
         }
 
         fun officialEnrollmentForFolio(folio: String): OfficialStudent? =
@@ -946,10 +1146,10 @@ class PreApplicationViewModel {
             }
 
         private fun masterStudentByCurp(curp: String): Student? =
-            MockSaseData.students.value.firstOrNull { normalizeCurp(it.curp) == normalizeCurp(curp) }
+            studentRepository.students.value.firstOrNull { normalizeCurp(it.curp) == normalizeCurp(curp) }
 
         private fun masterStudentByMatricula(matricula: String): Student? =
-            MockSaseData.students.value.firstOrNull {
+            studentRepository.students.value.firstOrNull {
                 normalizeMatricula(it.enrollmentId) == normalizeMatricula(matricula)
             }
 
@@ -959,7 +1159,7 @@ class PreApplicationViewModel {
         fun curpDuplicateInfo(folio: String, curp: String, tramite: String = ""): String? {
             if (tramite.uppercase() == "REINSCRIPCION") return null
             val normalized = normalizeCurp(curp)
-            val inMaster = MockSaseData.students.value.firstOrNull {
+            val inMaster = studentRepository.students.value.firstOrNull {
                 normalizeCurp(it.curp) == normalized && it.preApplicationFolio?.let { p -> normalizeCurp(p) != normalizeCurp(folio) } == true
             }
             if (inMaster != null) return "CURP ya registrada en el padrón maestro (${inMaster.fullName})"
@@ -970,7 +1170,11 @@ class PreApplicationViewModel {
             return null
         }
 
-        fun startOfficialEnrollment(preApp: PreApplication, selectedGroup: String?): OfficialEnrollmentResult {
+        fun startOfficialEnrollment(
+            preApp: PreApplication,
+            selectedGroup: String?,
+            actor: String = "Secretaría"
+        ): OfficialEnrollmentResult {
             val existing = officialEnrollmentForFolio(preApp.folio)
             if (existing != null) {
                 return OfficialEnrollmentResult.DuplicateFolio(preApp.folio)
@@ -1040,10 +1244,11 @@ class PreApplicationViewModel {
                 validacionSecretaria = ValidacionArea(
                     area = "Secretaría",
                     validado = true,
-                    validadoPor = "Secretaría",
+                    validadoPor = actor,
                     fechaValidacion = "$preApplicationTimestampPrefix${com.example.formatTimestamp("hh:mm a")}",
                     observaciones = "Alta oficial iniciada desde pre-solicitud ${preApp.folio}"
-                )
+                ),
+                creadoPor = actor
             )
 
             _officialStudents.value = _officialStudents.value + officialStudent
@@ -1055,33 +1260,34 @@ class PreApplicationViewModel {
             )
         }
 
-        private fun markConverted(folio: String) {
+        private suspend fun markConverted(folio: String): PreApplicationUpdateResult =
             updatePreApp(folio) {
                 it.copy(
                     readinessStatus = ReadinessStatus.CONVERTED,
                     readinessNotes = "Alta oficial generada y expediente maestro sincronizado."
                 )
             }
-        }
 
         private fun propagateOfficialEnrollmentToMasterStudent(
             preApp: PreApplication,
-            officialStudent: OfficialStudent
+            officialStudent: OfficialStudent,
+            actor: String = "Secretaría"
         ): StudentAddResult {
             val existingMaster = MockSaseData.studentByCurp(officialStudent.curp)
                 ?: officialStudent.matriculaOficial?.let { MockSaseData.studentByEnrollmentId(it) }
             if (existingMaster?.preApplicationFolio == preApp.folio) {
-                val updated = masterStudentFromOfficial(preApp, officialStudent, existingMaster.id)
+                val updated = masterStudentFromOfficial(preApp, officialStudent, existingMaster.id, actor)
                 MockSaseData.updateStudent(updated)
                 return StudentAddResult.DuplicateCurp(updated.curp, updated)
             }
-            return MockSaseData.addStudent(masterStudentFromOfficial(preApp, officialStudent))
+            return MockSaseData.addStudent(masterStudentFromOfficial(preApp, officialStudent, actor = actor))
         }
 
         private fun masterStudentFromOfficial(
             preApp: PreApplication,
             officialStudent: OfficialStudent,
-            existingId: String? = null
+            existingId: String? = null,
+            actor: String = "Secretaría"
         ): Student {
             val responsable = preApp.responsables.firstOrNull()
             val group = officialStudent.grupoAsignado ?: officialStudent.grupoSugerido.orEmpty()
@@ -1109,13 +1315,28 @@ class PreApplicationViewModel {
                     SaseDocument(doc.nombre, officialStudent.fechaCreacion, if (doc.cotejadoSecretaria) "Vigente" else "En revisión")
                 },
                 audits = listOf(
-                    SaseAudit("Alta oficial propagada", "Secretaría", officialStudent.fechaCreacion, "Origen ${preApp.folio}")
+                    SaseAudit("Alta oficial propagada", actor, officialStudent.fechaCreacion, "Origen ${preApp.folio}")
                 ),
                 preApplicationFolio = preApp.folio
             )
         }
 
-        fun confirmInitialGroup(folio: String, selectedGroup: String): OfficialEnrollmentResult {
+        suspend fun confirmInitialGroup(
+            folio: String,
+            selectedGroup: String,
+            actor: String = "Secretaría"
+        ): OfficialEnrollmentResult {
+            // CREATE_STUDENT y UPDATE_STUDENT tienen exactamente los mismos
+            // roles autorizados en StaffPermissions.actionMatrix hoy (solo
+            // SECRETARIA); esta funcion puede ejercer cualquiera de los dos
+            // segun si el expediente maestro ya existe, asi que basta con
+            // exigir uno para que ambas ramas de escritura queden cubiertas.
+            val session = authSessionProvider()
+            if (!StaffPermissions.canPerform(session, StaffAction.UPDATE_STUDENT)) {
+                return OfficialEnrollmentResult.Error("Acción no autorizada para la sesión activa.")
+            }
+            requireNotNull(session) { "canPerform ya confirmo una sesion activa" }
+
             val cleanGroup = selectedGroup.trim().uppercase()
             if (cleanGroup.isBlank()) {
                 return OfficialEnrollmentResult.Error("Selecciona un grupo para confirmar.")
@@ -1131,9 +1352,21 @@ class PreApplicationViewModel {
                 return OfficialEnrollmentResult.NotReady(listOf("Readiness institucional declarada"))
             }
 
+            // El nuevo estado se calcula en una lista local, NO se publica a
+            // _officialStudents todavia: si la persistencia del expediente
+            // maestro falla mas abajo, el alta oficial no debe quedar
+            // marcada como ALTA_OFICIAL_CON_GRUPO en memoria sin que el
+            // backend la respalde (P1 de Codex, "Roll back official state
+            // when persistence fails").
             var updatedStudent: OfficialStudent? = null
-            _officialStudents.value = _officialStudents.value.map { student ->
+            val recomputedOfficialStudents = _officialStudents.value.map { student ->
                 if (student.preApplicationFolio != folio) return@map student
+                if (isSyntheticCurp(student.curp)) {
+                    return OfficialEnrollmentResult.Error(
+                        "La CURP registrada es provisional (terminación XXX00). " +
+                            "Captura la CURP oficial del documento antes de generar matrícula."
+                    )
+                }
                 if (!isOfficialCurpComplete(student.curp) || student.gradoIngreso !in 1..3) {
                     return OfficialEnrollmentResult.Error("La matrícula se asignará cuando la CURP y el alta oficial estén completas.")
                 }
@@ -1156,7 +1389,7 @@ class PreApplicationViewModel {
                     validacionDireccion = ValidacionArea(
                         area = "Dirección",
                         validado = true,
-                        validadoPor = "Secretaría/Dirección",
+                        validadoPor = actor,
                         fechaValidacion = "Hoy",
                         observaciones = "Grupo $cleanGroup confirmado por cupo básico mock"
                     )
@@ -1166,39 +1399,117 @@ class PreApplicationViewModel {
 
             val currentStudent = updatedStudent
                 ?: return OfficialEnrollmentResult.Error("No se encontró alta oficial para este folio.")
-            val existingMaster = MockSaseData.studentByCurp(currentStudent.curp)
+            val existingMaster = masterStudentByCurp(currentStudent.curp)
             val syncedMaster = if (existingMaster != null) {
                 val updatedMaster = existingMaster.copy(
                     group = cleanGroup,
                     enrollmentId = currentStudent.matriculaOficial.orEmpty(),
                     status = "Alta oficial con grupo"
                 )
-                MockSaseData.updateStudent(updatedMaster)
-                updatedMaster
+                when (val updateResult = studentRepository.updateStudent(updatedMaster)) {
+                    is StudentUpdateResult.Updated -> updateResult.student
+                    is StudentUpdateResult.Failed -> return OfficialEnrollmentResult.MasterStudentPropagationError(
+                        "El expediente maestro no pudo actualizarse (${updateResult.reason.name})."
+                    )
+                }
             } else {
-                val newMaster = Student(
-                    id = "MASTER-${folio.takeLast(4)}",
-                    fullName = currentStudent.alumnoNombreCompleto,
+                // masterStudentFromOfficial trae domicilio/fecha de nacimiento/
+                // tutor desde sourcePreApplication -- una fila construida a
+                // mano aqui (como antes) los omitia por completo, y con el
+                // alta atomica (migracion 0011) esa omision se persiste tal
+                // cual (P1 de Codex, "Preserve pre-application identity when
+                // creating the master record").
+                val newMaster = masterStudentFromOfficial(sourcePreApplication, currentStudent, actor = actor).copy(
                     group = cleanGroup,
                     enrollmentId = currentStudent.matriculaOficial.orEmpty(),
-                    curp = currentStudent.curp,
-                    status = "Alta oficial con grupo",
-                    preApplicationFolio = folio
+                    status = "Alta oficial con grupo"
                 )
-                when (val addResult = MockSaseData.addStudent(newMaster)) {
+                when (val addResult = studentRepository.addStudent(newMaster)) {
                     is StudentAddResult.Added -> addResult.student
-                    is StudentAddResult.DuplicateCurp -> addResult.existing
+                    // Esta llamada usa el repositorio directo, sin el wrapper
+                    // de auditoria de LabViewModel.addStudent -- nunca produce
+                    // esta variante hoy, pero StudentAddResult es sellada y el
+                    // expediente igual quedo persistido si llegara a pasar.
+                    is StudentAddResult.CommittedWithoutAudit -> addResult.student
+                    is StudentAddResult.DuplicateCurp -> {
+                        // El cache local estaba desactualizado (otra
+                        // sesion/pestana ya creo este CURP). Solo se acepta
+                        // la fila en conflicto como el maestro de ESTE folio
+                        // si de verdad le pertenece; si no, es una CURP
+                        // ajena de verdad y se rechaza en vez de marcar esta
+                        // pre-solicitud como convertida sin haber tocado su
+                        // propio expediente (P1 de Codex, "Reject unrelated
+                        // CURP conflicts during enrollment").
+                        if (addResult.existing.preApplicationFolio != folio) {
+                            return OfficialEnrollmentResult.DuplicateCurp(addResult.curp)
+                        }
+                        val syncedExisting = addResult.existing.copy(
+                            group = cleanGroup,
+                            enrollmentId = currentStudent.matriculaOficial.orEmpty(),
+                            status = "Alta oficial con grupo"
+                        )
+                        when (val syncResult = studentRepository.updateStudent(syncedExisting)) {
+                            is StudentUpdateResult.Updated -> syncResult.student
+                            is StudentUpdateResult.Failed -> return OfficialEnrollmentResult.MasterStudentPropagationError(
+                                "El expediente maestro no pudo actualizarse (${syncResult.reason.name})."
+                            )
+                        }
+                    }
                     is StudentAddResult.DuplicateEnrollmentId -> return OfficialEnrollmentResult.DuplicateMatricula(addResult.enrollmentId)
                     is StudentAddResult.InvalidData -> return OfficialEnrollmentResult.MasterStudentPropagationError(addResult.message)
+                    is StudentAddResult.Failed -> return OfficialEnrollmentResult.MasterStudentPropagationError(
+                        "El expediente maestro no pudo persistirse (${addResult.reason.name})."
+                    )
                 }
             }
-            markConverted(folio)
+            // El expediente maestro ya se persistio con exito: recien ahora
+            // se confirma en memoria el cambio de estado del alta oficial.
+            // markConverted() ahora habla con el backend (repositorio de
+            // pre-solicitudes) -- si falla, no se reporta exito: el maestro
+            // ya quedo persistido (no se revierte, mismo limite ya conocido
+            // que _officialStudents nunca tuvo persistencia propia), pero la
+            // pre-solicitud de origen no se marca CONVERTED, evitando que la
+            // UI la de por cerrada cuando el servidor no lo confirmo.
+            if (markConverted(folio) !is PreApplicationUpdateResult.Updated) {
+                return OfficialEnrollmentResult.MasterStudentPropagationError(
+                    "El expediente maestro se sincronizó, pero la pre-solicitud no pudo marcarse como convertida. Reintenta la confirmación."
+                )
+            }
+            _officialStudents.value = recomputedOfficialStudents
+            recordOfficialEnrollmentAudit(session, syncedMaster.id)
             return OfficialEnrollmentResult.Success(
                 officialStudent = currentStudent,
                 masterStudent = syncedMaster,
                 masterStudentCreated = false,
                 message = "Grupo inicial confirmado y expediente maestro sincronizado."
             )
+        }
+
+        /**
+         * confirmInitialGroup muta el expediente maestro llamando a
+         * studentRepository directo (no LabViewModel.updateStudent()/
+         * addStudent()), asi que necesita su propio registro de bitacora —
+         * mismo criterio que [com.example.audit.InstitutionalAuditValidator]
+         * exige en las demas rutas de escritura (P1 de Codex, "Audit
+         * official-enrollment mutations"). No revierte la mutacion si la
+         * bitacora falla: el expediente ya quedo persistido en el backend.
+         */
+        private suspend fun recordOfficialEnrollmentAudit(session: AuthSession, masterStudentId: String) {
+            val event = InstitutionalAuditEvent(
+                institutionId = session.institutionId,
+                actorProfileId = session.profileId,
+                membershipId = session.membershipId,
+                activeRole = session.activeRole,
+                action = "official_enrollment.group_confirmed",
+                entityType = "student",
+                entityId = masterStudentId,
+                timestamp = formatTimestamp("yyyy-MM-dd HH:mm:ss"),
+                result = InstitutionalAuditResult.AUTHORIZED,
+                sourcePlatform = getPlatformName()
+            )
+            if (InstitutionalAuditValidator.validate(event).isValid) {
+                auditRepository.logAudit(event)
+            }
         }
 
         fun buildProvisionalStudent(preApp: PreApplication): com.example.data.Student {
@@ -1235,7 +1546,7 @@ class PreApplicationViewModel {
             occurredAt = occurredAt
         )
 
-        fun processAnnualEnrollmentV2(
+        suspend fun processAnnualEnrollmentV2(
             declaredMovement: String,
             normalizedCurp: String,
             folio: String,
@@ -1256,7 +1567,7 @@ class PreApplicationViewModel {
             actor = actor
         )
 
-        internal fun processAnnualEnrollmentV2WithSynchronizer(
+        internal suspend fun processAnnualEnrollmentV2WithSynchronizer(
             declaredMovement: String,
             normalizedCurp: String,
             folio: String,
@@ -1274,6 +1585,13 @@ class PreApplicationViewModel {
                 val rejected = InstitutionalAnnualEnrollmentResult.GuardRejected(cause, message)
                 _v2Result.value = rejected
                 return rejected
+            }
+
+            if (_enrollmentFlowMode.value != EnrollmentFlowMode.ANNUAL_V2) {
+                return reject(
+                    InstitutionalEnrollmentGuardCause.FLOW_DISABLED,
+                    "La inscripción anual V2 no está habilitada en este ambiente conectado."
+                )
             }
 
             val normalizedFolio = folio.trim().uppercase()
@@ -1382,7 +1700,7 @@ class PreApplicationViewModel {
             return institutionalResult
         }
 
-        private fun synchronizeAnnualResult(
+        private suspend fun synchronizeAnnualResult(
             source: PreApplication,
             annualResult: AnnualEnrollmentFlowResult,
             conversionSynchronizer: InstitutionalPreApplicationSynchronizer
@@ -1390,9 +1708,7 @@ class PreApplicationViewModel {
             val synchronization = conversionSynchronizer.synchronize(
                 source = source,
                 readState = { _sharedPreApplications.value },
-                compareAndSet = { expected, updated ->
-                    _sharedPreApplications.compareAndSet(expected, updated)
-                }
+                commit = { candidate -> preApplicationRepository.update(candidate) is PreApplicationUpdateResult.Updated }
             )
             return when (synchronization) {
                 is PreApplicationConversionResult.Converted,
@@ -1756,6 +2072,15 @@ class PreApplicationViewModel {
     private val _submittedFolio = MutableStateFlow<String?>(null)
     val submittedFolio: StateFlow<String?> = _submittedFolio.asStateFlow()
 
+    /**
+     * Token de acceso de la pre-solicitud recien enviada (migracion 0015).
+     * Se devuelve una sola vez: la UI de confirmacion debe mostrarlo junto
+     * al folio con instruccion de guardarlo -- no hay otra forma de
+     * recuperarlo despues salvo que la familia ya lo haya guardado.
+     */
+    private val _submittedAccessToken = MutableStateFlow<String?>(null)
+    val submittedAccessToken: StateFlow<String?> = _submittedAccessToken.asStateFlow()
+
     private val _isSubmitting = MutableStateFlow(false)
     val isSubmitting: StateFlow<Boolean> = _isSubmitting.asStateFlow()
 
@@ -2053,7 +2378,7 @@ class PreApplicationViewModel {
         return errs.isEmpty()
     }
 
-    fun submitApplication() {
+    suspend fun submitApplication() {
         val errs = mutableMapOf<String, String>()
         if (_apellidoPaterno.value.isBlank()) errs["apellidoPaterno"] = "Apellido paterno obligatorio"
         if (_nombre.value.isBlank()) errs["nombre"] = "Nombre(s) obligatorio"
@@ -2219,10 +2544,12 @@ class PreApplicationViewModel {
         when (submission) {
             is FamilySubmissionResult.Success -> {
                 _submittedFolio.value = submission.preApplication.folio
+                _submittedAccessToken.value = submission.accessToken
                 _errors.value = emptyMap()
             }
             else -> {
                 _submittedFolio.value = null
+                _submittedAccessToken.value = null
                 _errors.value = mapOf("submit" to submission.message)
             }
         }
@@ -2230,7 +2557,8 @@ class PreApplicationViewModel {
         _isSubmitting.value = false
     }
 
-    fun resetForm() {
+        fun resetForm() {
+            clearFamilySessionAndCache()
         _currentStep.value = 0
         _tipoTramite.value = "Nuevo Ingreso"
         _cicloEscolar.value = "2026-2027"
@@ -2319,5 +2647,6 @@ class PreApplicationViewModel {
         _consentimientos.value = _consentimientos.value.map { it.copy(aceptado = false) }
         _errors.value = emptyMap()
         _submittedFolio.value = null
+        _submittedAccessToken.value = null
     }
 }

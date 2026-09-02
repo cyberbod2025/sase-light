@@ -12,10 +12,13 @@ $ErrorActionPreference = "Stop"
 
 Write-Step "Build Debug APK"
 
-# 1. Locate Gradle wrapper
-$gradlew = Join-Path $Script:PROJECT_ROOT "gradlew"
+# 1. Locate Gradle wrapper. En Windows/PowerShell el wrapper ejecutable es
+#    gradlew.bat: el "gradlew" sin extension es el script POSIX y PowerShell
+#    no puede invocarlo como programa nativo (P1 de Codex en el cierre de
+#    PR #49, "Use gradlew.bat in the Android smoke path").
+$gradlew = Join-Path $Script:PROJECT_ROOT "gradlew.bat"
 if (-not (Test-Path $gradlew)) {
-    Write-Fail "gradlew no encontrado en $gradlew"
+    Write-Fail "gradlew.bat no encontrado en $gradlew"
     exit 1
 }
 Write-Ok "Gradle wrapper: $gradlew"

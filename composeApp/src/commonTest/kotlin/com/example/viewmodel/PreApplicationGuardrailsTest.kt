@@ -28,6 +28,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlinx.coroutines.test.runTest
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -37,10 +38,16 @@ class PreApplicationGuardrailsTest {
     @BeforeTest
     fun resetSharedState() {
         PreApplicationViewModel.resetSharedStateForTests()
+        // confirmInitialGroup exige una sesion autorizada (P2 de Codex,
+        // "Gate official-enrollment writes by the active role"); estas
+        // pruebas ejercen el flujo de Secretaria, el unico rol con
+        // CREATE_STUDENT/UPDATE_STUDENT en el catalogo real. testSessionFor
+        // vive en el mismo paquete (TestAuthSessions.kt).
+        PreApplicationViewModel.configureAuthSessionProvider { testSessionFor(StaffRole.SECRETARIA) }
     }
 
     @Test
-    fun submitFamilyPreApplicationCreatesSharedPreApplicationVisibleToSecretaria() {
+    fun submitFamilyPreApplicationCreatesSharedPreApplicationVisibleToSecretaria() = runTest {
         val preApplication = preApplication(
             curp = uniqueCurp("FAMVIS"),
             folio = ""
@@ -59,7 +66,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun submitFamilyPreApplicationBlocksDuplicateCurp() {
+    fun submitFamilyPreApplicationBlocksDuplicateCurp() = runTest {
         val curp = uniqueCurp("FAMDUP")
         val first = PreApplicationViewModel.submitFamilyPreApplication(preApplication(curp = curp))
         assertIs<FamilySubmissionResult.Success>(first)
@@ -72,7 +79,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun startOfficialEnrollmentBlocksDuplicateFolio() {
+    fun startOfficialEnrollmentBlocksDuplicateFolio() = runTest {
         val result = PreApplicationViewModel.startOfficialEnrollment(
             preApplication(
                 folio = "PRE-X1A2",
@@ -86,7 +93,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun familySubmissionBlocksInvalidCurpBeforeMatricula() {
+    fun familySubmissionBlocksInvalidCurpBeforeMatricula() = runTest {
         val submission = PreApplicationViewModel.submitFamilyPreApplication(
             preApplication(curp = "CURP-DEMO-01")
         )
@@ -95,7 +102,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun confirmInitialGroupBlocksDuplicateMatricula() {
+    fun confirmInitialGroupBlocksDuplicateMatricula() = runTest {
         val curpWithConflictingMatricula = uniqueCurp("DMAT")
         val expectedMatricula = com.example.data.presolicitud.OfficialStudent.generateMatricula(curpWithConflictingMatricula, 26) ?: ""
         assertIs<StudentAddResult.Added>(
@@ -124,7 +131,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun mockSaseDataAddStudentRejectsDuplicateCurp() {
+    fun mockSaseDataAddStudentRejectsDuplicateCurp() = runTest {
         val result = MockSaseData.addStudent(
             student(
                 curp = "dema100101hdfabc01",
@@ -136,7 +143,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun mockSaseDataAddStudentRejectsDuplicateEnrollmentId() {
+    fun mockSaseDataAddStudentRejectsDuplicateEnrollmentId() = runTest {
         val result = MockSaseData.addStudent(
             student(
                 curp = uniqueCurp("ENRDUP"),
@@ -148,7 +155,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun labViewModelAddStudentReturnsStudentAddResultForFastTrackFlow() {
+    fun labViewModelAddStudentReturnsStudentAddResultForFastTrackFlow() = runTest {
         val viewModel = labViewModelWithRole(StaffRole.SECRETARIA)
 
         val result = viewModel.addStudent(
@@ -162,7 +169,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun markReadyBlocksWhenThereArePendingItemsAndPersistsBlockedStatus() {
+    fun markReadyBlocksWhenThereArePendingItemsAndPersistsBlockedStatus() = runTest {
         val stored = submitAcceptedPreApplication(curp = uniqueCurp("BLOCKD"))
 
         val result = PreApplicationViewModel.markReadyForOfficialEnrollment(stored.folio)
@@ -175,7 +182,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun markReadySucceedsAndPersistsReadinessByFolio() {
+    fun markReadySucceedsAndPersistsReadinessByFolio() = runTest {
         val readyCandidate = submitReadyCandidate(curp = uniqueCurp("READYA"))
 
         val result = PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio)
@@ -188,7 +195,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun resolvingBlockedRequirementsKeepsBlockedUntilExplicitReadyDeclaration() {
+    fun resolvingBlockedRequirementsKeepsBlockedUntilExplicitReadyDeclaration() = runTest {
         val stored = submitAcceptedPreApplication(curp = uniqueCurp("RECON1"))
         assertIs<ReadinessResult.NotReady>(
             PreApplicationViewModel.markReadyForOfficialEnrollment(stored.folio)
@@ -215,7 +222,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun newPendingRequirementDemotesReadyToBlocked() {
+    fun newPendingRequirementDemotesReadyToBlocked() = runTest {
         val document = DocumentoDeclarado("CURP", declarado = true)
         val submitted = submitAndGetRaw {
             preApplication(curp = uniqueCurp("RECON2"), documents = listOf(document))
@@ -239,7 +246,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun requirementMutationsNeverDemoteConvertedReadiness() {
+    fun requirementMutationsNeverDemoteConvertedReadiness() = runTest {
         val converted = PreApplicationViewModel.sharedPreApplications.value.first {
             it.readinessStatus == ReadinessStatus.CONVERTED
         }
@@ -259,7 +266,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun readyPreApplicationCanBeQueriedAfterMarkingReady() {
+    fun readyPreApplicationCanBeQueriedAfterMarkingReady() = runTest {
         val readyCandidate = submitReadyCandidate(curp = uniqueCurp("QUERYR"))
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
 
@@ -270,7 +277,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun convertedPreApplicationIsNotShownAsSimplyPending() {
+    fun convertedPreApplicationIsNotShownAsSimplyPending() = runTest {
         val readyCandidate = submitReadyCandidate(curp = uniqueCurp("CONVRT"))
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
         val readyStored = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == readyCandidate.folio }
@@ -285,7 +292,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun successfulOfficialEnrollmentCreatesOfficialStudentAndMasterStudent() {
+    fun successfulOfficialEnrollmentCreatesOfficialStudentAndMasterStudent() = runTest {
         val readyCandidate = submitReadyCandidate(curp = uniqueCurp("MASTCR"))
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
         val readyStored = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == readyCandidate.folio }
@@ -299,7 +306,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun propagatedMasterStudentUsesOfficialMatriculaAndNormalizedCurp() {
+    fun propagatedMasterStudentUsesOfficialMatriculaAndNormalizedCurp() = runTest {
         val rawCurp = uniqueCurp("NORMED").lowercase()
         val readyCandidate = submitReadyCandidate(curp = rawCurp)
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
@@ -315,7 +322,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun retryOfficialEnrollmentDoesNotCreateSecondMasterStudent() {
+    fun retryOfficialEnrollmentDoesNotCreateSecondMasterStudent() = runTest {
         val readyCandidate = submitReadyCandidate(curp = uniqueCurp("RETRYA"))
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
         val readyStored = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == readyCandidate.folio }
@@ -331,7 +338,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun unrelatedMasterDuplicateDoesNotReturnFalseSuccess() {
+    fun unrelatedMasterDuplicateDoesNotReturnFalseSuccess() = runTest {
         val curpWithConflictingMatricula = uniqueCurp("CONFLI")
         val readyCandidate = submitReadyCandidate(curp = curpWithConflictingMatricula)
         val expectedMatricula = com.example.data.presolicitud.OfficialStudent.generateMatricula(readyCandidate.alumnoCurp, 26) ?: ""
@@ -353,7 +360,7 @@ class PreApplicationGuardrailsTest {
         assertTrue(PreApplicationViewModel.officialStudents.value.any { it.preApplicationFolio == readyStored.folio && it.matriculaOficial == null })
     }
 
-    private fun submitAcceptedPreApplication(curp: String, grado: Int = 1): PreApplication {
+    private suspend fun submitAcceptedPreApplication(curp: String, grado: Int = 1): PreApplication {
         val submission = PreApplicationViewModel.submitFamilyPreApplication(
             preApplication(curp = curp, grado = grado)
         )
@@ -362,14 +369,14 @@ class PreApplicationGuardrailsTest {
         return PreApplicationViewModel.sharedPreApplications.value.first { it.folio == stored.folio }
     }
 
-    private fun submitReadyCandidate(curp: String, grado: Int = 1): PreApplication {
+    private suspend fun submitReadyCandidate(curp: String, grado: Int = 1): PreApplication {
         val accepted = submitAcceptedPreApplication(curp = curp, grado = grado)
         PreApplicationViewModel.simulateCaptureStudentPhoto(accepted.folio)
         PreApplicationViewModel.simulateCaptureResponsablePhoto(accepted.folio)
         return PreApplicationViewModel.sharedPreApplications.value.first { it.folio == accepted.folio }
     }
 
-    private fun declareReady(candidate: PreApplication): PreApplication {
+    private suspend fun declareReady(candidate: PreApplication): PreApplication {
         assertIs<ReadinessResult.Success>(
             PreApplicationViewModel.markReadyForOfficialEnrollment(candidate.folio)
         )
@@ -510,7 +517,7 @@ class PreApplicationGuardrailsTest {
     // ── Provisional student (buildProvisionalStudent) ──────────────────
 
     @Test
-    fun buildProvisionalStudentCreatesMinimalStudent() {
+    fun buildProvisionalStudentCreatesMinimalStudent() = runTest {
         val readyCandidate = submitReadyCandidate(curp = uniqueCurp("PROVM"))
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
         val readyStored = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == readyCandidate.folio }
@@ -530,7 +537,7 @@ class PreApplicationGuardrailsTest {
     // ── Post-enrollment visibility (6A + 6B) ─────────────────────────────
 
     @Test
-    fun officialStudentAppearsInCollectionAfterSuccessfulStart() {
+    fun officialStudentAppearsInCollectionAfterSuccessfulStart() = runTest {
         val readyCandidate = submitReadyCandidate(curp = uniqueCurp("COLLEC"))
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
         val readyStored = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == readyCandidate.folio }
@@ -544,7 +551,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun masterStudentCanBeFoundByCurpAfterOfficialEnrollment() {
+    fun masterStudentCanBeFoundByCurpAfterOfficialEnrollment() = runTest {
         val rawCurp = uniqueCurp("MASTER").lowercase()
         val readyCandidate = submitReadyCandidate(curp = rawCurp)
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
@@ -560,7 +567,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun masterStudentCanBeFoundByMatriculaAfterOfficialEnrollment() {
+    fun masterStudentCanBeFoundByMatriculaAfterOfficialEnrollment() = runTest {
         val rawCurp = uniqueCurp("MATRIC").lowercase()
         val readyCandidate = submitReadyCandidate(curp = rawCurp)
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
@@ -576,7 +583,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun preApplicationFolioLinkIsVisibleOnOfficialStudent() {
+    fun preApplicationFolioLinkIsVisibleOnOfficialStudent() = runTest {
         val rawCurp = uniqueCurp("FOLINK")
         val readyCandidate = submitReadyCandidate(curp = rawCurp)
         assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
@@ -591,7 +598,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun officialStudentWithoutLinkedMasterStudentIsDetected() {
+    fun officialStudentWithoutLinkedMasterStudentIsDetected() = runTest {
         val orphanOfficial = PreApplicationViewModel.officialStudents.value
             .filter { os -> MockSaseData.studentByCurp(os.curp) == null }
 
@@ -602,7 +609,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun emptyOfficialStudentsListDoesNotBreakLookups() {
+    fun emptyOfficialStudentsListDoesNotBreakLookups() = runTest {
         PreApplicationViewModel.resetSharedStateForTests()
         val officialList = PreApplicationViewModel.officialStudents.value
         assertTrue(officialList.isNotEmpty())
@@ -611,7 +618,7 @@ class PreApplicationGuardrailsTest {
     // ── Credential preview tests (Phase 7A + 7B) ─────────────────────────
 
     @Test
-    fun fromStudent_CreatesCorrectProjection() {
+    fun fromStudent_CreatesCorrectProjection() = runTest {
         val student = credentialStudent(
             curp = "CRED001",
             enrollmentId = "S310-CRED-001"
@@ -626,7 +633,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun fromStudent_HandlesPhotoAbsent() {
+    fun fromStudent_HandlesPhotoAbsent() = runTest {
         val student = credentialStudent(
             curp = "PHOTO1",
             photoUrl = null
@@ -637,7 +644,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun fromStudent_HandlesPhotoPresent() {
+    fun fromStudent_HandlesPhotoPresent() = runTest {
         val student = credentialStudent(
             curp = "PHOTO2",
             photoUrl = "captures/student-photo.jpg"
@@ -648,7 +655,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun fromStudent_DetectsOfficialEnrollmentOrigin() {
+    fun fromStudent_DetectsOfficialEnrollmentOrigin() = runTest {
         val student = credentialStudent(
             curp = "ORIGIN",
             preApplicationFolio = "PRE-310-ORIGIN"
@@ -660,7 +667,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun fromStudent_DetectsNonOfficialOrigin() {
+    fun fromStudent_DetectsNonOfficialOrigin() = runTest {
         val student = credentialStudent(
             curp = "NONOFF",
             preApplicationFolio = null
@@ -674,7 +681,7 @@ class PreApplicationGuardrailsTest {
     // ── Credential back view tests (Phase 7C + 7D) ────────────────────────
 
     @Test
-    fun backViewPreservesOfficialMatricula() {
+    fun backViewPreservesOfficialMatricula() = runTest {
         val student = credentialStudent(
             curp = "MATB1",
             enrollmentId = "S310-MAT-BACK-001"
@@ -685,7 +692,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun backViewPreservesFolioOrigen() {
+    fun backViewPreservesFolioOrigen() = runTest {
         val student = credentialStudent(
             curp = "FOLB1",
             preApplicationFolio = "PRE-310-FOL-BACK"
@@ -696,7 +703,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun backViewDoesNotExposeSensitiveData() {
+    fun backViewDoesNotExposeSensitiveData() = runTest {
         val student = credentialStudent(curp = "NOSEN")
         val preview = StudentCredentialPreview.fromStudent(student)
 
@@ -708,7 +715,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun backViewMarkedAsPreview() {
+    fun backViewMarkedAsPreview() = runTest {
         val student = credentialStudent(curp = "PREVU")
         val preview = StudentCredentialPreview.fromStudent(student)
 
@@ -716,7 +723,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun modelDoesNotExposePdfOrPrintFields() {
+    fun modelDoesNotExposePdfOrPrintFields() = runTest {
         val student = credentialStudent(curp = "PROOF")
         val preview = StudentCredentialPreview.fromStudent(student)
 
@@ -727,7 +734,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun fromStudent_ParsesGradeAndGroup() {
+    fun fromStudent_ParsesGradeAndGroup() = runTest {
         val student = credentialStudent(
             curp = "GRADE1",
             group = "1\u00b0 A"
@@ -741,7 +748,7 @@ class PreApplicationGuardrailsTest {
     // ── Integration: full pre-enrollment flow ───────────────────────────
 
     @Test
-    fun fullPreEnrollmentFlowFromSubmitToMasterStudent() {
+    fun fullPreEnrollmentFlowFromSubmitToMasterStudent() = runTest {
         val rawCurp = uniqueCurp("INTEG").lowercase()
         val grado = 1
 
@@ -801,7 +808,7 @@ class PreApplicationGuardrailsTest {
     // ── Step validation tests ────────────────────────────────────────────
 
     @Test
-    fun nextStepBlocksWhenStep2ContextoIsIncomplete() {
+    fun nextStepBlocksWhenStep2ContextoIsIncomplete() = runTest {
         val vm = PreApplicationViewModel()
         advanceToStep2(vm)
         vm.nextStep()
@@ -810,7 +817,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun nextStepBlocksWhenStep3DocumentosIsIncomplete() {
+    fun nextStepBlocksWhenStep3DocumentosIsIncomplete() = runTest {
         val vm = PreApplicationViewModel()
         advanceToStep2(vm)
         fillStep2(vm)
@@ -821,7 +828,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun nextStepAdvancesWhenStep2ContextoIsComplete() {
+    fun nextStepAdvancesWhenStep2ContextoIsComplete() = runTest {
         val vm = PreApplicationViewModel()
         advanceToStep2(vm)
         fillStep2(vm)
@@ -831,7 +838,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun nextStepAdvancesWhenStep3DocumentosIsComplete() {
+    fun nextStepAdvancesWhenStep3DocumentosIsComplete() = runTest {
         val vm = PreApplicationViewModel()
         advanceToStep2(vm)
         fillStep2(vm)
@@ -846,7 +853,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun submitApplicationBlocksWhenContextoIsIncomplete() {
+    fun submitApplicationBlocksWhenContextoIsIncomplete() = runTest {
         val vm = PreApplicationViewModel()
         fillStep0(vm)
         fillStep1(vm)
@@ -861,7 +868,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun submitApplicationBlocksWhenDocumentosIsIncomplete() {
+    fun submitApplicationBlocksWhenDocumentosIsIncomplete() = runTest {
         val vm = PreApplicationViewModel()
         fillStep0(vm)
         fillStep1(vm)
@@ -934,7 +941,7 @@ class PreApplicationGuardrailsTest {
     // ── Correction flow characterization (Microloop 2) ──────────────────
 
     @Test
-    fun requestCorrectionStoresStatusAndTrimmedReasonAtomically() {
+    fun requestCorrectionStoresStatusAndTrimmedReasonAtomically() = runTest {
         val preApp = submitAndGetRaw { preApplication(curp = uniqueCurp("CORR1")) }
         val folio = preApp.folio
         assertEquals(PreApplicationStatus.ENVIADA, preApp.status)
@@ -948,7 +955,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun requestCorrectionPreservesFolioAndCollectionSize() {
+    fun requestCorrectionPreservesFolioAndCollectionSize() = runTest {
         val preApp = submitAndGetRaw { preApplication(curp = uniqueCurp("CORR2")) }
         val folio = preApp.folio
         val sizeBefore = PreApplicationViewModel.sharedPreApplications.value.size
@@ -964,7 +971,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun blankCorrectionReasonIsRejectedWithoutMutation() {
+    fun blankCorrectionReasonIsRejectedWithoutMutation() = runTest {
         val preApp = submitAndGetRaw { preApplication(curp = uniqueCurp("MOT1")) }
         val before = PreApplicationViewModel.sharedPreApplications.value.toList()
 
@@ -976,7 +983,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun requestCorrectionOnUnknownFolioReturnsNotFoundWithoutMutation() {
+    fun requestCorrectionOnUnknownFolioReturnsNotFoundWithoutMutation() = runTest {
         val sizeBefore = PreApplicationViewModel.sharedPreApplications.value.size
         val statusesBefore = PreApplicationViewModel.sharedPreApplications.value.map { it.status to it.motivoCorreccion }
 
@@ -990,7 +997,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun requestCorrectionInvalidatesReadyState() {
+    fun requestCorrectionInvalidatesReadyState() = runTest {
         val candidate = submitReadyCandidate(uniqueCurp("MOT2"))
         assertIs<ReadinessResult.Success>(
             PreApplicationViewModel.markReadyForOfficialEnrollment(candidate.folio)
@@ -1010,7 +1017,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun repeatedCorrectionWithSameReasonIsIdempotent() {
+    fun repeatedCorrectionWithSameReasonIsIdempotent() = runTest {
         val preApp = submitAndGetRaw { preApplication(curp = uniqueCurp("MOT3")) }
         assertIs<CorrectionRequestResult.Success>(
             PreApplicationViewModel.requestCorrection(preApp.folio, "Corregir teléfono")
@@ -1025,7 +1032,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun convertedPreApplicationRejectsCorrectionWithoutMutation() {
+    fun convertedPreApplicationRejectsCorrectionWithoutMutation() = runTest {
         val converted = PreApplicationViewModel.sharedPreApplications.value.first {
             it.readinessStatus == ReadinessStatus.CONVERTED
         }
@@ -1041,7 +1048,7 @@ class PreApplicationGuardrailsTest {
     // -- Family correction resubmission contract (Microloop 4C) ----------
 
     @Test
-    fun resubmitCorrectionPreservesIdentityAndCollectionSize() {
+    fun resubmitCorrectionPreservesIdentityAndCollectionSize() = runTest {
         val original = submitCorrectablePreApplication(uniqueCurp("RESID"))
         val sizeBefore = PreApplicationViewModel.sharedPreApplications.value.size
         val correctedAddress = "Domicilio familiar corregido"
@@ -1060,7 +1067,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun resubmitCorrectionTransitionsPendingCorrectionToSent() {
+    fun resubmitCorrectionTransitionsPendingCorrectionToSent() = runTest {
         val original = submitCorrectablePreApplication(uniqueCurp("RESTR"))
         assertEquals(PreApplicationStatus.PENDIENTE_CORRECCION, original.status)
 
@@ -1077,7 +1084,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun resubmitCorrectionRejectsSentStatusWithoutMutation() {
+    fun resubmitCorrectionRejectsSentStatusWithoutMutation() = runTest {
         val original = submitAndGetRaw { preApplication(curp = uniqueCurp("RSTSENT")) }
         assertEquals(PreApplicationStatus.ENVIADA, original.status)
         val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
@@ -1091,7 +1098,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun resubmitCorrectionRejectsAcceptedStatusWithoutMutation() {
+    fun resubmitCorrectionRejectsAcceptedStatusWithoutMutation() = runTest {
         val submitted = submitAndGetRaw { preApplication(curp = uniqueCurp("RSTACC")) }
         PreApplicationViewModel.approvePreApplication(submitted.folio)
         val original = PreApplicationViewModel.sharedPreApplications.value.single { it.folio == submitted.folio }
@@ -1109,7 +1116,7 @@ class PreApplicationGuardrailsTest {
     // BORRADOR is not persisted; DUPLICADA and CANCELADA have no public transition.
 
     @Test
-    fun resubmitCorrectionReturnsNotFoundWithoutMutatingAnyApplication() {
+    fun resubmitCorrectionReturnsNotFoundWithoutMutatingAnyApplication() = runTest {
         val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
         val missing = preApplication(
             folio = "FOLIO-INEXISTENTE-RESUBMIT",
@@ -1125,7 +1132,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun resubmitCorrectionAllowsOriginalCurp() {
+    fun resubmitCorrectionAllowsOriginalCurp() = runTest {
         val original = submitCorrectablePreApplication(uniqueCurp("RESOWN"))
         val correctedPhone = "5598765432"
         val corrected = original.copy(
@@ -1142,7 +1149,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun resubmitCorrectionRejectsCurpOwnedByAnotherPreApplication() {
+    fun resubmitCorrectionRejectsCurpOwnedByAnotherPreApplication() = runTest {
         val original = submitCorrectablePreApplication(uniqueCurp("RESCUR1"))
         val other = submitAndGetRaw { preApplication(curp = uniqueCurp("RESCUR2")) }
         val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
@@ -1165,7 +1172,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun resubmitCorrectionPreservesInstitutionalDataAndFolioLinkedStructures() {
+    fun resubmitCorrectionPreservesInstitutionalDataAndFolioLinkedStructures() = runTest {
         val original = submitReadyCorrectionCandidate(uniqueCurp("RESINS"))
         val photosBefore = assertNotNull(PreApplicationViewModel.photos.value[original.folio])
         val observationsBefore = assertNotNull(PreApplicationViewModel.reviewObservations.value[original.folio])
@@ -1204,7 +1211,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun resubmitCorrectionKeepsCorrectionReadinessPending() {
+    fun resubmitCorrectionKeepsCorrectionReadinessPending() = runTest {
         val original = submitReadyCorrectionCandidate(uniqueCurp("RESRDY"))
         assertEquals(ReadinessStatus.PENDING, original.readinessStatus)
         assertNull(original.readyAt)
@@ -1221,7 +1228,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun resubmitCorrectionDoesNotChangeAnotherPreApplication() {
+    fun resubmitCorrectionDoesNotChangeAnotherPreApplication() = runTest {
         val original = submitCorrectablePreApplication(uniqueCurp("RESISO1"))
         val other = submitAndGetRaw { preApplication(curp = uniqueCurp("RESISO2")) }
 
@@ -1237,7 +1244,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun resubmitCorrectionSecondAttemptDoesNotModifyAlreadyResubmittedApplication() {
+    fun resubmitCorrectionSecondAttemptDoesNotModifyAlreadyResubmittedApplication() = runTest {
         val original = submitCorrectablePreApplication(uniqueCurp("RESTW"))
         val corrected = original.copy(alumnoDomicilio = "Primera correccion")
         val firstResult = assertIs<FamilyResubmissionResult.Success>(
@@ -1259,7 +1266,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun familyLookupNormalizesCredentialsAndReturnsAuthorizedFields() {
+    fun familyLookupNormalizesCredentialsAndReturnsAuthorizedFields() = runTest {
         val submitted = submitAndGetRaw { preApplication(curp = uniqueCurp("LOOKUP")) }
         assertIs<CorrectionRequestResult.Success>(
             PreApplicationViewModel.requestCorrection(submitted.folio, "Corregir acta de nacimiento")
@@ -1268,7 +1275,7 @@ class PreApplicationGuardrailsTest {
         val spacedFolio = submitted.folio.lowercase().toList().joinToString(" ", prefix = "  ", postfix = "  ")
         val spacedCurp = submitted.alumnoCurp.lowercase().chunked(3).joinToString(" ", prefix = "  ", postfix = "  ")
 
-        val result = PreApplicationViewModel.lookupFamilyPreApplication(spacedFolio, spacedCurp)
+        val result = PreApplicationViewModel.lookupFamilyPreApplication(spacedFolio, spacedCurp, "test-access-token")
 
         val success = assertIs<FamilyPreApplicationLookupResult.Success>(result)
         assertEquals(submitted.folio, success.folio)
@@ -1278,12 +1285,12 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun familyLookupReturnsGenericErrorForWrongCurp() {
+    fun familyLookupReturnsGenericErrorForWrongCurp() = runTest {
         val first = PreApplicationViewModel.sharedPreApplications.value[0]
         val second = PreApplicationViewModel.sharedPreApplications.value[1]
 
         val error = assertIs<FamilyPreApplicationLookupResult.Error>(
-            PreApplicationViewModel.lookupFamilyPreApplication(first.folio, second.alumnoCurp)
+            PreApplicationViewModel.lookupFamilyPreApplication(first.folio, second.alumnoCurp, "test-access-token")
         )
 
         assertEquals(
@@ -1293,11 +1300,11 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun familyLookupReturnsGenericErrorForUnknownFolio() {
+    fun familyLookupReturnsGenericErrorForUnknownFolio() = runTest {
         val stored = PreApplicationViewModel.sharedPreApplications.value.first()
 
         val error = assertIs<FamilyPreApplicationLookupResult.Error>(
-            PreApplicationViewModel.lookupFamilyPreApplication("FOLIO-INEXISTENTE", stored.alumnoCurp)
+            PreApplicationViewModel.lookupFamilyPreApplication("FOLIO-INEXISTENTE", stored.alumnoCurp, "test-access-token")
         )
 
         assertEquals(
@@ -1307,18 +1314,18 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun familyLookupDoesNotModifySharedPreApplications() {
+    fun familyLookupDoesNotModifySharedPreApplications() = runTest {
         val stored = PreApplicationViewModel.sharedPreApplications.value.first()
         val before = PreApplicationViewModel.sharedPreApplications.value.toList()
 
         assertIs<FamilyPreApplicationLookupResult.Success>(
-            PreApplicationViewModel.lookupFamilyPreApplication(stored.folio, stored.alumnoCurp)
+            PreApplicationViewModel.lookupFamilyPreApplication(stored.folio, stored.alumnoCurp, "test-access-token")
         )
 
         assertEquals(before, PreApplicationViewModel.sharedPreApplications.value)
     }
 
-    private fun submitCorrectablePreApplication(curp: String): PreApplication {
+    private suspend fun submitCorrectablePreApplication(curp: String): PreApplication {
         val submitted = submitAndGetRaw { preApplication(curp = curp) }
         assertIs<CorrectionRequestResult.Success>(
             PreApplicationViewModel.requestCorrection(submitted.folio, "Corregir información")
@@ -1326,7 +1333,7 @@ class PreApplicationGuardrailsTest {
         return PreApplicationViewModel.sharedPreApplications.value.single { it.folio == submitted.folio }
     }
 
-    private fun submitReadyCorrectionCandidate(curp: String): PreApplication {
+    private suspend fun submitReadyCorrectionCandidate(curp: String): PreApplication {
         val document = DocumentoDeclarado("CURP", declarado = true)
         val submitted = submitAndGetRaw {
             preApplication(curp = curp, documents = listOf(document))
@@ -1352,7 +1359,7 @@ class PreApplicationGuardrailsTest {
     }
 
     /** Submit a pre-application and return the stored ENVIADA result. */
-    private fun submitAndGetRaw(buildPreApp: () -> PreApplication): PreApplication {
+    private suspend fun submitAndGetRaw(buildPreApp: () -> PreApplication): PreApplication {
         val result = PreApplicationViewModel.submitFamilyPreApplication(buildPreApp())
         val stored = assertIs<FamilySubmissionResult.Success>(result).preApplication
         return PreApplicationViewModel.sharedPreApplications.value.first { it.folio == stored.folio }
@@ -1361,12 +1368,12 @@ class PreApplicationGuardrailsTest {
     // ── V2 Annual Enrollment Flow (Macroloop 6H) ───────────────────────
 
     @Test
-    fun v2IsProcessingStartsFalse() {
+    fun v2IsProcessingStartsFalse() = runTest {
         assertFalse(PreApplicationViewModel.isProcessingAnnualEnrollmentV2.value)
     }
 
     @Test
-    fun v2IsProcessingSetAndResetDuringExecution() {
+    fun v2IsProcessingSetAndResetDuringExecution() = runTest {
         PreApplicationViewModel.setProcessingAnnualEnrollmentV2(true)
         assertTrue(PreApplicationViewModel.isProcessingAnnualEnrollmentV2.value)
         PreApplicationViewModel.setProcessingAnnualEnrollmentV2(false)
@@ -1374,7 +1381,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun v2RejectsAcceptedButNotReadyPreApplicationWithoutMutation() {
+    fun v2RejectsAcceptedButNotReadyPreApplicationWithoutMutation() = runTest {
         val preApp = submitReadyCandidate(curp = uniqueCurp("V2NORDY"))
         val studentsBefore = MockSaseData.students.value.toList()
         val enrollmentsBefore = MockSaseData.annualEnrollments.value.toList()
@@ -1397,7 +1404,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun v2RejectsUnknownFolioWithoutMutation() {
+    fun v2RejectsUnknownFolioWithoutMutation() = runTest {
         val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2NOFOL")))
         val studentsBefore = MockSaseData.students.value.toList()
         val enrollmentsBefore = MockSaseData.annualEnrollments.value.toList()
@@ -1420,7 +1427,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun v2NewEntryReturnsCompletedWithV2EnrollmentId() {
+    fun v2NewEntryReturnsCompletedWithV2EnrollmentId() = runTest {
         MockSaseData.resetForTests()
         val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2NENT")))
         val result = PreApplicationViewModel.processAnnualEnrollmentV2(
@@ -1443,7 +1450,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun v2NewEntryDoesNotAssignGroup() {
+    fun v2NewEntryDoesNotAssignGroup() = runTest {
         MockSaseData.resetForTests()
         val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2NOGRP")))
         PreApplicationViewModel.processAnnualEnrollmentV2(
@@ -1461,7 +1468,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun v2NewEntryUsesCanonicalFolioForDeterministicStudentId() {
+    fun v2NewEntryUsesCanonicalFolioForDeterministicStudentId() = runTest {
         val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2CANON")))
 
         val completed = assertIs<InstitutionalAnnualEnrollmentResult.Completed>(
@@ -1480,7 +1487,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun v2ReEnrollmentUsesInstitutionalPreApplicationAndMasterGroup() {
+    fun v2ReEnrollmentUsesInstitutionalPreApplicationAndMasterGroup() = runTest {
         MockSaseData.resetForTests()
         val curp = "RENR100101HDFABC01"
         val submitted = submitAndGetRaw {
@@ -1522,7 +1529,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun v2AlreadyCompletedOnDuplicateRequest() {
+    fun v2AlreadyCompletedOnDuplicateRequest() = runTest {
         MockSaseData.resetForTests()
         val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2DUP")))
         val folio = preApp.folio
@@ -1585,7 +1592,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun alreadyCompletedWithReadyPreApplicationReportsPreviousInconsistencyWithoutRepair() {
+    fun alreadyCompletedWithReadyPreApplicationReportsPreviousInconsistencyWithoutRepair() = runTest {
         val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2UNSYNC")))
         val annualResult = assertIs<AnnualEnrollmentFlowResult.Completed>(
             AnnualEnrollmentFlowCoordinator.process(
@@ -1661,7 +1668,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun completedAnnualEnrollmentInvokesInjectedSynchronizerExactlyOnce() {
+    fun completedAnnualEnrollmentInvokesInjectedSynchronizerExactlyOnce() = runTest {
         val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2SYNCSPY")))
         var synchronizationCalls = 0
 
@@ -1688,7 +1695,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun contradictoryAnnualRecordRemainsAnnualConflictAndDoesNotSynchronizePreApplication() {
+    fun contradictoryAnnualRecordRemainsAnnualConflictAndDoesNotSynchronizePreApplication() = runTest {
         val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2ANNCON")))
         MockSaseData.addAnnualEnrollment(
             AnnualEnrollmentRecord(
@@ -1723,7 +1730,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun legacyBlocksExactV2FolioAndSchoolYear() {
+    fun legacyBlocksExactV2FolioAndSchoolYear() = runTest {
         val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2LEGB")))
         assertIs<InstitutionalAnnualEnrollmentResult.Completed>(
             PreApplicationViewModel.processAnnualEnrollmentV2(
@@ -1743,7 +1750,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun legacyDoesNotBlockHistoricalAnnualEnrollmentFromDifferentSchoolYear() {
+    fun legacyDoesNotBlockHistoricalAnnualEnrollmentFromDifferentSchoolYear() = runTest {
         val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2HIST")))
         MockSaseData.addAnnualEnrollment(
             AnnualEnrollmentRecord(
@@ -1765,7 +1772,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun legacyReportsIntegrityErrorForMultipleExactV2Matches() {
+    fun legacyReportsIntegrityErrorForMultipleExactV2Matches() = runTest {
         val preApp = declareReady(submitReadyCandidate(curp = uniqueCurp("V2LEGA")))
         val record = AnnualEnrollmentRecord(
             studentId = "AMBIGUOUS-STUDENT",
@@ -1788,7 +1795,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun v2ConflictReturnsStageAndNoMutation() {
+    fun v2ConflictReturnsStageAndNoMutation() = runTest {
         MockSaseData.resetForTests()
         val studentCount = MockSaseData.students.value.size
         val enrollmentCount = MockSaseData.annualEnrollments.value.size
@@ -1809,7 +1816,7 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun v2ResultStoredInViewModel() {
+    fun v2ResultStoredInViewModel() = runTest {
         MockSaseData.resetForTests()
         PreApplicationViewModel.resetSharedStateForTests()
         assertNull(PreApplicationViewModel.v2Result.value)
@@ -1827,8 +1834,50 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun v2LegacyFlowStillAvailable() {
+    fun v2LegacyFlowStillAvailable() = runTest {
         MockSaseData.resetForTests()
         assertEquals(com.example.data.enrollment.EnrollmentFlowMode.ANNUAL_V2, PreApplicationViewModel.enrollmentFlowMode.value)
+    }
+
+    // ── P1 Codex PR #49: alta oficial debe usar el repositorio conectado ──
+
+    @Test
+    fun stagingConfirmInitialGroupFailsClosedInsteadOfWritingMockSaseData() = runTest {
+        val readyCandidate = submitReadyCandidate(curp = uniqueCurp("STGRTE"))
+        assertIs<ReadinessResult.Success>(PreApplicationViewModel.markReadyForOfficialEnrollment(readyCandidate.folio))
+        val readyStored = PreApplicationViewModel.sharedPreApplications.value.first { it.folio == readyCandidate.folio }
+        assertIs<OfficialEnrollmentResult.Success>(PreApplicationViewModel.startOfficialEnrollment(readyStored, selectedGroup = "1A"))
+
+        val countBefore = MockSaseData.students.value.count { it.preApplicationFolio == readyStored.folio }
+
+        val bootstrap = com.example.SaseCompositionRoot.create(
+            mapOf(
+                com.example.environment.AppEnvironment.ENVIRONMENT_KEY to com.example.environment.AppEnvironmentMode.SUPABASE_STAGING.name,
+                com.example.environment.AppEnvironment.APP_VERSION_KEY to "test",
+                com.example.environment.AppEnvironment.SUPABASE_URL_KEY to "https://project-ref.supabase.co",
+                com.example.environment.AppEnvironment.SUPABASE_PUBLISHABLE_KEY to "publishable-test-key"
+            )
+        )
+        assertIs<com.example.SaseBootstrap.Ready>(bootstrap)
+
+        try {
+            // Sin sesion viva en el repositorio conectado, confirmInitialGroup
+            // debe fallar cerrado en vez de escribir en MockSaseData -- si
+            // todavia usara MockSaseData directo (P1 de Codex en PR #49),
+            // esto tendria "exito" silencioso sin que el estudiante llegara
+            // jamas a Supabase. Con el gate de rol (P2 de Codex, "Gate
+            // official-enrollment writes by the active role") el rechazo
+            // ahora ocurre en la propia autorizacion, antes incluso de
+            // intentar la escritura -- StaffPermissions.canPerform(null, ...)
+            // es siempre false sin sesion.
+            val result = PreApplicationViewModel.confirmInitialGroup(readyStored.folio, "1A")
+            assertIs<OfficialEnrollmentResult.Error>(result)
+
+            val countAfter = MockSaseData.students.value.count { it.preApplicationFolio == readyStored.folio }
+            assertEquals(countBefore, countAfter, "MockSaseData no debe recibir escrituras cuando el ambiente esta conectado")
+        } finally {
+            // Restaurar el repositorio mock para no contaminar otros tests.
+            PreApplicationViewModel.resetSharedStateForTests()
+        }
     }
 }

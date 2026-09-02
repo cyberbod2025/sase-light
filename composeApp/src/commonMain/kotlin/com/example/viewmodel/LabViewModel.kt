@@ -8,6 +8,8 @@ import com.example.data.SaseAudit
 import com.example.data.SaseObservation
 import com.example.data.Student
 import com.example.data.StudentAddResult
+import com.example.data.StudentPersistenceFailure
+import com.example.data.StudentUpdateResult
 import com.example.data.auth.AuthFailureReason
 import com.example.data.auth.AuthRepository
 import com.example.data.auth.AuthResult
@@ -16,10 +18,13 @@ import com.example.data.auth.RoleSelectionContext
 import com.example.data.auth.StaffAction
 import com.example.data.auth.StaffPermissions
 import com.example.data.auth.StaffRole
+import com.example.data.auth.SaseArea
 import com.example.data.repository.AuditRepository
 import com.example.data.repository.MockAuditRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
 import com.example.data.repository.StudentRepository
+import com.example.data.repository.StudentSyncResult
+import com.example.data.repository.PreApplicationSyncResult
 import com.example.environment.AppEnvironment
 import com.example.formatTimestamp
 import com.example.getPlatformName
@@ -34,7 +39,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 
 sealed class Screen {
     data object SessionHome : Screen()
@@ -80,6 +84,45 @@ sealed interface LoginUiState {
     data class Error(val reason: AuthFailureReason) : LoginUiState
 }
 
+/** Estado observable de la sincronizacion del expediente institucional. */
+sealed interface StudentSyncUiState {
+    data object Idle : StudentSyncUiState
+    data object Loading : StudentSyncUiState
+    data object Ready : StudentSyncUiState
+
+    /**
+     * El nucleo cargo pero algun subrecurso por area fallo por red/servidor;
+     * [saseStudents] sigue siendo seguro de mostrar (conserva lo ultimo
+     * conocido para esa seccion en vez de una lista vacia fabricada), pero
+     * la sincronizacion no se completo — la UI debe poder distinguirlo de
+     * [Ready] para, p.ej., ofrecer reintentar.
+     */
+    data class Incomplete(val reason: StudentPersistenceFailure) : StudentSyncUiState
+
+    data class Error(val reason: StudentPersistenceFailure) : StudentSyncUiState
+}
+
+/**
+ * Resultado de las mutaciones institucionales de [LabViewModel]
+ * (updateStudent, addObservation, reportIncident, advanceIncident):
+ * distingue una escritura confirmada (con bitacora) de una comprometida
+ * sin bitacora, de un rechazo donde nada se escribio. Antes cada una
+ * colapsaba a `Boolean`, asi que un fallo de auditoria transitorio tras
+ * una mutacion ya comprometida en el backend se reportaba identico a un
+ * rechazo total — la UI invitaba a reintentar (duplicando la escritura) o
+ * saltaba sincronizaciones dependientes pese a que el expediente si
+ * cambio (P1 de Codex, "Distinguish committed updates from audit
+ * failures" / "Preserve success when observation auditing fails").
+ */
+enum class StudentUpdateOutcome {
+    UPDATED,
+    COMMITTED_WITHOUT_AUDIT,
+    REJECTED;
+
+    /** El expediente quedo persistido, con o sin bitacora asentada. */
+    val isCommitted: Boolean get() = this != REJECTED
+}
+
 /**
  * Estado institucional de la aplicación. El ambiente y el repositorio de
  * autenticación son obligatorios: el ViewModel nunca elige un mock ni degrada
@@ -112,6 +155,52 @@ class LabViewModel(
 
     val saseStudents: StateFlow<List<Student>> = studentRepository.students
     val saseAudits: StateFlow<List<SaseAudit>> = auditRepository.audits
+
+    private val _studentSync = MutableStateFlow<StudentSyncUiState>(StudentSyncUiState.Idle)
+
+    /**
+     * Estado real de la carga institucional. En DEMO_LOCAL se resuelve al
+     * instante; conectado refleja la peticion de red, de modo que la interfaz
+     * nunca presente una lista vacia por error de red como si fuera "sin datos".
+     */
+    val studentSync: StateFlow<StudentSyncUiState> = _studentSync.asStateFlow()
+
+    /** Recarga manual del expediente institucional de la sesion activa. */
+    suspend fun reloadInstitutionalData() {
+        if (activeSession() == null) {
+            _studentSync.value = StudentSyncUiState.Error(StudentPersistenceFailure.NO_SESSION)
+            return
+        }
+        loadInstitutionalData()
+    }
+
+    private suspend fun loadInstitutionalData() {
+        _studentSync.value = StudentSyncUiState.Loading
+        val result = studentRepository.refresh()
+        _studentSync.value = when (result) {
+            is StudentSyncResult.Loaded -> StudentSyncUiState.Ready
+            is StudentSyncResult.Partial -> StudentSyncUiState.Incomplete(result.reason)
+            is StudentSyncResult.Failed -> {
+                // Un refresh fallido no debe dejar expuesto lo que hubiera en
+                // memoria de una sesion anterior (P1 de Codex en PR #49:
+                // "Clear prior-session data before accepting a new session").
+                studentRepository.clear()
+                auditRepository.clear()
+                StudentSyncUiState.Error(result.reason)
+            }
+        }
+        if (!auditRepository.refresh()) {
+            auditRepository.clear()
+        }
+        if (StaffPermissions.canAccess(session.value, SaseArea.PRE_SOLICITUD)) {
+            when (PreApplicationViewModel.refreshPreApplications()) {
+                is PreApplicationSyncResult.Loaded -> Unit
+                is PreApplicationSyncResult.Failed -> PreApplicationViewModel.clearPreApplicationState()
+            }
+        } else {
+            PreApplicationViewModel.clearPreApplicationState()
+        }
+    }
 
     fun signIn(email: String, password: String) {
         authenticate { authRepository.signIn(email, password) }
@@ -182,8 +271,12 @@ class LabViewModel(
                     )
                 }
                 authRepository.signOut()
+                studentRepository.clear()
+                auditRepository.clear()
+                PreApplicationViewModel.clearPreApplicationState()
                 _currentScreen.value = Screen.SessionHome
                 _loginState.value = LoginUiState.Idle
+                _studentSync.value = StudentSyncUiState.Idle
             } finally {
                 _sessionTransitioning.value = false
             }
@@ -229,6 +322,13 @@ class LabViewModel(
             _loginState.value = LoginUiState.Error(AuthFailureReason.SESSION_EXPIRED)
             return
         }
+        // Un usuario nuevo (u otra institucion) nunca debe ver, ni siquiera
+        // brevemente antes de que loadInstitutionalData() complete, los
+        // expedientes/bitacora que hubieran quedado en memoria de la sesion
+        // anterior (P1 de Codex en PR #49).
+        studentRepository.clear()
+        auditRepository.clear()
+        PreApplicationViewModel.clearPreApplicationState()
         _currentScreen.value = Screen.SessionHome
         _loginState.value = LoginUiState.Idle
         recordAudit(
@@ -239,6 +339,7 @@ class LabViewModel(
             result = InstitutionalAuditResult.AUTHORIZED
         )
         scheduleExpiration(active)
+        loadInstitutionalData()
     }
 
     private fun scheduleExpiration(active: AuthSession) {
@@ -269,6 +370,9 @@ class LabViewModel(
                     )
                 }
                 authRepository.signOut()
+                studentRepository.clear()
+                auditRepository.clear()
+                PreApplicationViewModel.clearPreApplicationState()
                 _currentScreen.value = Screen.SessionHome
                 _loginState.value = LoginUiState.Error(AuthFailureReason.SESSION_EXPIRED)
             } finally {
@@ -278,6 +382,10 @@ class LabViewModel(
     }
 
     fun navigateTo(screen: Screen) {
+        if (session.value == null) {
+            if (canOpenScreen(null, screen)) _currentScreen.value = screen
+            return
+        }
         if (!revalidateSession()) return
         if (canOpenScreen(session.value, screen)) {
             _currentScreen.value = screen
@@ -289,52 +397,85 @@ class LabViewModel(
     }
 
     fun navigateBack() {
+        if (session.value == null) {
+            _currentScreen.value = Screen.SessionHome
+            return
+        }
         navigateTo(Screen.SessionHome)
     }
 
-    fun updateStudent(student: Student): Boolean {
+    suspend fun updateStudent(student: Student): StudentUpdateOutcome {
         val active = authorizedFor(
             action = StaffAction.UPDATE_STUDENT,
             entityType = "student",
             entityId = student.id
-        ) ?: return false
-        studentRepository.updateStudent(student)
-        return recordAudit(
+        ) ?: return StudentUpdateOutcome.REJECTED
+
+        // Sin bitácora asentable no se toca el expediente: el evento se valida
+        // ANTES de mutar, y su resultado real se registra después.
+        if (!canRecordAudit(active, "student.updated", "student", student.id)) {
+            return StudentUpdateOutcome.REJECTED
+        }
+
+        val persisted = studentRepository.updateStudent(student) is StudentUpdateResult.Updated
+        // Un guardado exitoso sin bitácora asentada sigue siendo un guardado:
+        // el expediente ya está comprometido en el backend, así que no se
+        // reporta como rechazo (eso induciría un reintento innecesario o una
+        // sincronización dependiente saltada); se distingue como comprometido
+        // sin bitácora en vez de colapsarlo con un rechazo real.
+        val audited = recordAudit(
             session = active,
             action = "student.updated",
             entityType = "student",
             entityId = student.id,
-            result = InstitutionalAuditResult.AUTHORIZED
+            result = if (persisted) InstitutionalAuditResult.AUTHORIZED
+            else InstitutionalAuditResult.FAILED
         )
+        return when {
+            !persisted -> StudentUpdateOutcome.REJECTED
+            audited -> StudentUpdateOutcome.UPDATED
+            else -> StudentUpdateOutcome.COMMITTED_WITHOUT_AUDIT
+        }
     }
 
-    fun addStudent(student: Student): StudentAddResult {
+    suspend fun addStudent(student: Student): StudentAddResult {
         val active = authorizedFor(
             action = StaffAction.CREATE_STUDENT,
             entityType = "student",
             entityId = student.id.ifBlank { "new-student" }
         ) ?: return StudentAddResult.InvalidData("Acción no autorizada para la sesión activa.")
 
+        // El identificador definitivo lo asigna el almacenamiento, así que aquí
+        // se comprueba con el provisional que el evento será registrable.
+        if (!canRecordAudit(active, "student.created", "student", student.id.ifBlank { "new-student" })) {
+            return StudentAddResult.Failed(StudentPersistenceFailure.REJECTED)
+        }
+
         val result = studentRepository.addStudent(student)
         if (result is StudentAddResult.Added) {
-            recordAudit(
+            val audited = recordAudit(
                 session = active,
                 action = "student.created",
                 entityType = "student",
                 entityId = result.student.id,
                 result = InstitutionalAuditResult.AUTHORIZED
             )
+            // El expediente ya se escribió y sigue committeado: reportarlo
+            // como Failed induciría a un reintento que chocaría con la
+            // CURP/matrícula ya creada. La falta de bitácora se distingue
+            // como advertencia, no como "el alta no ocurrió".
+            if (!audited) return StudentAddResult.CommittedWithoutAudit(result.student)
         }
         return result
     }
 
-    fun addObservation(studentId: String, text: String, category: String): Boolean {
+    suspend fun addObservation(studentId: String, text: String, category: String): StudentUpdateOutcome {
         val active = authorizedFor(
             action = StaffAction.ADD_OBSERVATION,
             entityType = "student_observation",
             entityId = studentId
-        ) ?: return false
-        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return false
+        ) ?: return StudentUpdateOutcome.REJECTED
+        if (saseStudents.value.none { it.id == studentId }) return StudentUpdateOutcome.REJECTED
 
         val observation = SaseObservation(
             text = text,
@@ -342,25 +483,32 @@ class LabViewModel(
             date = "Hoy",
             category = category
         )
-        studentRepository.updateStudent(
-            student.copy(observations = listOf(observation) + student.observations)
-        )
-        return recordAudit(
+        // Metodo dedicado, no updateStudent(): en SUPABASE_STAGING vive en su
+        // propia tabla con su propio RLS, y el resultado nunca se reporta
+        // como guardado si la fila no llego a insertarse (P1 de Codex en PR
+        // #49, "Reject updates for fields the backend does not persist").
+        val persisted = studentRepository.addObservation(studentId, observation) is StudentUpdateResult.Updated
+        if (!persisted) return StudentUpdateOutcome.REJECTED
+        val audited = recordAudit(
             session = active,
             action = "student.observation.created",
             entityType = "student_observation",
             entityId = studentId,
             result = InstitutionalAuditResult.AUTHORIZED
         )
+        // La observacion ya quedo persistida: un fallo de auditoria despues
+        // no debe reportarse como "no paso nada" (invitaria a reintentar y
+        // duplicar la observacion).
+        return if (audited) StudentUpdateOutcome.UPDATED else StudentUpdateOutcome.COMMITTED_WITHOUT_AUDIT
     }
 
     /**
      * Registra un evento sin aceptar actor, rol ni detalle libres. Esos campos
      * siempre provienen de la sesión institucional activa.
      */
-    fun logSaseAudit(action: String, entityType: String, entityId: String): Boolean {
+    suspend fun logSaseAudit(action: String, entityType: String, entityId: String): Boolean {
         val active = authorizedFor(
-            action = StaffAction.UPDATE_STUDENT,
+            action = StaffAction.LOG_STUDENT_RECORD_EVENT,
             entityType = entityType,
             entityId = entityId
         ) ?: return false
@@ -373,64 +521,65 @@ class LabViewModel(
         )
     }
 
-    fun reportIncident(studentId: String, type: String, description: String): Boolean {
+    suspend fun reportIncident(studentId: String, type: String, description: String): StudentUpdateOutcome {
         val active = authorizedFor(
             action = StaffAction.REPORT_INCIDENT,
             entityType = "school_incident",
             entityId = studentId
-        ) ?: return false
-        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return false
+        ) ?: return StudentUpdateOutcome.REJECTED
+        if (saseStudents.value.none { it.id == studentId }) return StudentUpdateOutcome.REJECTED
 
-        val incident = IncidentWorkflow.report(
+        // Metodo dedicado, no updateStudent(): en SUPABASE_STAGING su RLS
+        // real es EDIT_INCIDENTS (Prefectura/Tutor), DISTINTO del que protege
+        // el nucleo del expediente (EDIT_STUDENT_IDENTITY, Secretaria) —
+        // enrutar por updateStudent() rechazaria el reporte para cualquier
+        // rol que legitimamente puede reportar incidencias.
+        val result = studentRepository.addIncident(
+            studentId = studentId,
             type = type,
             description = description,
             date = "Hoy",
             reportedByStaffId = active.profile.id,
-            reportedByName = active.profile.fullName,
-            idGenerator = { "INC-${Random.nextInt(100000, 999999)}" }
+            reportedByName = active.profile.fullName
         )
-        studentRepository.updateStudent(
-            student.copy(schoolIncidents = listOf(incident) + student.schoolIncidents)
-        )
-        return recordAudit(
+        val updated = (result as? StudentUpdateResult.Updated)?.student ?: return StudentUpdateOutcome.REJECTED
+        val incidentId = updated.schoolIncidents.firstOrNull()?.id ?: return StudentUpdateOutcome.REJECTED
+        val audited = recordAudit(
             session = active,
             action = "school_incident.reported",
             entityType = "school_incident",
-            entityId = incident.id,
+            entityId = incidentId,
             result = InstitutionalAuditResult.AUTHORIZED
         )
+        return if (audited) StudentUpdateOutcome.UPDATED else StudentUpdateOutcome.COMMITTED_WITHOUT_AUDIT
     }
 
-    fun advanceIncident(studentId: String, incidentId: String, note: String): Boolean {
+    suspend fun advanceIncident(studentId: String, incidentId: String, note: String): StudentUpdateOutcome {
         val active = authorizedFor(
             action = StaffAction.ADVANCE_INCIDENT,
             entityType = "school_incident",
             entityId = incidentId
-        ) ?: return false
-        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return false
-        val incident = student.schoolIncidents.firstOrNull { it.id == incidentId } ?: return false
+        ) ?: return StudentUpdateOutcome.REJECTED
+        val student = saseStudents.value.firstOrNull { it.id == studentId } ?: return StudentUpdateOutcome.REJECTED
+        val incident = student.schoolIncidents.firstOrNull { it.id == incidentId } ?: return StudentUpdateOutcome.REJECTED
 
         val updated = when (val transition = IncidentWorkflow.advance(incident, note)) {
-            is IncidentTransitionResult.IllegalTransition -> return false
+            is IncidentTransitionResult.IllegalTransition -> return StudentUpdateOutcome.REJECTED
             is IncidentTransitionResult.Success -> transition.incident
         }
-        studentRepository.updateStudent(
-            student.copy(
-                schoolIncidents = student.schoolIncidents.map {
-                    if (it.id == incidentId) updated else it
-                }
-            )
-        )
-        return recordAudit(
+        val persisted = studentRepository.advanceIncident(studentId, updated) is StudentUpdateResult.Updated
+        if (!persisted) return StudentUpdateOutcome.REJECTED
+        val audited = recordAudit(
             session = active,
             action = "school_incident.advanced.${updated.status}",
             entityType = "school_incident",
             entityId = incidentId,
             result = InstitutionalAuditResult.AUTHORIZED
         )
+        return if (audited) StudentUpdateOutcome.UPDATED else StudentUpdateOutcome.COMMITTED_WITHOUT_AUDIT
     }
 
-    fun escalateCase(studentId: String): Boolean {
+    suspend fun escalateCase(studentId: String): Boolean {
         val active = authorizedFor(
             action = StaffAction.ESCALATE_CASE,
             entityType = "student_case",
@@ -454,7 +603,7 @@ class LabViewModel(
         return active
     }
 
-    private fun authorizedFor(
+    private suspend fun authorizedFor(
         action: StaffAction,
         entityType: String,
         entityId: String
@@ -472,27 +621,48 @@ class LabViewModel(
         return null
     }
 
-    private fun recordAudit(
+    private fun buildAuditEvent(
+        session: AuthSession,
+        action: String,
+        entityType: String,
+        entityId: String,
+        result: InstitutionalAuditResult
+    ): InstitutionalAuditEvent = InstitutionalAuditEvent(
+        institutionId = session.institutionId,
+        actorProfileId = session.profileId,
+        membershipId = session.membershipId,
+        activeRole = session.activeRole,
+        action = action,
+        entityType = entityType,
+        entityId = entityId,
+        timestamp = formatTimestamp("yyyy-MM-dd HH:mm:ss"),
+        result = result,
+        sourcePlatform = getPlatformName()
+    )
+
+    /**
+     * Comprobación previa a mutar: ¿este evento sería registrable? No asienta
+     * nada, de modo que una mutación abortada no deja una bitácora de algo que
+     * nunca ocurrió.
+     */
+    private fun canRecordAudit(
+        session: AuthSession,
+        action: String,
+        entityType: String,
+        entityId: String
+    ): Boolean = InstitutionalAuditValidator.validate(
+        buildAuditEvent(session, action, entityType, entityId, InstitutionalAuditResult.AUTHORIZED)
+    ).isValid
+
+    private suspend fun recordAudit(
         session: AuthSession,
         action: String,
         entityType: String,
         entityId: String,
         result: InstitutionalAuditResult
     ): Boolean {
-        val event = InstitutionalAuditEvent(
-            institutionId = session.institutionId,
-            actorProfileId = session.profileId,
-            membershipId = session.membershipId,
-            activeRole = session.activeRole,
-            action = action,
-            entityType = entityType,
-            entityId = entityId,
-            timestamp = formatTimestamp("yyyy-MM-dd HH:mm:ss"),
-            result = result,
-            sourcePlatform = getPlatformName()
-        )
+        val event = buildAuditEvent(session, action, entityType, entityId, result)
         if (!InstitutionalAuditValidator.validate(event).isValid) return false
-        auditRepository.logAudit(event)
-        return true
+        return auditRepository.logAudit(event)
     }
 }

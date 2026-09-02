@@ -12,7 +12,8 @@ enum class InstitutionalEnrollmentGuardCause {
     NOT_ACCEPTED,
     NOT_READY,
     PENDING_REQUIREMENTS,
-    SOURCE_MISMATCH
+    SOURCE_MISMATCH,
+    FLOW_DISABLED
 }
 
 enum class PreApplicationSynchronizationCause {
@@ -61,10 +62,10 @@ internal sealed interface PreApplicationConversionResult {
     data class Incomplete(val cause: PreApplicationSynchronizationCause) : PreApplicationConversionResult
 }
 
-internal fun synchronizePreApplicationConversion(
+internal suspend fun synchronizePreApplicationConversion(
     source: PreApplication,
     readState: () -> List<PreApplication>,
-    compareAndSet: (List<PreApplication>, List<PreApplication>) -> Boolean
+    commit: suspend (PreApplication) -> Boolean
 ): PreApplicationConversionResult {
     repeat(2) {
         val currentState = readState()
@@ -104,8 +105,7 @@ internal fun synchronizePreApplicationConversion(
         }
 
         val updated = current.copy(readinessStatus = ReadinessStatus.CONVERTED)
-        val updatedState = currentState.toMutableList().apply { this[index] = updated }
-        if (compareAndSet(currentState, updatedState)) {
+        if (commit(updated)) {
             return PreApplicationConversionResult.Converted(updated)
         }
     }

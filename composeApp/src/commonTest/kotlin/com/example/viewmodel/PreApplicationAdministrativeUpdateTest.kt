@@ -12,6 +12,7 @@ import com.example.data.presolicitud.PreApplicationStatus
 import com.example.data.presolicitud.UpdatePreApplicationAdministrativeDataRequest
 import com.example.data.presolicitud.UpdatePreApplicationAdministrativeDataResult
 import com.example.data.presolicitud.administrativeDataSnapshot
+import kotlinx.coroutines.test.runTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -42,7 +43,7 @@ class PreApplicationAdministrativeUpdateTest {
     )
 
     @Test
-    fun validPhoneIsTrimmedAndUpdated() {
+    fun validPhoneIsTrimmedAndUpdated() = runTest {
         val original = editablePreApplication()
         val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
             request(original, phone = PreApplicationAdministrativeFieldChange.Replace(" 5512345678 "))
@@ -55,7 +56,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun sameNormalizedPhoneIsNoChange() {
+    fun sameNormalizedPhoneIsNoChange() = runTest {
         val original = editablePreApplication()
         val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
             request(
@@ -69,7 +70,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun blankPhoneIsInvalidAndPreservesState() {
+    fun blankPhoneIsInvalidAndPreservesState() = runTest {
         val original = editablePreApplication()
         val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
         val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
@@ -85,7 +86,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun nonTenDigitPhoneIsInvalidAndPreservesState() {
+    fun nonTenDigitPhoneIsInvalidAndPreservesState() = runTest {
         val original = editablePreApplication()
         val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
         val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
@@ -101,7 +102,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun validAddressIsTrimmedWithoutDestructiveNormalization() {
+    fun validAddressIsTrimmedWithoutDestructiveNormalization() = runTest {
         val original = editablePreApplication()
         val address = "Calle Niño Héroes #12, Int. 3"
         val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
@@ -115,7 +116,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun sameNormalizedAddressIsNoChange() {
+    fun sameNormalizedAddressIsNoChange() = runTest {
         val original = editablePreApplication()
         val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
             request(
@@ -129,7 +130,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun blankAddressIsInvalidAndPreservesState() {
+    fun blankAddressIsInvalidAndPreservesState() = runTest {
         val original = editablePreApplication()
         val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
         val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
@@ -145,7 +146,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun validPhoneAndAddressAreAppliedTogether() {
+    fun validPhoneAndAddressAreAppliedTogether() = runTest {
         val original = editablePreApplication()
         val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
             request(
@@ -165,7 +166,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun reopeningFromSharedStoreUsesUpdatedAdministrativeDataAndFreshSnapshot() {
+    fun reopeningFromSharedStoreUsesUpdatedAdministrativeDataAndFreshSnapshot() = runTest {
         val original = editablePreApplication()
         assertIs<UpdatePreApplicationAdministrativeDataResult.Updated>(
             PreApplicationViewModel.updatePreApplicationAdministrativeData(
@@ -195,7 +196,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun invalidPhonePreventsValidAddressFromBeingApplied() {
+    fun invalidPhonePreventsValidAddressFromBeingApplied() = runTest {
         val original = editablePreApplication()
         val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
         val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
@@ -211,7 +212,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun invalidAddressPreventsValidPhoneFromBeingApplied() {
+    fun invalidAddressPreventsValidPhoneFromBeingApplied() = runTest {
         val original = editablePreApplication()
         val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
         val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
@@ -227,7 +228,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun omittedFieldsAndEqualValuesProduceNoChanges() {
+    fun omittedFieldsAndEqualValuesProduceNoChanges() = runTest {
         val original = editablePreApplication()
         assertIs<UpdatePreApplicationAdministrativeDataResult.NoChanges>(
             PreApplicationViewModel.updatePreApplicationAdministrativeData(request(original))
@@ -245,7 +246,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun missingFolioReturnsNotFoundWithoutMutation() {
+    fun missingFolioReturnsNotFoundWithoutMutation() = runTest {
         val original = editablePreApplication()
         val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
         val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
@@ -258,7 +259,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun exactReplayReturnsNoChangesAndDoesNotDuplicateState() {
+    fun exactReplayReturnsNoChangesAndDoesNotDuplicateState() = runTest {
         val original = editablePreApplication()
         val updateRequest = request(
             original,
@@ -277,7 +278,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun staleExpectedValueReturnsConflictWithoutMutation() {
+    fun staleExpectedValueReturnsConflictWithoutMutation() = runTest {
         val original = editablePreApplication()
         assertIs<UpdatePreApplicationAdministrativeDataResult.Updated>(
             PreApplicationViewModel.updatePreApplicationAdministrativeData(
@@ -296,7 +297,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun nonEditableApplicationReturnsConflictWithoutMutation() {
+    fun nonEditableApplicationReturnsConflictWithoutMutation() = runTest {
         val original = PreApplicationViewModel.sharedPreApplications.value.first {
             it.status == PreApplicationStatus.ACEPTADA
         }
@@ -311,7 +312,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun updateChangesOnlyAuthorizedFieldsAndNoNeighboringStores() {
+    fun updateChangesOnlyAuthorizedFieldsAndNoNeighboringStores() = runTest {
         val original = editablePreApplication()
         val allBefore = PreApplicationViewModel.sharedPreApplications.value.toList()
         val officialsBefore = PreApplicationViewModel.officialStudents.value.toList()
@@ -345,8 +346,8 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun sameInputFromSameStateProducesDeterministicResult() {
-        fun execute(): UpdatePreApplicationAdministrativeDataResult {
+    fun sameInputFromSameStateProducesDeterministicResult() = runTest {
+        suspend fun execute(): UpdatePreApplicationAdministrativeDataResult {
             PreApplicationViewModel.resetSharedStateForTests()
             val original = editablePreApplication()
             return PreApplicationViewModel.updatePreApplicationAdministrativeData(
@@ -358,7 +359,7 @@ class PreApplicationAdministrativeUpdateTest {
     }
 
     @Test
-    fun enrollmentModesRemainAvailableWithV2AsDefault() {
+    fun enrollmentModesRemainAvailableWithV2AsDefault() = runTest {
         assertEquals(EnrollmentFlowMode.ANNUAL_V2, PreApplicationViewModel.enrollmentFlowMode.value)
         assertEquals("LEGACY", EnrollmentFlowMode.LEGACY.name)
     }

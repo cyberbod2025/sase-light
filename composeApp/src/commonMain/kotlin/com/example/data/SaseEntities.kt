@@ -56,18 +56,24 @@ data class Student(
     val group: String,
     val enrollmentId: String,
     val curp: String,
-    val shift: String = "Vespertino",
-    val schoolYear: String = "2023-2024",
-    val status: String = "Activo",
-    val riskLevel: String = "Bajo",
-    val bap: String = "No",
-    val schoolInsurance: String = "Vigente",
-    val documentationStatus: String = "Completa",
-    val birthDate: String = "12/May/2010",
-    val age: Int = 14,
-    val birthPlace: String = "Ciudad de M\u00e9xico",
-    val address: String = "Av. Siempre Viva 123, Col. Centro, CDMX",
-    val zipCode: String = "06000",
+    val shift: String = "",
+    val schoolYear: String = "",
+    val status: String = "",
+    // Los siguientes campos NUNCA deben tener un default con apariencia de
+    // dato real: en SUPABASE_STAGING, un campo que el mapper no pudo
+    // completar (sin tabla, sin permiso, o aun no capturado) se queda en
+    // este valor neutro y la UI debe mostrarlo como "No registrado", nunca
+    // como si fuera informacion real del alumno (P1 de Codex en PR #49,
+    // "Stop fabricating unpersisted student details").
+    val riskLevel: String = "",
+    val bap: String = "",
+    val schoolInsurance: String = "",
+    val documentationStatus: String = "",
+    val birthDate: String = "",
+    val age: Int = 0,
+    val birthPlace: String = "",
+    val address: String = "",
+    val zipCode: String = "",
     val tutorName: String = "",
     val tutorRelation: String = "",
     val tutorPhone: String = "",
@@ -76,18 +82,18 @@ data class Student(
     val emergencyContactRelation: String = "",
     val emergencyContactPhone: String = "",
     val emergencyContactEmail: String = "",
-    val attendancePercent: Int = 92,
-    val attendances: Int = 165,
-    val excusedAbsences: Int = 8,
-    val unexcusedAbsences: Int = 7,
-    val healthAlergies: String = "Polvo, l\u00e1cteos",
-    val healthNotes: String = "Sin observaciones relevantes",
-    val healthMeds: String = "No aplica",
-    val healthPasses: String = "Ninguno registrado",
-    val orientationStatus: String = "Activo",
-    val orientationLastAppointment: String = "06/May/2024",
-    val orientationInterventionPlan: String = "Plan de organizaci\u00f3n de tareas",
-    val orientationResponsible: String = "Psic. Laura M\u00e9ndez",
+    val attendancePercent: Int = 0,
+    val attendances: Int = 0,
+    val excusedAbsences: Int = 0,
+    val unexcusedAbsences: Int = 0,
+    val healthAlergies: String = "",
+    val healthNotes: String = "",
+    val healthMeds: String = "",
+    val healthPasses: String = "",
+    val orientationStatus: String = "",
+    val orientationLastAppointment: String = "",
+    val orientationInterventionPlan: String = "",
+    val orientationResponsible: String = "",
     val documents: List<SaseDocument> = emptyList(),
     val observations: List<SaseObservation> = emptyList(),
     val schoolIncidents: List<SaseIncident> = emptyList(),
@@ -101,4 +107,65 @@ sealed class StudentAddResult {
     data class DuplicateCurp(val curp: String, val existing: Student) : StudentAddResult()
     data class DuplicateEnrollmentId(val enrollmentId: String, val existing: Student) : StudentAddResult()
     data class InvalidData(val message: String) : StudentAddResult()
+
+    /**
+     * El almacenamiento institucional no confirmo el alta (sin sesion, permiso
+     * denegado por RLS o fallo de red). Nunca debe presentarse como "guardado":
+     * es la unica forma de distinguir un rechazo del backend de un dato invalido.
+     */
+    data class Failed(val reason: StudentPersistenceFailure) : StudentAddResult()
+
+    /**
+     * El expediente SI se persistio (esta en el backend real y en cache) pero
+     * el evento de auditoria no pudo asentarse. Distinto de [Failed]: un
+     * llamador que reintentara el alta creyendo que no paso nada chocaria con
+     * la CURP/matricula ya creada (P1 de Codex, "Do not return a persistence
+     * failure after committing the student"). El expediente se trata como
+     * creado; la falta de bitacora se advierte por separado.
+     */
+    data class CommittedWithoutAudit(val student: Student) : StudentAddResult()
+}
+
+/** Resultado de una actualizacion; el mock nunca falla, el backend real si. */
+sealed class StudentUpdateResult {
+    data class Updated(val student: Student) : StudentUpdateResult()
+    data class Failed(val reason: StudentPersistenceFailure) : StudentUpdateResult()
+}
+
+/**
+ * Causa por la que el almacenamiento institucional rechazo una operacion.
+ * Se mantiene como enum para que ningun mensaje del servidor —que podria
+ * arrastrar datos de la fila rechazada— llegue tal cual a la interfaz.
+ */
+enum class StudentPersistenceFailure {
+    /** No hay sesion institucional activa: se escribe nada, se falla cerrado. */
+    NO_SESSION,
+
+    /** El servidor rechazo la operacion (RLS, permiso o validacion). */
+    REJECTED,
+
+    /** La operacion no llego a completarse (red o servidor no disponible). */
+    NETWORK,
+
+    /**
+     * El expediente se escribio, pero la bitacora institucional no quedo asentada.
+     * La mutacion no se revierte: se reporta como no confirmada para que quien
+     * llama no la trate como un alta exitosa sin evidencia.
+     */
+    AUDIT_NOT_RECORDED,
+}
+
+/**
+ * Mensaje institucional para un rechazo de persistencia. Nunca reproduce texto
+ * devuelto por el servidor, que podria arrastrar datos de la fila rechazada.
+ */
+fun institutionalFailureMessage(reason: StudentPersistenceFailure): String = when (reason) {
+    StudentPersistenceFailure.NO_SESSION ->
+        "No hay sesión institucional activa. El cambio no se guardó."
+    StudentPersistenceFailure.REJECTED ->
+        "El sistema institucional rechazó el cambio. No se guardó."
+    StudentPersistenceFailure.NETWORK ->
+        "No fue posible contactar al sistema institucional. El cambio no se guardó."
+    StudentPersistenceFailure.AUDIT_NOT_RECORDED ->
+        "El expediente se guardó, pero la bitácora institucional no quedó registrada. Repórtalo antes de continuar."
 }

@@ -54,6 +54,10 @@ sealed interface UpdatePreApplicationAdministrativeDataResult {
     data class Conflict(
         val reason: PreApplicationAdministrativeConflictReason
     ) : UpdatePreApplicationAdministrativeDataResult
+
+    data class BackendFailure(
+        val reason: com.example.data.repository.PreApplicationPersistenceFailure
+    ) : UpdatePreApplicationAdministrativeDataResult
 }
 
 fun PreApplication.administrativeDataSnapshot(): PreApplicationAdministrativeDataSnapshot =

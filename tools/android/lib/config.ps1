@@ -81,10 +81,19 @@ function Assert-Emulator {
 }
 
 function Get-AdbDevices {
+    # Solo dispositivos cuyo segundo campo de estado sea exactamente
+    # "device": "unauthorized"/"offline" no estan listos para instalar, y
+    # antes se aceptaban igual porque solo se leia el primer campo (serial)
+    # sin mirar el estado (P2 de Codex en el cierre de PR #49, "Reject
+    # unauthorized and offline ADB devices").
     if (-not (Assert-Adb)) { return @() }
     $output = & $Script:ADB devices 2>&1
     $lines = @($output -split "`n" | Where-Object { $_ -match "^[a-zA-Z0-9]" -and $_ -notmatch "^List" })
-    return @($lines | ForEach-Object { ($_ -split "\s+")[0] })
+    $authorized = @($lines | Where-Object {
+        $columns = $_ -split "\s+"
+        $columns.Count -ge 2 -and $columns[1] -eq "device"
+    })
+    return @($authorized | ForEach-Object { ($_ -split "\s+")[0] })
 }
 
 function Get-EmulatorAvds {

@@ -110,6 +110,7 @@ import com.example.ui.components.fields.SaseTextField
 import com.example.ui.components.navigation.SaseSectionTabs
 import com.example.ui.theme.SaseColors
 import com.example.util.LocalToast
+import com.example.data.repository.PreApplicationUpdateResult
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.OfficialEnrollmentResult
 import com.example.viewmodel.PreApplicationViewModel
@@ -137,6 +138,14 @@ private fun visibleEnrollmentId(enrollmentId: String, curp: String): String =
     if (hasOfficialEnrollment(enrollmentId, curp)) enrollmentId else "Pendiente de asignación"
 
 private fun visibleGroup(group: String): String = group.trim().ifBlank { "Pendiente de asignación" }
+
+/**
+ * Un campo del expediente sin capturar/persistir en SUPABASE_STAGING queda
+ * en blanco (nunca con un valor fabricado, ver Student en SaseEntities.kt) —
+ * la UI debe decirlo explicitamente en vez de mostrar una celda vacia que
+ * parezca un error de carga.
+ */
+private fun String.orNoRegistrado(): String = trim().ifBlank { "No registrado" }
 
 private fun visibleGrade(group: String): String = group.trim().firstOrNull()?.digitToIntOrNull()
     ?.let { "${it}°" }
@@ -238,13 +247,22 @@ private fun InstitutionalStudentRecordRoute(
         else false
     }
 
+    val routeScope = rememberCoroutineScope()
+    val actorName = viewModel.session.value?.profile?.fullName ?: "Secretaría"
+
     InstitutionalStudentRecordContent(
         presentation = presentation,
         student = currentStudent,
         isConverted = isConverted,
+        actor = actorName,
         onBack = { viewModel.navigateTo(returnTo) },
         onSaveStudent = { updatedStudent ->
-            viewModel.updateStudent(updatedStudent)
+            routeScope.launch {
+            // La pre-solicitud se sincroniza si el expediente quedó
+            // persistido, con o sin bitácora asentada; solo un rechazo real
+            // (nada escrito) debe detener la sincronización (P1 de Codex,
+            // "Distinguish committed updates from audit failures").
+            if (!viewModel.updateStudent(updatedStudent).isCommitted) return@launch
             val folio = (presentation as? InstitutionalStudentRecordPresentation.Content)?.folio
             if (!folio.isNullOrBlank()) {
                 val preApp = preApplications.firstOrNull { it.folio.trim().uppercase() == folio.trim().uppercase() }
@@ -265,9 +283,12 @@ private fun InstitutionalStudentRecordRoute(
                     )
                 }
             }
+            }
         },
         onLogAudit = { action, _ ->
-            viewModel.logSaseAudit(action, "student_record", studentId)
+            routeScope.launch {
+                viewModel.logSaseAudit(action, "student_record", studentId)
+            }
         }
     )
 }
@@ -277,10 +298,12 @@ private fun InstitutionalStudentRecordContent(
     presentation: InstitutionalStudentRecordPresentation,
     student: Student?,
     isConverted: Boolean = false,
+    actor: String = "Secretaría",
     onBack: () -> Unit,
     onSaveStudent: (Student) -> Unit,
     onLogAudit: (String, String) -> Unit
 ) {
+    val institutionalScope = rememberCoroutineScope()
     var isEditing by remember { mutableStateOf(false) }
     var editName by remember(student) { mutableStateOf(student?.fullName ?: "") }
     var editCurp by remember(student) { mutableStateOf(student?.curp ?: "") }
@@ -441,10 +464,16 @@ private fun InstitutionalStudentRecordContent(
                                     field.label == "Folio de pre-solicitud" && presentation.acceptFolioVisible -> {
                                         val folio = presentation.folio
                                         {
-                        PreApplicationViewModel.approvePreApplication(folio)
-                            showFolioAcceptedNotice = true
-                            toast("Folio $folio aceptado")
-                            onLogAudit("Folio aceptado", "Folio: $folio")
+                        institutionalScope.launch {
+                            if (PreApplicationViewModel.approvePreApplication(folio) is PreApplicationUpdateResult.Updated) {
+                                showFolioAcceptedNotice = true
+                                toast("Folio $folio aceptado")
+                                onLogAudit("Folio aceptado", "Folio: $folio")
+                            } else {
+                                toast("No fue posible aceptar el folio. Intenta de nuevo.")
+                            }
+                        }
+                        Unit
                                         }
                                     }
                                     field.label == "Grupo" && field.value == "Pendiente de asignación" -> {
@@ -529,11 +558,21 @@ private fun InstitutionalStudentRecordContent(
                                     onClick = {
                                         val folio = (presentation as? InstitutionalStudentRecordPresentation.Content)?.folio
                                         if (!folio.isNullOrBlank()) {
-                                            PreApplicationViewModel.markReadyForOfficialEnrollment(folio)
+                                            institutionalScope.launch {
+                                                when (PreApplicationViewModel.markReadyForOfficialEnrollment(folio)) {
+                                                    is ReadinessResult.Success, is ReadinessResult.AlreadyReady -> {
+                                                        showValidationNotice = true
+                                                        toast("Expediente validado correctamente")
+                                                        onLogAudit("Expediente validado", student?.fullName ?: "")
+                                                    }
+                                                    else -> toast("No fue posible validar el expediente. Intenta de nuevo.")
+                                                }
+                                            }
+                                        } else {
+                                            showValidationNotice = true
+                                            toast("Expediente validado correctamente")
+                                            onLogAudit("Expediente validado", student?.fullName ?: "")
                                         }
-                                        showValidationNotice = true
-                                        toast("Expediente validado correctamente")
-                                        onLogAudit("Expediente validado", student?.fullName ?: "")
                                     },
                                     icon = Icons.Default.CheckCircle,
                                     containerColor = SaseGreen,
@@ -545,10 +584,15 @@ private fun InstitutionalStudentRecordContent(
                                 SasePrimaryButton(
                                     text = "Aceptar folio",
                                     onClick = {
-                                        PreApplicationViewModel.approvePreApplication(presentation.folio)
-                                        showFolioAcceptedNotice = true
-                                        toast("Folio ${presentation.folio} aceptado")
-                                        onLogAudit("Folio aceptado", "Folio: ${presentation.folio}")
+                                        institutionalScope.launch {
+                                            if (PreApplicationViewModel.approvePreApplication(presentation.folio) is PreApplicationUpdateResult.Updated) {
+                                                showFolioAcceptedNotice = true
+                                                toast("Folio ${presentation.folio} aceptado")
+                                                onLogAudit("Folio aceptado", "Folio: ${presentation.folio}")
+                                            } else {
+                                                toast("No fue posible aceptar el folio. Intenta de nuevo.")
+                                            }
+                                        }
                                     },
                                     icon = Icons.Default.Description,
                                     containerColor = SaseBlue,
@@ -560,9 +604,14 @@ private fun InstitutionalStudentRecordContent(
                                 SasePrimaryButton(
                                     text = "Reabrir revisión",
                                     onClick = {
-                                        PreApplicationViewModel.reopenReview(presentation.folio)
-                                        toast("Revisión reabierta")
-                                        onLogAudit("Revisión reabierta", "Folio: ${presentation.folio}")
+                                        institutionalScope.launch {
+                                            if (PreApplicationViewModel.reopenReview(presentation.folio)) {
+                                                toast("Revisión reabierta")
+                                                onLogAudit("Revisión reabierta", "Folio: ${presentation.folio}")
+                                            } else {
+                                                toast("No fue posible reabrir la revisión.")
+                                            }
+                                        }
                                     },
                                     icon = Icons.Default.Refresh,
                                     containerColor = SaseOrange,
@@ -620,6 +669,7 @@ private fun InstitutionalStudentRecordContent(
     if (showGroupDialog) {
         GrupoDecisionDialog(
             folio = preAppFolio,
+            actor = actor,
             onDismiss = { showGroupDialog = false },
             toast = toast
         )
@@ -629,6 +679,7 @@ private fun InstitutionalStudentRecordContent(
 @Composable
 private fun GrupoDecisionDialog(
     folio: String,
+    actor: String = "Secretaría",
     onDismiss: () -> Unit,
     toast: (String) -> Unit
 ) {
@@ -640,6 +691,7 @@ private fun GrupoDecisionDialog(
     var groupConfirmed by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf<String?>(null) }
     var resultColor by remember { mutableStateOf(SaseGreen) }
+    val scope = rememberCoroutineScope()
 
     val grade = preApp?.gradoSolicitado ?: 0
     val groupOptions = if (grade in 1..3) PreApplicationViewModel.groupOptionsForGrade(grade) else emptyList()
@@ -716,35 +768,37 @@ private fun GrupoDecisionDialog(
                         text = "Confirmar grupo",
                         onClick = {
                             val group = selectedGroup ?: return@SasePrimaryButton
-                            if (officialStudent != null) {
-                                val result = PreApplicationViewModel.confirmInitialGroup(folio, group)
-                                resultMessage = result.message
-                                resultColor = when (result) {
-                                    is OfficialEnrollmentResult.Success -> SaseGreen
-                                    else -> SaseOrange
-                                }
-                                if (result is OfficialEnrollmentResult.Success) {
-                                    toast("Grupo $group confirmado")
-                                    onDismiss()
-                                }
-                            } else {
-                                val app = preApp
-                                val enrollResult = PreApplicationViewModel.startOfficialEnrollment(app, group)
-                                resultMessage = enrollResult.message
-                                resultColor = when (enrollResult) {
-                                    is OfficialEnrollmentResult.Success -> SaseGreen
-                                    else -> SaseOrange
-                                }
-                                if (enrollResult is OfficialEnrollmentResult.Success) {
-                                    val confirmResult = PreApplicationViewModel.confirmInitialGroup(folio, group)
-                                    resultMessage = confirmResult.message
-                                    resultColor = when (confirmResult) {
+                            scope.launch {
+                                if (officialStudent != null) {
+                                    val result = PreApplicationViewModel.confirmInitialGroup(folio, group, actor = actor)
+                                    resultMessage = result.message
+                                    resultColor = when (result) {
                                         is OfficialEnrollmentResult.Success -> SaseGreen
                                         else -> SaseOrange
                                     }
-                                    if (confirmResult is OfficialEnrollmentResult.Success) {
-                                        toast("Grupo $group asignado")
+                                    if (result is OfficialEnrollmentResult.Success) {
+                                        toast("Grupo $group confirmado")
                                         onDismiss()
+                                    }
+                                } else {
+                                    val app = preApp
+                                    val enrollResult = PreApplicationViewModel.startOfficialEnrollment(app, group, actor = actor)
+                                    resultMessage = enrollResult.message
+                                    resultColor = when (enrollResult) {
+                                        is OfficialEnrollmentResult.Success -> SaseGreen
+                                        else -> SaseOrange
+                                    }
+                                    if (enrollResult is OfficialEnrollmentResult.Success) {
+                                        val confirmResult = PreApplicationViewModel.confirmInitialGroup(folio, group, actor = actor)
+                                        resultMessage = confirmResult.message
+                                        resultColor = when (confirmResult) {
+                                            is OfficialEnrollmentResult.Success -> SaseGreen
+                                            else -> SaseOrange
+                                        }
+                                        if (confirmResult is OfficialEnrollmentResult.Success) {
+                                            toast("Grupo $group asignado")
+                                            onDismiss()
+                                        }
                                     }
                                 }
                             }
@@ -1097,12 +1151,12 @@ fun StudentRecordScreen(
                             "Medio" -> SaseStatusVariant.WARNING
                             else -> SaseStatusVariant.SUCCESS
                         }
-                        SaseStatusChip(label = "Riesgo: ${student.riskLevel}", variant = riesgoVariant)
+                        SaseStatusChip(label = "Riesgo: ${student.riskLevel.orNoRegistrado()}", variant = riesgoVariant)
                         val bapVariant = if (student.bap == "Sí") SaseStatusVariant.INFORMATION else SaseStatusVariant.NEUTRAL
-                        SaseStatusChip(label = "BAP: ${student.bap}", variant = bapVariant)
-                        SaseStatusChip(label = "Seguro escolar: ${student.schoolInsurance}", variant = SaseStatusVariant.SUCCESS)
+                        SaseStatusChip(label = "BAP: ${student.bap.orNoRegistrado()}", variant = bapVariant)
+                        SaseStatusChip(label = "Seguro escolar: ${student.schoolInsurance.orNoRegistrado()}", variant = SaseStatusVariant.SUCCESS)
                         val docVariant = if (student.documentationStatus == "Completa") SaseStatusVariant.SUCCESS else SaseStatusVariant.WARNING
-                        SaseStatusChip(label = "Documentación: ${student.documentationStatus}", variant = docVariant)
+                        SaseStatusChip(label = "Documentación: ${student.documentationStatus.orNoRegistrado()}", variant = docVariant)
                     }
                 }
 
@@ -1134,11 +1188,11 @@ fun StudentRecordScreen(
     Text("Datos generales", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        DataRow(label = "Fecha de nacimiento", value = student.birthDate)
-                                        DataRow(label = "Edad", value = "${student.age} años")
-                                        DataRow(label = "Lugar de nacimiento", value = student.birthPlace)
-                                        DataRow(label = "Domicilio", value = student.address)
-                                        DataRow(label = "Código postal", value = student.zipCode)
+                                        DataRow(label = "Fecha de nacimiento", value = student.birthDate.orNoRegistrado())
+                                        DataRow(label = "Edad", value = if (student.age > 0) "${student.age} años" else "No registrado")
+                                        DataRow(label = "Lugar de nacimiento", value = student.birthPlace.orNoRegistrado())
+                                        DataRow(label = "Domicilio", value = student.address.orNoRegistrado())
+                                        DataRow(label = "Código postal", value = student.zipCode.orNoRegistrado())
                                     }
 
                                     // Contacts block
@@ -1206,10 +1260,10 @@ fun StudentRecordScreen(
     Text("Salud", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        DataRow(label = "Alergias", value = student.healthAlergies)
-                                        DataRow(label = "Observaciones médicas", value = student.healthNotes)
-                                        DataRow(label = "Medicamentos", value = student.healthMeds)
-                                        DataRow(label = "Pases de salud", value = student.healthPasses)
+                                        DataRow(label = "Alergias", value = student.healthAlergies.orNoRegistrado())
+                                        DataRow(label = "Observaciones médicas", value = student.healthNotes.orNoRegistrado())
+                                        DataRow(label = "Medicamentos", value = student.healthMeds.orNoRegistrado())
+                                        DataRow(label = "Pases de salud", value = student.healthPasses.orNoRegistrado())
                                     }
 
                                     // Incidents summary block
@@ -1266,10 +1320,10 @@ fun StudentRecordScreen(
     Text("Orientación y trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        DataRow(label = "Estado de seguimiento", value = student.orientationStatus)
-                                        DataRow(label = "Última cita", value = student.orientationLastAppointment)
-                                        DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan)
-                                        DataRow(label = "Responsable", value = student.orientationResponsible)
+                                        DataRow(label = "Estado de seguimiento", value = student.orientationStatus.orNoRegistrado())
+                                        DataRow(label = "Última cita", value = student.orientationLastAppointment.orNoRegistrado())
+                                        DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan.orNoRegistrado())
+                                        DataRow(label = "Responsable", value = student.orientationResponsible.orNoRegistrado())
                                     }
 
                                     // Documents block
@@ -1342,11 +1396,11 @@ fun StudentRecordScreen(
     Text("Datos generales", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                             Spacer(modifier = Modifier.height(10.dp))
-                                            DataRow(label = "Fecha de nacimiento", value = student.birthDate)
-                                            DataRow(label = "Edad", value = "${student.age} años")
-                                            DataRow(label = "Lugar de nacimiento", value = student.birthPlace)
-                                            DataRow(label = "Domicilio", value = student.address)
-                                            DataRow(label = "Código postal", value = student.zipCode)
+                                            DataRow(label = "Fecha de nacimiento", value = student.birthDate.orNoRegistrado())
+                                            DataRow(label = "Edad", value = if (student.age > 0) "${student.age} años" else "No registrado")
+                                            DataRow(label = "Lugar de nacimiento", value = student.birthPlace.orNoRegistrado())
+                                            DataRow(label = "Domicilio", value = student.address.orNoRegistrado())
+                                            DataRow(label = "Código postal", value = student.zipCode.orNoRegistrado())
                                         }
 
                                         // Contacts block
@@ -1420,10 +1474,10 @@ fun StudentRecordScreen(
     Text("Salud", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                             Spacer(modifier = Modifier.height(10.dp))
-                                            DataRow(label = "Alergias", value = student.healthAlergies)
-                                            DataRow(label = "Observaciones médicas", value = student.healthNotes)
-                                            DataRow(label = "Medicamentos", value = student.healthMeds)
-                                            DataRow(label = "Pases de salud", value = student.healthPasses)
+                                            DataRow(label = "Alergias", value = student.healthAlergies.orNoRegistrado())
+                                            DataRow(label = "Observaciones médicas", value = student.healthNotes.orNoRegistrado())
+                                            DataRow(label = "Medicamentos", value = student.healthMeds.orNoRegistrado())
+                                            DataRow(label = "Pases de salud", value = student.healthPasses.orNoRegistrado())
                                         }
                                     }
 
@@ -1481,10 +1535,10 @@ fun StudentRecordScreen(
     Text("Orientación y trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 14.sp)
 }
                                             Spacer(modifier = Modifier.height(10.dp))
-                                        DataRow(label = "Estado de seguimiento", value = student.orientationStatus)
-                                            DataRow(label = "Última cita", value = student.orientationLastAppointment)
-                                            DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan)
-                                            DataRow(label = "Responsable", value = student.orientationResponsible)
+                                        DataRow(label = "Estado de seguimiento", value = student.orientationStatus.orNoRegistrado())
+                                            DataRow(label = "Última cita", value = student.orientationLastAppointment.orNoRegistrado())
+                                            DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan.orNoRegistrado())
+                                            DataRow(label = "Responsable", value = student.orientationResponsible.orNoRegistrado())
                                         }
                                     }
 
@@ -1564,12 +1618,12 @@ fun StudentRecordScreen(
                                 if (!hasOfficialEnrollment(student.enrollmentId, student.curp)) {
                                     DataRow(label = "Estado de matrícula", value = enrollmentPendingReason(student.curp))
                                 }
-                                DataRow(label = "Fecha de nacimiento", value = student.birthDate)
-                                DataRow(label = "Edad", value = "${student.age} años")
-                                DataRow(label = "Lugar de nacimiento", value = student.birthPlace)
-                                DataRow(label = "Domicilio familiar", value = student.address)
-                                DataRow(label = "Código postal", value = student.zipCode)
-                                DataRow(label = "Estado del seguro escolar", value = student.schoolInsurance)
+                                DataRow(label = "Fecha de nacimiento", value = student.birthDate.orNoRegistrado())
+                                DataRow(label = "Edad", value = if (student.age > 0) "${student.age} años" else "No registrado")
+                                DataRow(label = "Lugar de nacimiento", value = student.birthPlace.orNoRegistrado())
+                                DataRow(label = "Domicilio familiar", value = student.address.orNoRegistrado())
+                                DataRow(label = "Código postal", value = student.zipCode.orNoRegistrado())
+                                DataRow(label = "Estado del seguro escolar", value = student.schoolInsurance.orNoRegistrado())
                                 DataRow(label = "Expediente auditado", value = "Sí, por Secretaría")
                             }
                         }
@@ -1611,13 +1665,13 @@ fun StudentRecordScreen(
                                 DataRow(label = "Faltas justificadas", value = student.excusedAbsences.toString())
                                 DataRow(label = "Faltas injustificadas", value = student.unexcusedAbsences.toString())
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = SaseBorder.copy(alpha = 0.12f))
-                                DataRow(label = "Alergias", value = student.healthAlergies)
-                                DataRow(label = "Medicamentos", value = student.healthMeds)
-                                DataRow(label = "Observaciones médicas", value = student.healthNotes)
+                                DataRow(label = "Alergias", value = student.healthAlergies.orNoRegistrado())
+                                DataRow(label = "Medicamentos", value = student.healthMeds.orNoRegistrado())
+                                DataRow(label = "Observaciones médicas", value = student.healthNotes.orNoRegistrado())
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = SaseBorder.copy(alpha = 0.12f))
-                                DataRow(label = "Estado de seguimiento", value = student.orientationStatus)
-                                DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan)
-                                DataRow(label = "Responsable de orientación", value = student.orientationResponsible)
+                                DataRow(label = "Estado de seguimiento", value = student.orientationStatus.orNoRegistrado())
+                                DataRow(label = "Plan de intervención", value = student.orientationInterventionPlan.orNoRegistrado())
+                                DataRow(label = "Responsable de orientación", value = student.orientationResponsible.orNoRegistrado())
                             }
                         }
 
@@ -1674,8 +1728,10 @@ fun StudentRecordScreen(
                                                             fontWeight = FontWeight.Bold,
                                                             fontSize = 10.sp,
                                                             modifier = Modifier.clickable {
-                                                                if (!viewModel.advanceIncident(student.id, incident.id, "")) {
-                                                                    toast("No se pudo avanzar la incidencia")
+                                                                scope.launch {
+                                                                    if (!viewModel.advanceIncident(student.id, incident.id, "").isCommitted) {
+                                                                        toast("No se pudo avanzar la incidencia")
+                                                                    }
                                                                 }
                                                             }
                                                         )
@@ -1692,10 +1748,10 @@ fun StudentRecordScreen(
                             SaseCard(modifier = Modifier.fillMaxWidth()) {
                                 Text("Historial médico y salud del Alumno", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
-                                DataRow(label = "Alergias severas", value = student.healthAlergies)
-                                DataRow(label = "Medicamentos de uso diario", value = student.healthMeds)
-                                DataRow(label = "Historial o pases de emergencia", value = student.healthPasses)
-                                DataRow(label = "Notas clínicas generales", value = student.healthNotes)
+                                DataRow(label = "Alergias severas", value = student.healthAlergies.orNoRegistrado())
+                                DataRow(label = "Medicamentos de uso diario", value = student.healthMeds.orNoRegistrado())
+                                DataRow(label = "Historial o pases de emergencia", value = student.healthPasses.orNoRegistrado())
+                                DataRow(label = "Notas clínicas generales", value = student.healthNotes.orNoRegistrado())
                             }
                         }
 
@@ -1703,10 +1759,10 @@ fun StudentRecordScreen(
                             SaseCard(modifier = Modifier.fillMaxWidth()) {
                                 Text("Bitácora de Orientación y Trabajo social", fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
-                                DataRow(label = "Estatus escolar", value = student.orientationStatus)
-                                DataRow(label = "Fecha de última sesión", value = student.orientationLastAppointment)
-                                DataRow(label = "Plan remedial de intervención", value = student.orientationInterventionPlan)
-                                DataRow(label = "Psicólogo/Orientador responsable", value = student.orientationResponsible)
+                                DataRow(label = "Estatus escolar", value = student.orientationStatus.orNoRegistrado())
+                                DataRow(label = "Fecha de última sesión", value = student.orientationLastAppointment.orNoRegistrado())
+                                DataRow(label = "Plan remedial de intervención", value = student.orientationInterventionPlan.orNoRegistrado())
+                                DataRow(label = "Psicólogo/Orientador responsable", value = student.orientationResponsible.orNoRegistrado())
                             }
                         }
 
@@ -1883,12 +1939,14 @@ fun StudentRecordScreen(
                             text = "Registrar",
                             onClick = {
                                 if (incDesc.isNotBlank()) {
-                                    if (viewModel.reportIncident(student.id, incType, incDesc)) {
-                                        showIncidentDialog = false
-                                        incDesc = ""
-                                        toast("Incidencia registrada")
-                                    } else {
-                                        toast("No hay sesión activa para registrar la incidencia")
+                                    scope.launch {
+                                        if (viewModel.reportIncident(student.id, incType, incDesc).isCommitted) {
+                                            showIncidentDialog = false
+                                            incDesc = ""
+                                            toast("Incidencia registrada")
+                                        } else {
+                                            toast("No se pudo registrar la incidencia")
+                                        }
                                     }
                                 } else {
                                     toast("Favor de agregar descripción")
@@ -1969,12 +2027,14 @@ fun StudentRecordScreen(
                             text = "Agregar",
                             onClick = {
                                 if (obsText.isNotBlank()) {
-                                    if (viewModel.addObservation(student.id, obsText, obsCategory)) {
-                                        showObsDialog = false
-                                        obsText = ""
-                                        toast("Observación registrada")
-                                    } else {
-                                        toast("No hay sesión activa para registrar la observación")
+                                    scope.launch {
+                                        if (viewModel.addObservation(student.id, obsText, obsCategory).isCommitted) {
+                                            showObsDialog = false
+                                            obsText = ""
+                                            toast("Observación registrada")
+                                        } else {
+                                            toast("No se pudo registrar la observación")
+                                        }
                                     }
                                 } else {
                                     toast("Favor de agregar observaciones")
@@ -2024,12 +2084,14 @@ fun StudentRecordScreen(
                             text = "Escalar Caso",
                             onClick = {
                                 if (escalarNotes.isNotBlank()) {
-                                    if (viewModel.escalateCase(student.id)) {
-                                        showEscalarDialog = false
-                                        escalarNotes = ""
-                                        toast("Caso escalado con éxito.")
-                                    } else {
-                                        toast("Tu sesión no autoriza escalar este caso.")
+                                    scope.launch {
+                                        if (viewModel.escalateCase(student.id)) {
+                                            showEscalarDialog = false
+                                            escalarNotes = ""
+                                            toast("Caso escalado con éxito.")
+                                        } else {
+                                            toast("No se pudo escalar el caso.")
+                                        }
                                     }
                                 } else {
                                     toast("Favor de agregar motivo")

@@ -31,6 +31,7 @@ import com.example.data.MockSaseData
 import com.example.data.presolicitud.*
 import com.example.ui.*
 import com.example.util.LocalToast
+import com.example.data.repository.PreApplicationUpdateResult
 import com.example.viewmodel.LabViewModel
 
 import com.example.viewmodel.InstitutionalAnnualEnrollmentResult
@@ -91,8 +92,13 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                     viewModel = viewModel,
                     onBack = { selectedFolio = null },
                     onApprove = { folio ->
-                        PreApplicationViewModel.approvePreApplication(folio)
-                        toast("Pre-solicitud $folio aceptada — pendiente alta oficial")
+                        scope.launch {
+                            if (PreApplicationViewModel.approvePreApplication(folio) is PreApplicationUpdateResult.Updated) {
+                                toast("Pre-solicitud $folio aceptada — pendiente alta oficial")
+                            } else {
+                                toast("No fue posible aceptar la pre-solicitud. Intenta de nuevo.")
+                            }
+                        }
                     },
                     onProvisionalCreated = { msg -> provisionalResult = msg; showProvisionalDialog = true },
                     docTabRequestedFolio = docTabRequestedFolio,
@@ -220,8 +226,13 @@ fun SecretariaPreApplicationDashboardScreen(viewModel: LabViewModel) {
                                 preApp = selectedApp,
                                 viewModel = viewModel,
                                 onApprove = { folio ->
-                                    PreApplicationViewModel.approvePreApplication(folio)
-                                    toast("Pre-solicitud $folio aceptada — pendiente alta oficial")
+                                    scope.launch {
+                                        if (PreApplicationViewModel.approvePreApplication(folio) is PreApplicationUpdateResult.Updated) {
+                                            toast("Pre-solicitud $folio aceptada — pendiente alta oficial")
+                                        } else {
+                                            toast("No fue posible aceptar la pre-solicitud. Intenta de nuevo.")
+                                        }
+                                    }
                                 },
                                 onProvisionalCreated = { msg -> provisionalResult = msg; showProvisionalDialog = true },
                                 docTabRequestedFolio = docTabRequestedFolio,
@@ -469,13 +480,13 @@ private fun PreApplicationDetailTabs(
             PhotoPlaceholderBox(
                 label = "Foto alumno",
                 photoUrl = photoState?.studentPhotoMockUrl,
-                onCapture = { PreApplicationViewModel.simulateCaptureStudentPhoto(preApp.folio) },
+                onCapture = { scope.launch { PreApplicationViewModel.simulateCaptureStudentPhoto(preApp.folio) } },
                 modifier = Modifier.weight(1f)
             )
             PhotoPlaceholderBox(
                 label = "Foto responsable",
                 photoUrl = photoState?.responsablePhotoMockUrl,
-                onCapture = { PreApplicationViewModel.simulateCaptureResponsablePhoto(preApp.folio) },
+                onCapture = { scope.launch { PreApplicationViewModel.simulateCaptureResponsablePhoto(preApp.folio) } },
                 modifier = Modifier.weight(1f)
             )
         }
@@ -660,6 +671,7 @@ private fun CurpCorrectionDialog(
     onDismiss: () -> Unit
 ) {
     val toast = LocalToast.current
+    val scope = rememberCoroutineScope()
     var curpEdit by remember(folio) { mutableStateOf(currentCurp) }
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = SaseNavy,
@@ -714,9 +726,14 @@ private fun CurpCorrectionDialog(
                                 if (duplicate != null) {
                                     toast("CURP ya registrada: $duplicate")
                                 } else {
-                                    PreApplicationViewModel.updatePreApplicationCurp(folio, candidate)
-                                    toast("CURP actualizada: $candidate")
-                                    onDismiss()
+                                    scope.launch {
+                                        if (PreApplicationViewModel.updatePreApplicationCurp(folio, candidate) is PreApplicationUpdateResult.Updated) {
+                                            toast("CURP actualizada: $candidate")
+                                            onDismiss()
+                                        } else {
+                                            toast("No fue posible actualizar la CURP. Intenta de nuevo.")
+                                        }
+                                    }
                                 }
                             }
                         },
@@ -736,6 +753,7 @@ private fun EditPreApplicationDialog(
     onDismiss: () -> Unit
 ) {
     val toast = LocalToast.current
+    val scope = rememberCoroutineScope()
     val expectedSnapshot = remember(preApp.folio) { preApp.administrativeDataSnapshot() }
     var telefonoEdit by remember(preApp.folio) { mutableStateOf(preApp.alumnoTelefonoCasa) }
     var domicilioEdit by remember(preApp.folio) { mutableStateOf(preApp.alumnoDomicilio) }
@@ -789,60 +807,65 @@ private fun EditPreApplicationDialog(
                     }
                     Button(
                         onClick = {
-                            val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
-                                UpdatePreApplicationAdministrativeDataRequest(
-                                    folio = preApp.folio,
-                                    expected = expectedSnapshot,
-                                    changes = PreApplicationAdministrativeChanges(
-                                        phone = PreApplicationAdministrativeFieldChange.Replace(telefonoEdit),
-                                        address = PreApplicationAdministrativeFieldChange.Replace(domicilioEdit)
+                            scope.launch {
+                                val result = PreApplicationViewModel.updatePreApplicationAdministrativeData(
+                                    UpdatePreApplicationAdministrativeDataRequest(
+                                        folio = preApp.folio,
+                                        expected = expectedSnapshot,
+                                        changes = PreApplicationAdministrativeChanges(
+                                            phone = PreApplicationAdministrativeFieldChange.Replace(telefonoEdit),
+                                            address = PreApplicationAdministrativeFieldChange.Replace(domicilioEdit)
+                                        )
                                     )
                                 )
-                            )
-                            when (result) {
-                                is UpdatePreApplicationAdministrativeDataResult.Updated -> {
-                                    val fields = result.changedFields.map { field ->
-                                        when (field) {
-                                            PreApplicationAdministrativeField.PHONE -> "teléfono"
-                                            PreApplicationAdministrativeField.ADDRESS -> "domicilio"
-                                        }
-                                    }.joinToString(" y ")
-                                    toast("Cambios guardados: $fields")
-                                    onDismiss()
-                                }
-                                UpdatePreApplicationAdministrativeDataResult.NoChanges -> {
-                                    toast("No hay cambios para guardar")
-                                    onDismiss()
-                                }
-                                is UpdatePreApplicationAdministrativeDataResult.Invalid -> {
-                                    val errors = result.errors.map { (field, error) ->
-                                        val fieldLabel = when (field) {
-                                            PreApplicationAdministrativeField.PHONE -> "Teléfono"
-                                            PreApplicationAdministrativeField.ADDRESS -> "Domicilio"
-                                        }
-                                        val errorLabel = when (error) {
-                                            PreApplicationAdministrativeValidationError.REQUIRED -> "es obligatorio"
-                                            PreApplicationAdministrativeValidationError.INVALID_FORMAT -> "tiene formato inválido"
-                                        }
-                                        "$fieldLabel $errorLabel"
-                                    }.joinToString(". ")
-                                    toast(errors)
-                                }
-                                UpdatePreApplicationAdministrativeDataResult.NotFound -> {
-                                    toast("No se encontró la pre-solicitud")
-                                }
-                                is UpdatePreApplicationAdministrativeDataResult.Conflict -> {
-                                    val message = when (result.reason) {
-                                        PreApplicationAdministrativeConflictReason.STALE_DATA ->
-                                            "Los datos cambiaron. Cierra y vuelve a abrir para reintentar"
-                                        PreApplicationAdministrativeConflictReason.NOT_EDITABLE ->
-                                            "La pre-solicitud ya no permite correcciones"
-                                        PreApplicationAdministrativeConflictReason.OFFICIAL_ENROLLMENT_EXISTS ->
-                                            "No se puede corregir: el alta oficial ya existe"
-                                        PreApplicationAdministrativeConflictReason.AMBIGUOUS_FOLIO ->
-                                            "No se puede corregir: el folio está duplicado"
+                                when (result) {
+                                    is UpdatePreApplicationAdministrativeDataResult.Updated -> {
+                                        val fields = result.changedFields.map { field ->
+                                            when (field) {
+                                                PreApplicationAdministrativeField.PHONE -> "teléfono"
+                                                PreApplicationAdministrativeField.ADDRESS -> "domicilio"
+                                            }
+                                        }.joinToString(" y ")
+                                        toast("Cambios guardados: $fields")
+                                        onDismiss()
                                     }
-                                    toast(message)
+                                    UpdatePreApplicationAdministrativeDataResult.NoChanges -> {
+                                        toast("No hay cambios para guardar")
+                                        onDismiss()
+                                    }
+                                    is UpdatePreApplicationAdministrativeDataResult.Invalid -> {
+                                        val errors = result.errors.map { (field, error) ->
+                                            val fieldLabel = when (field) {
+                                                PreApplicationAdministrativeField.PHONE -> "Teléfono"
+                                                PreApplicationAdministrativeField.ADDRESS -> "Domicilio"
+                                            }
+                                            val errorLabel = when (error) {
+                                                PreApplicationAdministrativeValidationError.REQUIRED -> "es obligatorio"
+                                                PreApplicationAdministrativeValidationError.INVALID_FORMAT -> "tiene formato inválido"
+                                            }
+                                            "$fieldLabel $errorLabel"
+                                        }.joinToString(". ")
+                                        toast(errors)
+                                    }
+                                    UpdatePreApplicationAdministrativeDataResult.NotFound -> {
+                                        toast("No se encontró la pre-solicitud")
+                                    }
+                                    is UpdatePreApplicationAdministrativeDataResult.Conflict -> {
+                                        val message = when (result.reason) {
+                                            PreApplicationAdministrativeConflictReason.STALE_DATA ->
+                                                "Los datos cambiaron. Cierra y vuelve a abrir para reintentar"
+                                            PreApplicationAdministrativeConflictReason.NOT_EDITABLE ->
+                                                "La pre-solicitud ya no permite correcciones"
+                                            PreApplicationAdministrativeConflictReason.OFFICIAL_ENROLLMENT_EXISTS ->
+                                                "No se puede corregir: el alta oficial ya existe"
+                                            PreApplicationAdministrativeConflictReason.AMBIGUOUS_FOLIO ->
+                                                "No se puede corregir: el folio está duplicado"
+                                        }
+                                        toast(message)
+                                    }
+                                    is UpdatePreApplicationAdministrativeDataResult.BackendFailure -> {
+                                        toast("No fue posible guardar los cambios. Intenta de nuevo.")
+                                    }
                                 }
                             }
                         },
@@ -994,6 +1017,7 @@ private fun OfficialEnrollmentReadinessCard(
     onOpenExistingStudent: () -> Unit = {},
     onCorrectCurp: () -> Unit = {}
 ) {
+    val scope = rememberCoroutineScope()
     val isReadyByChecklist = pendingItems.isEmpty()
     val isPersistedReady = preApp.readinessStatus == ReadinessStatus.READY
     val isConverted = preApp.readinessStatus == ReadinessStatus.CONVERTED
@@ -1118,9 +1142,11 @@ private fun OfficialEnrollmentReadinessCard(
         if (!officialStarted && !isPersistedReady && !isCurpBlocked) {
             OutlinedButton(
                 onClick = {
-                    val result = PreApplicationViewModel.markReadyForOfficialEnrollment(preApp.folio)
-                    readinessMessage = result.message
-                    readinessColor = result.toUiColor()
+                    scope.launch {
+                        val result = PreApplicationViewModel.markReadyForOfficialEnrollment(preApp.folio)
+                        readinessMessage = result.message
+                        readinessColor = result.toUiColor()
+                    }
                 },
                 enabled = isReadyByChecklist,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = SaseGreen),
@@ -1367,7 +1393,7 @@ private fun OfficialEnrollmentContextualPanel(
         if (panelPresentation.showProcessAction && actionPresentation.showLegacyStartAction && officialStudent == null && curpDuplicate == null) {
             Button(
                 onClick = {
-                    val enrollmentResult = PreApplicationViewModel.startOfficialEnrollment(preApp, selectedGroup)
+                    val enrollmentResult = PreApplicationViewModel.startOfficialEnrollment(preApp, selectedGroup, actor = staffName)
                     resultMessage = enrollmentResult.message
                     resultColor = enrollmentResult.toUiColor()
                 },
@@ -1387,9 +1413,11 @@ private fun OfficialEnrollmentContextualPanel(
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(
                     onClick = {
-                        val confirmResult = PreApplicationViewModel.confirmInitialGroup(preApp.folio, selectedGroup)
-                        resultMessage = confirmResult.message
-                        resultColor = confirmResult.toUiColor()
+                        scope.launch {
+                            val confirmResult = PreApplicationViewModel.confirmInitialGroup(preApp.folio, selectedGroup, actor = staffName)
+                            resultMessage = confirmResult.message
+                            resultColor = confirmResult.toUiColor()
+                        }
                     },
                     enabled = groupConfirmed && selectedGroup.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(containerColor = SaseNavy, contentColor = Color.White),
@@ -1678,6 +1706,14 @@ private fun PhotoPlaceholderBox(
 @Composable
 private fun DocumentosTab(preApp: PreApplication, highlightDoc: String? = null) {
     val toast = LocalToast.current
+    val scope = rememberCoroutineScope()
+    fun runDocumentAction(action: suspend () -> PreApplicationUpdateResult) {
+        scope.launch {
+            if (action() !is PreApplicationUpdateResult.Updated) {
+                toast("No fue posible guardar el cambio en el documento. Intenta de nuevo.")
+            }
+        }
+    }
     var obsDialogDoc by remember(preApp.folio) { mutableStateOf<String?>(null) }
     var obsDraft by remember { mutableStateOf("") }
 
@@ -1707,7 +1743,7 @@ private fun DocumentosTab(preApp: PreApplication, highlightDoc: String? = null) 
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
-                                PreApplicationViewModel.setDocumentObservacion(preApp.folio, docNombre, obsDraft)
+                                runDocumentAction { PreApplicationViewModel.setDocumentObservacion(preApp.folio, docNombre, obsDraft) }
                                 obsDialogDoc = null
                             },
                             enabled = obsDraft.isNotBlank(),
@@ -1807,15 +1843,15 @@ private fun DocumentosTab(preApp: PreApplication, highlightDoc: String? = null) 
                 if (noAplica || validado) {
                     // No actions needed
                 } else if (rechazado) {
-                    ActionChip("Cotejar", SaseBlue) { PreApplicationViewModel.toggleDocumentCotejado(preApp.folio, doc.nombre) }
+                    ActionChip("Cotejar", SaseBlue) { runDocumentAction { PreApplicationViewModel.toggleDocumentCotejado(preApp.folio, doc.nombre) } }
                 } else if (cotejado) {
-                    ActionChip("Validar", SaseGreen) { PreApplicationViewModel.markDocumentValidado(preApp.folio, doc.nombre) }
-                    ActionChip("Rechazar", SaseRed) { PreApplicationViewModel.markDocumentRechazado(preApp.folio, doc.nombre) }
+                    ActionChip("Validar", SaseGreen) { runDocumentAction { PreApplicationViewModel.markDocumentValidado(preApp.folio, doc.nombre) } }
+                    ActionChip("Rechazar", SaseRed) { runDocumentAction { PreApplicationViewModel.markDocumentRechazado(preApp.folio, doc.nombre) } }
                 } else if (declarado) {
-                    ActionChip("Cotejar", SaseBlue) { PreApplicationViewModel.toggleDocumentCotejado(preApp.folio, doc.nombre) }
-                    ActionChip("No aplica", SaseOrange) { PreApplicationViewModel.markDocumentNoAplica(preApp.folio, doc.nombre) }
+                    ActionChip("Cotejar", SaseBlue) { runDocumentAction { PreApplicationViewModel.toggleDocumentCotejado(preApp.folio, doc.nombre) } }
+                    ActionChip("No aplica", SaseOrange) { runDocumentAction { PreApplicationViewModel.markDocumentNoAplica(preApp.folio, doc.nombre) } }
                 } else {
-                    ActionChip("No aplica", SaseOrange) { PreApplicationViewModel.markDocumentNoAplica(preApp.folio, doc.nombre) }
+                    ActionChip("No aplica", SaseOrange) { runDocumentAction { PreApplicationViewModel.markDocumentNoAplica(preApp.folio, doc.nombre) } }
                 }
             }
         }
@@ -1867,6 +1903,7 @@ private fun RevisionTab(
     reviewObservations: List<PreApplicationViewModel.Companion.SecretariaReviewObservation>
 ) {
     val toast = LocalToast.current
+    val scope = rememberCoroutineScope()
     val categories = listOf("Documentos", "Fotos", "Contacto responsable")
     var selectedCategory by remember(preApp.folio) { mutableStateOf(categories.first()) }
     var observationDraft by remember(preApp.folio) { mutableStateOf(preApp.observacionesSecretaria) }
@@ -1915,9 +1952,14 @@ private fun RevisionTab(
     Spacer(modifier = Modifier.height(8.dp))
     Button(
         onClick = {
-            PreApplicationViewModel.setObservaciones(preApp.folio, observationDraft)
-            PreApplicationViewModel.addReviewObservation(preApp.folio, selectedCategory, observationDraft)
-            observationDraft = ""
+            scope.launch {
+                if (PreApplicationViewModel.setObservaciones(preApp.folio, observationDraft) is PreApplicationUpdateResult.Updated) {
+                    PreApplicationViewModel.addReviewObservation(preApp.folio, selectedCategory, observationDraft)
+                    observationDraft = ""
+                } else {
+                    toast("No fue posible guardar la observación. Intenta de nuevo.")
+                }
+            }
         },
         enabled = observationDraft.isNotBlank(),
         colors = ButtonDefaults.buttonColors(containerColor = SaseBlue),

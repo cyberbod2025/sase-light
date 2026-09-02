@@ -1,5 +1,6 @@
 package com.example
 
+import com.example.data.MockSaseData
 import com.example.environment.AppEnvironment
 import com.example.environment.AppEnvironmentMode
 import kotlin.test.Test
@@ -43,6 +44,50 @@ class SaseCompositionRootTest {
         val ready = assertIs<SaseBootstrap.Ready>(bootstrap)
 
         assertFalse(ready.viewModel.demoAccessAvailable)
+    }
+
+    @Test
+    fun stagingNeverServesTheInMemoryStudentOrAuditData() {
+        MockSaseData.resetForTests()
+        // Referencia: el almacenamiento demo si trae expedientes sembrados.
+        assertTrue(
+            MockSaseData.students.value.isNotEmpty(),
+            "la referencia del test exige que el mock tenga datos"
+        )
+
+        val ready = assertIs<SaseBootstrap.Ready>(
+            SaseCompositionRoot.create(
+                mapOf(
+                    AppEnvironment.ENVIRONMENT_KEY to AppEnvironmentMode.SUPABASE_STAGING.name,
+                    AppEnvironment.APP_VERSION_KEY to "test",
+                    AppEnvironment.SUPABASE_URL_KEY to "https://project-ref.supabase.co",
+                    AppEnvironment.SUPABASE_PUBLISHABLE_KEY to "publishable-test-key"
+                )
+            )
+        )
+
+        // Conectado y sin sesion: cero expedientes y cero bitacora. Si el
+        // cableado caia a los mocks, aqui apareceria el alumnado sembrado.
+        assertTrue(
+            ready.viewModel.saseStudents.value.isEmpty(),
+            "SUPABASE_STAGING no puede exponer expedientes demo"
+        )
+        assertTrue(
+            ready.viewModel.saseAudits.value.isEmpty(),
+            "SUPABASE_STAGING no puede exponer bitacora demo"
+        )
+    }
+
+    @Test
+    fun demoLocalKeepsServingTheInMemoryRepositories() {
+        MockSaseData.resetForTests()
+
+        val ready = assertIs<SaseBootstrap.Ready>(
+            SaseCompositionRoot.create(AppEnvironment.demoLocal("test"))
+        )
+
+        assertEquals(MockSaseData.students.value, ready.viewModel.saseStudents.value)
+        assertTrue(ready.viewModel.saseStudents.value.isNotEmpty())
     }
 
     @Test

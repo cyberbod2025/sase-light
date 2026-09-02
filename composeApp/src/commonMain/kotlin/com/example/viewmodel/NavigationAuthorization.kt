@@ -29,11 +29,8 @@ fun screenArea(screen: Screen): SaseArea? = when (screen) {
     is Screen.OfficialEnrollmentDashboard -> SaseArea.ALTA_OFICIAL
     is Screen.CredentialPreview -> SaseArea.CREDENCIAL
     is Screen.StudentCredentialDashboard -> SaseArea.CREDENCIAL
-    // Portal de la familia: pensado como acceso publico (URL/QR) sin sesion
-    // de staff, pero SaseAppContent todavia lo gatea igual que el resto de
-    // Screen detras del login. No tiene area institucional de staff; se
-    // niega aqui explicitamente para no fingir una autorizacion que la
-    // compuerta real no otorga todavia (ver canOpenScreenDeniesFamilyPortalCase).
+    // Portal publico de la familia. No pertenece a un area institucional de
+    // staff y solo se autoriza cuando no hay una sesion institucional activa.
     is Screen.PreApplicationFamilyPortal -> null
 }
 
@@ -43,6 +40,7 @@ fun screenArea(screen: Screen): SaseArea? = when (screen) {
  * No consulta ningun selector de rol paralelo a la sesion.
  */
 fun canOpenScreen(session: AuthSession?, screen: Screen): Boolean {
+    if (screen is Screen.PreApplicationFamilyPortal) return session == null
     val area = screenArea(screen) ?: return false
     return StaffPermissions.canAccess(session, area)
 }
@@ -54,6 +52,7 @@ fun canOpenScreen(session: AuthSession?, screen: Screen): Boolean {
  * UI falle cerrada sin mostrar contenido institucional.
  */
 fun authorizedScreenFor(session: AuthSession?, requestedScreen: Screen): Screen? {
+    if (session == null) return requestedScreen.takeIf { canOpenScreen(null, it) }
     val activeSession = session?.takeIf { it.profile.active } ?: return null
     if (canOpenScreen(session, requestedScreen)) return requestedScreen
     return homeScreenFor(activeSession)
@@ -81,6 +80,7 @@ val secretarySidebarItemNames: List<String> = listOf(
  * bloqueada por el guard de M3, no es una restriccion nueva de este item.
  */
 fun visibleSidebarItems(session: AuthSession?): List<String> =
+    if (session == null) emptyList() else
     secretarySidebarItemNames.filter { item ->
         secretarySidebarDestination(item)?.let { screen -> canOpenScreen(session, screen) } ?: false
     }

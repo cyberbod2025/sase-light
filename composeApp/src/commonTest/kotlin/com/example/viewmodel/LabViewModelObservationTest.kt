@@ -61,7 +61,7 @@ class LabViewModelObservationTest {
 
         val ok = vm.addObservation(student.id, "Requiere apoyo en matematicas", "Académica")
 
-        assertTrue(ok)
+        assertTrue(ok.isCommitted)
         val updated = vm.saseStudents.value.single { it.id == student.id }
         val obs = updated.observations.first()
         assertEquals("Secretaría Demo", obs.author)
@@ -75,7 +75,7 @@ class LabViewModelObservationTest {
 
         val ok = vm.addObservation(student.id, "Nota sin sesion", "Académica")
 
-        assertFalse(ok)
+        assertFalse(ok.isCommitted)
         val updated = vm.saseStudents.value.single { it.id == student.id }
         assertTrue(updated.observations.isEmpty())
     }
@@ -88,7 +88,7 @@ class LabViewModelObservationTest {
 
         val ok = vm.addObservation(student.id, "Nota no autorizada", "Académica")
 
-        assertFalse(ok)
+        assertFalse(ok.isCommitted)
         val updated = vm.saseStudents.value.single { it.id == student.id }
         assertTrue(updated.observations.isEmpty())
         val audit = vm.saseAudits.value.first()

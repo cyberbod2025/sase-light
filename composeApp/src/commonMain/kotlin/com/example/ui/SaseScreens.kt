@@ -49,6 +49,9 @@ import com.example.viewmodel.authorizedScreenFor
 import com.example.viewmodel.enrollmentValidationDestination
 import com.example.viewmodel.secretarySidebarItemNames
 import com.example.viewmodel.visibleSidebarItems
+import com.example.data.auth.SaseArea
+import com.example.data.auth.StaffPermissions
+import com.example.data.auth.institutionalLabel
 import com.example.ui.presolicitud.SecretariaPreApplicationDashboardScreen
 import com.example.ui.presolicitud.SectionHeader
 import com.example.ui.presolicitud.DetailRow
@@ -228,6 +231,7 @@ fun SaseSidebar(
     visibleItems: List<String>,
     modifier: Modifier = Modifier,
     collapsed: Boolean = false,
+    roleLabel: String = "Secretaría",
     onItemClick: (String) -> Unit = {},
     onToggleCollapse: () -> Unit = {}
 ) {
@@ -367,7 +371,7 @@ fun SaseSidebar(
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
-                        text = "Secretaría",
+                        text = roleLabel,
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
@@ -646,6 +650,9 @@ fun SecretaryDashboardScreen(
     val students by viewModel.saseStudents.collectAsState()
     val session by viewModel.session.collectAsState()
     val sidebarItems = visibleSidebarItems(session)
+    // Alcance del propio dashboard: el alta de expediente vive en un diálogo
+    // fuera del BoxWithConstraints, y su guardado ahora viaja por red.
+    val dashboardScope = rememberCoroutineScope()
 
     var showNewStudentDialog by remember { mutableStateOf(false) }
     var newStudentName by remember { mutableStateOf("") }
@@ -747,6 +754,9 @@ fun SecretaryDashboardScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // El destino real es Pre-Solicitudes: un rol sin esa área nunca
+                // debe ver un botón que navigateTo() descartaría en silencio.
+                if (StaffPermissions.canAccess(session, SaseArea.PRE_SOLICITUD)) {
                 Button(
                     onClick = { viewModel.navigateTo(enrollmentValidationDestination()) },
                     colors = ButtonDefaults.buttonColors(containerColor = SaseGreen, contentColor = Color.White),
@@ -756,6 +766,7 @@ fun SecretaryDashboardScreen(
                     Icon(Icons.Default.Verified, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Validar Inscripción", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
@@ -804,6 +815,7 @@ fun SecretaryDashboardScreen(
                             modifier = Modifier.fillMaxHeight(),
                             collapsed = false,
                             visibleItems = sidebarItems,
+                            roleLabel = session?.activeRole?.institutionalLabel() ?: "Secretaría",
                             onItemClick = { item ->
                                 navigateFromSidebarDash(item)
                                 scope.launch { drawerState.close() }
@@ -820,6 +832,7 @@ fun SecretaryDashboardScreen(
                     activeItem = if (recordsOnly) "Expedientes" else "Inicio",
                     collapsed = sidebarCollapsed,
                     visibleItems = sidebarItems,
+                    roleLabel = session?.activeRole?.institutionalLabel() ?: "Secretaría",
                     onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
                     modifier = Modifier.fillMaxHeight(),
                     onItemClick = navigateFromSidebarDash
@@ -918,22 +931,41 @@ fun SecretaryDashboardScreen(
                                             riskLevel = "Bajo",
                                             documentationStatus = "Completa"
                                         )
-                                        when (val addResult = viewModel.addStudent(std)) {
-                                            is StudentAddResult.Added -> {
-                                                showNewStudentDialog = false
-                                                newStudentName = ""
-                                                newStudentCurp = ""
-                                                newStudentTutor = ""
-                                                toast("Expediente registrado. Matrícula pendiente de alta oficial.")
-                                            }
-                                            is StudentAddResult.DuplicateCurp -> {
-                                                toast("Ya existe un alumno con esta CURP.")
-                                            }
-                                            is StudentAddResult.DuplicateEnrollmentId -> {
-                                                toast("Ya existe un alumno con esta matrícula.")
-                                            }
-                                            is StudentAddResult.InvalidData -> {
-                                                toast(addResult.message)
+                                        dashboardScope.launch {
+                                            when (val addResult = viewModel.addStudent(std)) {
+                                                is StudentAddResult.Added -> {
+                                                    showNewStudentDialog = false
+                                                    newStudentName = ""
+                                                    newStudentCurp = ""
+                                                    newStudentTutor = ""
+                                                    toast("Expediente registrado. Matrícula pendiente de alta oficial.")
+                                                }
+                                                is StudentAddResult.DuplicateCurp -> {
+                                                    toast("Ya existe un alumno con esta CURP.")
+                                                }
+                                                is StudentAddResult.DuplicateEnrollmentId -> {
+                                                    toast("Ya existe un alumno con esta matrícula.")
+                                                }
+                                                is StudentAddResult.InvalidData -> {
+                                                    toast(addResult.message)
+                                                }
+                                                // El expediente NO quedó guardado: nunca
+                                                // se confirma un alta que el backend rechazó.
+                                                is StudentAddResult.Failed -> {
+                                                    toast(institutionalFailureMessage(addResult.reason))
+                                                }
+                                                // El expediente SI quedo guardado; solo la
+                                                // bitacora no se asento. Se confirma el alta
+                                                // y se advierte por separado, sin invitar a
+                                                // un reintento que chocaria con la CURP ya
+                                                // creada.
+                                                is StudentAddResult.CommittedWithoutAudit -> {
+                                                    showNewStudentDialog = false
+                                                    newStudentName = ""
+                                                    newStudentCurp = ""
+                                                    newStudentTutor = ""
+                                                    toast("Expediente registrado, pero la bitácora institucional no se pudo asentar. Verifica el registro de auditoría.")
+                                                }
                                             }
                                         }
                                     } else {
@@ -1264,6 +1296,7 @@ fun EnrollmentDashboardScreen(
                             modifier = Modifier.fillMaxHeight(),
                             collapsed = false,
                             visibleItems = sidebarItems,
+                            roleLabel = session?.activeRole?.institutionalLabel() ?: "Secretaría",
                             onItemClick = { item ->
                                 navigateFromSidebar(item)
                                 scope.launch { drawerState.close() }
@@ -1280,6 +1313,7 @@ fun EnrollmentDashboardScreen(
                     activeItem = "Inscripciones",
                     collapsed = sidebarCollapsed,
                     visibleItems = sidebarItems,
+                    roleLabel = session?.activeRole?.institutionalLabel() ?: "Secretaría",
                     onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
                     modifier = Modifier.fillMaxHeight(),
                     onItemClick = navigateFromSidebar
@@ -1320,9 +1354,17 @@ fun SaseAppContent(viewModel: LabViewModel) {
         return
     }
 
-    // Compuerta de acceso: sin sesion no se muestra ningun contenido institucional.
+    // Sin sesion solo puede renderizarse el portal publico familiar; cualquier
+    // otra pantalla cae a LoginScreen.
     val activeSession = session
     if (activeSession == null) {
+        if (authorizedScreenFor(null, currentScreen) is Screen.PreApplicationFamilyPortal) {
+            PreApplicationFamilyPortalScreen(
+                viewModel = viewModel,
+                onNavigateBack = { viewModel.navigateBack() }
+            )
+            return
+        }
         LoginScreen(viewModel = viewModel)
         return
     }
@@ -1661,6 +1703,7 @@ fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
                             visibleItems = sidebarItems,
                             modifier = Modifier.fillMaxHeight(),
                             collapsed = false,
+                            roleLabel = session?.activeRole?.institutionalLabel() ?: "Secretaría",
                             onItemClick = { item ->
                                 navigateFromSidebar(item)
                                 scope.launch { drawerState.close() }
@@ -1677,6 +1720,7 @@ fun OfficialEnrollmentDashboardScreen(viewModel: LabViewModel) {
                     activeItem = "Altas Oficiales",
                     visibleItems = sidebarItems,
                     collapsed = sidebarCollapsed,
+                    roleLabel = session?.activeRole?.institutionalLabel() ?: "Secretaría",
                     onToggleCollapse = { sidebarCollapsed = !sidebarCollapsed },
                     modifier = Modifier.fillMaxHeight(),
                     onItemClick = navigateFromSidebar
