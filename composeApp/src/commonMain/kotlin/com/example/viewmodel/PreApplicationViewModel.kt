@@ -45,6 +45,9 @@ import kotlin.random.Random
 private const val FAMILY_LOOKUP_ERROR =
     "No fue posible consultar la pre-solicitud con los datos proporcionados."
 
+private const val FAMILY_LOOKUP_RATE_LIMITED_ERROR =
+    "Hay demasiadas consultas desde tu red en este momento. Espera unos minutos e intenta de nuevo -- tu folio y código siguen siendo válidos."
+
 internal fun interface InstitutionalPreApplicationSynchronizer {
     suspend fun synchronize(
         source: PreApplication,
@@ -639,6 +642,14 @@ class PreApplicationViewModel {
 
             _activeFamilySession.value = FamilySession(folio = normalizedFolio, accessToken = normalizedToken)
             val syncResult = preApplicationRepository.refresh()
+            if (syncResult is PreApplicationSyncResult.Failed &&
+                syncResult.reason == PreApplicationPersistenceFailure.RATE_LIMITED
+            ) {
+                // No se limpia la sesion ni el token que la familia acaba de
+                // escribir: la consulta se saturo (0021, limites compartidos
+                // por red), no significa que el token sea invalido.
+                return FamilyPreApplicationLookupResult.Error(FAMILY_LOOKUP_RATE_LIMITED_ERROR)
+            }
             val preApplication = (syncResult as? PreApplicationSyncResult.Loaded)
                 ?.preApplications
                 ?.firstOrNull { preApplication ->
@@ -651,24 +662,40 @@ class PreApplicationViewModel {
                 return FamilyPreApplicationLookupResult.Error()
             }
 
+            // rotateFamilyAccessToken es idempotente entre llamadores
+            // concurrentes (migracion 0022): un reintento tras un fallo
+            // transitorio (red/rate limit) nunca genera una tercera
+            // generacion de token -- o completa la rotacion que no se
+            // pudo confirmar la primera vez, o converge al token vigente
+            // real si esa rotacion si se habia confirmado en el servidor.
+            // Sin reintentar, una respuesta perdida dejaba a la familia
+            // con un codigo que solo sigue funcionando dentro de la
+            // ventana de gracia de 10 minutos, sin aviso de que expira
+            // (P1 de Codex en PR #52).
             var rotatedAccessToken: String? = null
-            when (val rotation = preApplicationRepository.rotateFamilyAccessToken()) {
-                is PreApplicationTokenRotationResult.Rotated -> {
-                    rotatedAccessToken = rotation.accessToken
-                    _activeFamilySession.value = FamilySession(
-                        folio = normalizedFolio,
-                        accessToken = rotation.accessToken
-                    )
-                }
-                is PreApplicationTokenRotationResult.Failed -> {
-                    if (rotation.reason == PreApplicationPersistenceFailure.REJECTED ||
-                        rotation.reason == PreApplicationPersistenceFailure.NO_SESSION
-                    ) {
-                        clearFamilySessionAndCache()
-                        return FamilyPreApplicationLookupResult.Error()
+            var rotationAttempt = 0
+            while (rotatedAccessToken == null && rotationAttempt < 3) {
+                rotationAttempt++
+                when (val rotation = preApplicationRepository.rotateFamilyAccessToken()) {
+                    is PreApplicationTokenRotationResult.Rotated -> {
+                        rotatedAccessToken = rotation.accessToken
+                        _activeFamilySession.value = FamilySession(
+                            folio = normalizedFolio,
+                            accessToken = rotation.accessToken
+                        )
                     }
-                    // A transient network/rate-limit failure leaves the old
-                    // valid token active; the next lookup can rotate it.
+                    is PreApplicationTokenRotationResult.Failed -> {
+                        if (rotation.reason == PreApplicationPersistenceFailure.REJECTED ||
+                            rotation.reason == PreApplicationPersistenceFailure.NO_SESSION
+                        ) {
+                            clearFamilySessionAndCache()
+                            return FamilyPreApplicationLookupResult.Error()
+                        }
+                        // NETWORK o RATE_LIMITED: transitorio, se reintenta
+                        // (idempotente). Si los 3 intentos fallan, el token
+                        // viejo sigue activo dentro de su ventana de gracia
+                        // -- la siguiente consulta puede rotarlo.
+                    }
                 }
             }
 

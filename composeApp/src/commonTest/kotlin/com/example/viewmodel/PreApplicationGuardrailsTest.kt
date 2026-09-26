@@ -24,6 +24,11 @@ import com.example.data.presolicitud.PreApplication
 import com.example.data.presolicitud.PreApplicationStatus
 import com.example.data.presolicitud.ReadinessStatus
 import com.example.data.presolicitud.Responsable
+import com.example.data.repository.MockPreApplicationRepositoryImpl
+import com.example.data.repository.PreApplicationPersistenceFailure
+import com.example.data.repository.PreApplicationRepository
+import com.example.data.repository.PreApplicationSyncResult
+import com.example.data.repository.PreApplicationTokenRotationResult
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -1330,6 +1335,84 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
+    fun familyLookupRetriesIdempotentRotationAfterTransientFailure() = runTest {
+        // rotateFamilyAccessToken es idempotente entre llamadores
+        // concurrentes (migracion 0022 del servidor): un reintento tras un
+        // fallo transitorio de red nunca genera una tercera generacion de
+        // token huerfana. Sin reintentar, una respuesta de rotate perdida
+        // dejaba a la familia con un codigo que solo funciona dentro de la
+        // ventana de gracia de 10 minutos, sin aviso (P1 de Codex, PR #52).
+        val stored = PreApplicationViewModel.sharedPreApplications.value.first()
+        val scripted = ScriptedRotationRepository(
+            delegate = MockPreApplicationRepositoryImpl(),
+            scriptedOutcomes = mutableListOf(
+                PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK),
+                PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK),
+                PreApplicationTokenRotationResult.Rotated("recovered-after-retry")
+            )
+        )
+        PreApplicationViewModel.configurePreApplicationRepository(scripted)
+
+        val result = PreApplicationViewModel.lookupFamilyPreApplication(stored.folio, stored.alumnoCurp, "test-access-token")
+
+        val success = assertIs<FamilyPreApplicationLookupResult.Success>(result)
+        assertEquals("recovered-after-retry", success.newAccessToken)
+        assertEquals(3, scripted.rotationCallCount, "Debe reintentar hasta encontrar exito, no rendirse en el primer fallo transitorio")
+    }
+
+    @Test
+    fun familyLookupGivesUpAfterThreeFailedRotationAttemptsButKeepsOldTokenActive() = runTest {
+        val stored = PreApplicationViewModel.sharedPreApplications.value.first()
+        val scripted = ScriptedRotationRepository(
+            delegate = MockPreApplicationRepositoryImpl(),
+            scriptedOutcomes = mutableListOf(
+                PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK),
+                PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK),
+                PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK)
+            )
+        )
+        PreApplicationViewModel.configurePreApplicationRepository(scripted)
+
+        val result = PreApplicationViewModel.lookupFamilyPreApplication(stored.folio, stored.alumnoCurp, "test-access-token")
+
+        val success = assertIs<FamilyPreApplicationLookupResult.Success>(result)
+        assertNull(success.newAccessToken, "Sin rotacion confirmada no hay token nuevo que mostrar")
+        assertEquals(3, scripted.rotationCallCount)
+        assertEquals(
+            "test-access-token",
+            PreApplicationViewModel.activeFamilySession?.accessToken,
+            "El token original sigue activo en memoria dentro de su ventana de gracia -- la siguiente consulta puede rotarlo"
+        )
+    }
+
+    @Test
+    fun familyLookupRateLimitedRefreshDoesNotClearSessionOrReportInvalidCredentials() = runTest {
+        // Antes, cualquier fallo de refresh() (incluido rate limit por red
+        // compartida, 0021) se trataba igual que un token invalido: se
+        // borraba la sesion y se mostraba el mensaje generico de
+        // credenciales invalidas (P2 de Codex, PR #52).
+        val stored = PreApplicationViewModel.sharedPreApplications.value.first()
+        val scripted = ScriptedRefreshRepository(
+            delegate = MockPreApplicationRepositoryImpl(),
+            scriptedResult = PreApplicationSyncResult.Failed(PreApplicationPersistenceFailure.RATE_LIMITED)
+        )
+        PreApplicationViewModel.configurePreApplicationRepository(scripted)
+
+        val result = PreApplicationViewModel.lookupFamilyPreApplication(stored.folio, stored.alumnoCurp, "test-access-token")
+
+        val error = assertIs<FamilyPreApplicationLookupResult.Error>(result)
+        assertTrue(
+            error.message.contains("demasiadas consultas"),
+            "Debe distinguir el rate limit del mensaje generico de credenciales invalidas: ${error.message}"
+        )
+        assertEquals(
+            "test-access-token",
+            PreApplicationViewModel.activeFamilySession?.accessToken,
+            "La sesion no debe borrarse: el token puede seguir siendo valido, solo la consulta se saturo"
+        )
+    }
+
+    @Test
     fun familyLookupDoesNotModifySharedPreApplications() = runTest {
         val stored = PreApplicationViewModel.sharedPreApplications.value.first()
         val before = PreApplicationViewModel.sharedPreApplications.value.toList()
@@ -1896,4 +1979,35 @@ class PreApplicationGuardrailsTest {
             PreApplicationViewModel.resetSharedStateForTests()
         }
     }
+}
+
+/**
+ * Delega todo en [delegate] excepto rotateFamilyAccessToken, que devuelve
+ * los resultados de [scriptedOutcomes] en orden (uno por llamada) y cae de
+ * vuelta a [delegate] si se agotan -- para probar el reintento de rotacion
+ * idempotente de lookupFamilyPreApplication ante fallos transitorios.
+ */
+private class ScriptedRotationRepository(
+    private val delegate: PreApplicationRepository,
+    private val scriptedOutcomes: MutableList<PreApplicationTokenRotationResult>
+) : PreApplicationRepository by delegate {
+    var rotationCallCount = 0
+        private set
+
+    override suspend fun rotateFamilyAccessToken(): PreApplicationTokenRotationResult {
+        rotationCallCount++
+        return if (scriptedOutcomes.isNotEmpty()) {
+            scriptedOutcomes.removeAt(0)
+        } else {
+            delegate.rotateFamilyAccessToken()
+        }
+    }
+}
+
+/** Delega todo en [delegate] excepto refresh, que siempre devuelve [scriptedResult]. */
+private class ScriptedRefreshRepository(
+    private val delegate: PreApplicationRepository,
+    private val scriptedResult: PreApplicationSyncResult
+) : PreApplicationRepository by delegate {
+    override suspend fun refresh(): PreApplicationSyncResult = scriptedResult
 }

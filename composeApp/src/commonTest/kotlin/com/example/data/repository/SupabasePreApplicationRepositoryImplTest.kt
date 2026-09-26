@@ -399,6 +399,31 @@ class SupabasePreApplicationRepositoryImplTest {
     }
 
     @Test
+    fun refreshForFamilyRateLimitedByGetIsNotReportedAsGenericRejection() = runTest {
+        // Antes, fetchByToken colapsaba tanto "token invalido" como "rate
+        // limited" a null; refreshForFamily siempre devolvia REJECTED, y el
+        // llamador familiar terminaba borrando la sesion y mostrando
+        // "credenciales invalidas" aunque el token siguiera siendo valido.
+        val engine = MockEngine {
+            respond(
+                content = ByteReadChannel("{\"message\":\"SASE_PRE_APPLICATION_RATE_LIMITED\"}"),
+                status = HttpStatusCode.BadRequest,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession() },
+            httpClient = clientFor(engine)
+        )
+        val result = repo.refresh()
+        val failed = assertIs<PreApplicationSyncResult.Failed>(result)
+        assertEquals(PreApplicationPersistenceFailure.RATE_LIMITED, failed.reason)
+    }
+
+    @Test
     fun clearEmptiesLocalStateWithoutTouchingNetwork() = runTest {
         val engine = MockEngine { request ->
             respond(

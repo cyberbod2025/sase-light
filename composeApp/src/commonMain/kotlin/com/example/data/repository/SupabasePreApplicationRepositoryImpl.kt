@@ -602,8 +602,14 @@ class SupabasePreApplicationRepositoryImpl(
      * definer` -- un GET directo con `Authorization: Bearer` no aplica aqui.
      */
     private suspend fun refreshForFamily(auth: PreApplicationAuthContext.Family): PreApplicationSyncResult {
-        val loaded = fetchByToken(auth.session.folio, auth.session.accessToken)
-            ?: return PreApplicationSyncResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+        val outcome = fetchByToken(auth.session.folio, auth.session.accessToken)
+        val loaded = when (outcome) {
+            is FetchByTokenOutcome.Found -> outcome.preApplication
+            FetchByTokenOutcome.RateLimited ->
+                return PreApplicationSyncResult.Failed(PreApplicationPersistenceFailure.RATE_LIMITED)
+            FetchByTokenOutcome.NotFound ->
+                return PreApplicationSyncResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+        }
 
         if (currentAuth()?.accessToken != auth.accessToken) {
             return PreApplicationSyncResult.Failed(PreApplicationPersistenceFailure.NO_SESSION)
@@ -627,12 +633,25 @@ class SupabasePreApplicationRepositoryImpl(
         return if (response.status == HttpStatusCode.OK) response.body<List<T>>() else null
     }
 
+    private sealed class FetchByTokenOutcome {
+        data class Found(val preApplication: PreApplication) : FetchByTokenOutcome()
+        object NotFound : FetchByTokenOutcome()
+        object RateLimited : FetchByTokenOutcome()
+    }
+
     /**
      * Unica via de LECTURA familiar: RPC `security definer` que valida el
      * token a mano (sin JWT, RLS no puede autorizar a la familia -- ver
      * migracion 0015). `access_token` nunca vuelve en la respuesta.
+     *
+     * Distingue "no encontrado/token invalido" (200 con cuerpo null) de
+     * "rate limited" (0021, huella compartida por red) -- antes ambos
+     * colapsaban a `null` y el llamador familiar terminaba borrando su
+     * sesion y mostrando "credenciales invalidas" cuando en realidad el
+     * token seguia siendo valido, solo la consulta se saturo (P2 de Codex
+     * en PR #52).
      */
-    private suspend fun fetchByToken(folio: String, accessToken: String): PreApplication? {
+    private suspend fun fetchByToken(folio: String, accessToken: String): FetchByTokenOutcome {
       return try {
         val response = httpClient.post("$baseUrl/rest/v1/rpc/get_pre_application_with_children") {
             header("apikey", apiKey)
@@ -642,11 +661,18 @@ class SupabasePreApplicationRepositoryImpl(
                 put("p_access_token", accessToken)
             })
         }
-        if (response.status != HttpStatusCode.OK) return null
-        val body = response.body<PreApplicationWithChildrenResponse?>() ?: return null
-        body.record.toDomain(body.responsables, body.autorizados, body.documentos)
+        if (response.status != HttpStatusCode.OK) {
+            val detail = runCatching { response.bodyAsText() }.getOrDefault("")
+            return if (detail.contains("SASE_PRE_APPLICATION_RATE_LIMITED")) {
+                FetchByTokenOutcome.RateLimited
+            } else {
+                FetchByTokenOutcome.NotFound
+            }
+        }
+        val body = response.body<PreApplicationWithChildrenResponse?>() ?: return FetchByTokenOutcome.NotFound
+        FetchByTokenOutcome.Found(body.record.toDomain(body.responsables, body.autorizados, body.documentos))
       } catch (e: Exception) {
-        null
+        FetchByTokenOutcome.NotFound
       }
     }
 
@@ -704,7 +730,8 @@ class SupabasePreApplicationRepositoryImpl(
 
         // La RPC ya confirmo el agregado. No se hace una segunda lectura que
         // pueda perder el token de un solo uso si la red falla despues.
-        val created = fetchByToken(createdRef.folio, createdRef.accessToken)
+        val created = (fetchByToken(createdRef.folio, createdRef.accessToken) as? FetchByTokenOutcome.Found)
+            ?.preApplication
             ?: preApplication.copy(folio = createdRef.folio)
         _preApplications.value = (_preApplications.value.filterNot { it.folio == created.folio } + created)
         return PreApplicationSubmitResult.Submitted(created, createdRef.accessToken)
@@ -754,7 +781,8 @@ class SupabasePreApplicationRepositoryImpl(
 
         val updated = when (auth) {
             is PreApplicationAuthContext.Staff -> fetchOne(auth, folio)
-            is PreApplicationAuthContext.Family -> fetchByToken(folio, auth.session.accessToken)
+            is PreApplicationAuthContext.Family ->
+                (fetchByToken(folio, auth.session.accessToken) as? FetchByTokenOutcome.Found)?.preApplication
         } ?: return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
         _preApplications.value = _preApplications.value.map { if (it.folio == updated.folio) updated else it }
         return PreApplicationUpdateResult.Updated(updated)
