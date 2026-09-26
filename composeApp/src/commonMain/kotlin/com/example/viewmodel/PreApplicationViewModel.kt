@@ -48,6 +48,9 @@ private const val FAMILY_LOOKUP_ERROR =
 private const val FAMILY_LOOKUP_RATE_LIMITED_ERROR =
     "Hay demasiadas consultas desde tu red en este momento. Espera unos minutos e intenta de nuevo -- tu folio y código siguen siendo válidos."
 
+private const val FAMILY_LOOKUP_ROTATION_RETRY_ERROR =
+    "Encontramos tu pre-solicitud, pero no pudimos confirmar tu nuevo código de acceso por una falla de red. Vuelve a consultar en unos minutos con el mismo folio y código -- siguen siendo válidos."
+
 internal fun interface InstitutionalPreApplicationSynchronizer {
     suspend fun synchronize(
         source: PreApplication,
@@ -692,11 +695,23 @@ class PreApplicationViewModel {
                             return FamilyPreApplicationLookupResult.Error()
                         }
                         // NETWORK o RATE_LIMITED: transitorio, se reintenta
-                        // (idempotente). Si los 3 intentos fallan, el token
-                        // viejo sigue activo dentro de su ventana de gracia
-                        // -- la siguiente consulta puede rotarlo.
+                        // (idempotente).
                     }
                 }
+            }
+
+            if (rotatedAccessToken == null) {
+                // Los 3 intentos fallaron -- ya no es un glitch transitorio,
+                // es una falla persistente. No se devuelve Success con
+                // newAccessToken=null: eso le decia a la familia que todo
+                // estaba bien mientras el codigo que tiene solo sigue
+                // valido dentro de la ventana de gracia de 10 minutos, sin
+                // ningun aviso de que puede dejar de funcionar (P1 de Codex
+                // en PR #52). La sesion NO se borra -- el token de entrada
+                // sigue activo (de gracia si alguno de los 3 intentos si se
+                // confirmo en el servidor pero se perdio la respuesta) --
+                // un reintento del usuario puede recuperarlo.
+                return FamilyPreApplicationLookupResult.Error(FAMILY_LOOKUP_ROTATION_RETRY_ERROR)
             }
 
             return FamilyPreApplicationLookupResult.Success(

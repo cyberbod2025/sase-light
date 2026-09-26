@@ -1361,7 +1361,13 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
-    fun familyLookupGivesUpAfterThreeFailedRotationAttemptsButKeepsOldTokenActive() = runTest {
+    fun familyLookupReportsRetryErrorAfterThreeFailedRotationAttemptsWithoutClearingSession() = runTest {
+        // Si los 3 reintentos fallan de verdad (no un glitch transitorio),
+        // no se puede devolver Success silencioso: el token que la familia
+        // tiene solo sigue valido dentro de la ventana de gracia de 10
+        // minutos, sin ningun aviso de que puede dejar de funcionar (P1 de
+        // Codex, PR #52, segunda ronda). Se pide reintentar mas tarde sin
+        // borrar la sesion.
         val stored = PreApplicationViewModel.sharedPreApplications.value.first()
         val scripted = ScriptedRotationRepository(
             delegate = MockPreApplicationRepositoryImpl(),
@@ -1375,8 +1381,14 @@ class PreApplicationGuardrailsTest {
 
         val result = PreApplicationViewModel.lookupFamilyPreApplication(stored.folio, stored.alumnoCurp, "test-access-token")
 
-        val success = assertIs<FamilyPreApplicationLookupResult.Success>(result)
-        assertNull(success.newAccessToken, "Sin rotacion confirmada no hay token nuevo que mostrar")
+        val error = assertIs<FamilyPreApplicationLookupResult.Error>(
+            result,
+            "Sin rotacion confirmada tras 3 intentos no se debe reportar exito silencioso"
+        )
+        assertTrue(
+            error.message.contains("Vuelve a consultar"),
+            "Debe invitar a reintentar, no el mensaje generico de credenciales invalidas: ${error.message}"
+        )
         assertEquals(3, scripted.rotationCallCount)
         assertEquals(
             "test-access-token",
