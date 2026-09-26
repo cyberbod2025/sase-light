@@ -26,9 +26,15 @@ The active module supports three explicit modes:
 The family portal remains anonymous by design. It uses the Supabase RPCs and a
 short-lived, rotatable bearer token; it does not create Supabase Auth accounts.
 
-The tracked database migrations are in `supabase/migrations/0002` through
-`0017`. Migrations `0015` and `0016` were applied to staging; `0017` adds token
-expiry, revocation, rotation and request rate limits.
+The tracked database migrations live in `supabase/migrations/`, numbered
+sequentially. All of them are applied to the staging Supabase project
+(`SASE-Light`); the migration list itself is the source of truth for what is
+applied and why -- do not hardcode a "latest migration number" here, it will
+drift. As of this writing the family-portal token lifecycle spans `0015`
+(persistence) through `0022` (token expiry, revocation, rotation with a short
+grace period for lost responses, anti-abuse rate limiting, and making
+rotation idempotent across concurrent callers) -- read the migration files in
+order for the full history of what each one fixed and why.
 
 ## Setup
 
