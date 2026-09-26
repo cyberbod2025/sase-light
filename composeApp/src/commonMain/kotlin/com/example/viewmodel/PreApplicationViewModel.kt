@@ -38,6 +38,8 @@ import com.example.formatTimestamp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.random.Random
 
 private const val FAMILY_LOOKUP_ERROR =
@@ -310,6 +312,19 @@ class PreApplicationViewModel {
         // authSessionProvider.
         private val _activeFamilySession = MutableStateFlow<FamilySession?>(null)
         val activeFamilySession: FamilySession? get() = _activeFamilySession.value
+
+        /**
+         * Serializa [lookupFamilyPreApplication]: esa funcion rota el token
+         * de acceso en cada consulta exitosa (ver FamilySession). Dos
+         * llamadas concurrentes con el mismo token (doble toque en
+         * "Consultar" antes de que la UI reaccione a la primera) podian
+         * rotar dos veces; si la respuesta de la primera llegaba despues
+         * que la de la segunda, pisaba _activeFamilySession con un token
+         * ya superado (P1 de Codex en PR #52). Con las llamadas en fila,
+         * el orden de finalizacion coincide con el orden de llegada y el
+         * ultimo estado siempre es el mas reciente.
+         */
+        private val familyLookupMutex = Mutex()
 
         private val preApplicationFolioChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         private const val preApplicationTimestampPrefix = "Hoy "
@@ -614,7 +629,7 @@ class PreApplicationViewModel {
             folio: String,
             curp: String,
             accessToken: String
-        ): FamilyPreApplicationLookupResult {
+        ): FamilyPreApplicationLookupResult = familyLookupMutex.withLock {
             val normalizedFolio = normalizeFamilyLookupValue(folio)
             val normalizedCurp = normalizeFamilyLookupValue(curp)
             val normalizedToken = accessToken.trim()
