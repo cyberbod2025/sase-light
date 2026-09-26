@@ -500,6 +500,28 @@ private fun FamilyPreApplicationLookupDialog(onDismiss: () -> Unit) {
                             "Observaciones de Secretaría",
                             result.secretariaObservations.ifBlank { "Sin observaciones de Secretaría." }
                         )
+                        if (result.newAccessToken != null) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFF1F2A3A), RoundedCornerShape(10.dp))
+                                    .padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    "Tu código de acceso anterior ya no sirve. Guarda este nuevo código para tu próxima consulta:",
+                                    color = PortalText,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    result.newAccessToken,
+                                    color = PortalCyan,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                     is FamilyPreApplicationLookupResult.Error -> Text(
                         result.message,

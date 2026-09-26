@@ -208,6 +208,58 @@ class SupabasePreApplicationRepositoryImplTest {
     }
 
     @Test
+    fun updateRejectedByInvalidFamilyTokenReturnsNullBodyNotException() = runTest {
+        // Desde 0018: un token/folio de familia invalido para UPDATE ya no
+        // lanza excepcion en el servidor (eso deshacia, dentro de la misma
+        // transaccion, el incremento del contador de rate limit que el
+        // propio intento rechazado acababa de confirmar). El servidor
+        // responde 200 con cuerpo `null`; el cliente debe seguir
+        // reportando REJECTED, no Updated.
+        val engine = MockEngine { request ->
+            if (request.url.encodedPath == UPDATE_RPC_PATH) {
+                respond(
+                    content = ByteReadChannel("null"),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            } else {
+                respond("[]", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession(folio = "PRE-AJENO", token = "otro-token") },
+            httpClient = clientFor(engine)
+        )
+        val result = repo.update(draftPreApplication(folio = "PRE-AJENO"))
+        val failed = assertIs<PreApplicationUpdateResult.Failed>(result)
+        assertEquals(PreApplicationPersistenceFailure.REJECTED, failed.reason)
+    }
+
+    @Test
+    fun rotationRejectedByInvalidFamilyTokenReturnsNullBodyNotException() = runTest {
+        val engine = MockEngine { request ->
+            respond(
+                content = ByteReadChannel("null"),
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession() },
+            httpClient = clientFor(engine)
+        )
+        val result = repo.rotateFamilyAccessToken()
+        val failed = assertIs<PreApplicationTokenRotationResult.Failed>(result)
+        assertEquals(PreApplicationPersistenceFailure.REJECTED, failed.reason)
+    }
+
+    @Test
     fun familyTokenRotationUsesAnonymousRpcAndReturnsReplacementToken() = runTest {
         val requests = mutableListOf<HttpRequestData>()
         val engine = MockEngine { request ->

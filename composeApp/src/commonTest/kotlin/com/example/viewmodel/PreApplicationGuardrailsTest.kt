@@ -1315,6 +1315,21 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
+    fun familyLookupSurfacesRotatedAccessTokenSoTheFamilyCanSaveIt() = runTest {
+        val stored = PreApplicationViewModel.sharedPreApplications.value.first()
+
+        val success = assertIs<FamilyPreApplicationLookupResult.Success>(
+            PreApplicationViewModel.lookupFamilyPreApplication(stored.folio, stored.alumnoCurp, "test-access-token")
+        )
+
+        assertEquals(
+            "demo-local-token-rotated",
+            success.newAccessToken,
+            "El token viejo queda invalido de inmediato; si no se devuelve el nuevo, la familia queda sin forma de volver a entrar"
+        )
+    }
+
+    @Test
     fun familyLookupDoesNotModifySharedPreApplications() = runTest {
         val stored = PreApplicationViewModel.sharedPreApplications.value.first()
         val before = PreApplicationViewModel.sharedPreApplications.value.toList()

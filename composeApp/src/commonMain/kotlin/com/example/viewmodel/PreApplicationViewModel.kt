@@ -56,7 +56,18 @@ sealed class FamilyPreApplicationLookupResult {
         val folio: String,
         val status: PreApplicationStatus,
         val correctionReason: String,
-        val secretariaObservations: String
+        val secretariaObservations: String,
+        /**
+         * El token que la familia escribio para entrar queda invalido de
+         * inmediato (se rota en el servidor en cada consulta exitosa, ver
+         * [FamilySession]). Si no es null, es el reemplazo y la UI debe
+         * mostrarlo para que la familia lo guarde -- sin esto, cerrar la
+         * app tras una consulta deja a la familia sin forma de volver a
+         * entrar. Null solo cuando la rotacion no pudo completarse (ver
+         * comentario en lookupFamilyPreApplication): el token viejo sigue
+         * activo en ese caso, no hace falta mostrar uno nuevo.
+         */
+        val newAccessToken: String? = null
     ) : FamilyPreApplicationLookupResult()
 
     data class Error(
@@ -625,8 +636,10 @@ class PreApplicationViewModel {
                 return FamilyPreApplicationLookupResult.Error()
             }
 
+            var rotatedAccessToken: String? = null
             when (val rotation = preApplicationRepository.rotateFamilyAccessToken()) {
                 is PreApplicationTokenRotationResult.Rotated -> {
+                    rotatedAccessToken = rotation.accessToken
                     _activeFamilySession.value = FamilySession(
                         folio = normalizedFolio,
                         accessToken = rotation.accessToken
@@ -648,7 +661,8 @@ class PreApplicationViewModel {
                 folio = preApplication.folio,
                 status = preApplication.status,
                 correctionReason = preApplication.motivoCorreccion,
-                secretariaObservations = preApplication.observacionesSecretaria
+                secretariaObservations = preApplication.observacionesSecretaria,
+                newAccessToken = rotatedAccessToken
             )
         }
 
