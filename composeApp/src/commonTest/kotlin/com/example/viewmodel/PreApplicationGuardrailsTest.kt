@@ -863,8 +863,8 @@ class PreApplicationGuardrailsTest {
         vm.submitApplication()
 
         assertTrue(vm.errors.value.isNotEmpty(), "submit debe fallar cuando contexto está incompleto")
-        assertTrue(vm.errors.value.containsKey("servicioMedico"), "Debe faltar servicio médico")
-        assertTrue(vm.errors.value.containsKey("tipoSangre"), "Debe faltar tipo de sangre")
+        assertTrue(vm.errors.value.containsKey("viveConQuien"), "Debe faltar con quién vive el alumno")
+        assertTrue(vm.errors.value.containsKey("tipoFamilia"), "Debe faltar tipo de familia")
     }
 
     @Test
@@ -897,6 +897,7 @@ class PreApplicationGuardrailsTest {
         vm.setGradoSolicitado(1)
         vm.setPromedioGradoAnterior("8.5")
         vm.setTelefonoPrincipal("5512345678")
+        vm.setDomicilio("Calle Falsa 123, Colonia Centro, CDMX")
         vm.setAceptaAvisoPrivacidad(true)
     }
 

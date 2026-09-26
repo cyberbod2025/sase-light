@@ -25,10 +25,24 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build Android
-        run: ./gradlew :composeApp:assembleDebug
+        run: ./gradlew :composeApp:assembleDebug --no-daemon
+
+      - name: Build Android release (fail-closed production binary)
+        run: ./gradlew :composeApp:assembleRelease --no-daemon
+
+      - name: Build Android staging pilot
+        if: ${{ secrets.SASE_SUPABASE_URL != '' && secrets.SASE_SUPABASE_PUBLISHABLE_KEY != '' }}
+        env:
+          SASE_SUPABASE_URL: ${{ secrets.SASE_SUPABASE_URL }}
+          SASE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SASE_SUPABASE_PUBLISHABLE_KEY }}
+        run: >-
+          ./gradlew :composeApp:assembleDebug --no-daemon
+          -Psase.environment=SUPABASE_STAGING
+          -Psase.supabaseUrl="$SASE_SUPABASE_URL"
+          -Psase.supabasePublishableKey="$SASE_SUPABASE_PUBLISHABLE_KEY"
 
       - name: Test Desktop
-        run: ./gradlew :composeApp:desktopTest
+        run: ./gradlew :composeApp:desktopTest --no-daemon
 
       - name: Build Desktop
-        run: ./gradlew :composeApp:compileKotlinDesktop
+        run: ./gradlew :composeApp:compileKotlinDesktop --no-daemon

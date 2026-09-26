@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 enum class PreApplicationPersistenceFailure {
     NO_SESSION,
     NETWORK,
-    REJECTED
+    REJECTED,
+    RATE_LIMITED
 }
 
 sealed class PreApplicationSyncResult {
@@ -32,6 +33,11 @@ sealed class PreApplicationSubmitResult {
 sealed class PreApplicationUpdateResult {
     data class Updated(val preApplication: PreApplication) : PreApplicationUpdateResult()
     data class Failed(val reason: PreApplicationPersistenceFailure) : PreApplicationUpdateResult()
+}
+
+sealed class PreApplicationTokenRotationResult {
+    data class Rotated(val accessToken: String) : PreApplicationTokenRotationResult()
+    data class Failed(val reason: PreApplicationPersistenceFailure) : PreApplicationTokenRotationResult()
 }
 
 /**
@@ -66,6 +72,10 @@ interface PreApplicationRepository {
      * pre-solicitud ya existente, identificada por [PreApplication.folio].
      */
     suspend fun update(preApplication: PreApplication): PreApplicationUpdateResult
+
+    /** Rota el token familiar despues de una revalidacion exitosa. */
+    suspend fun rotateFamilyAccessToken(): PreApplicationTokenRotationResult =
+        PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK)
 
     /**
      * Vacia el estado en memoria (sin red). Se invoca en logout/expiracion de

@@ -36,6 +36,7 @@ private const val BASE_URL = "https://proyecto-ficticio.supabase.invalid"
 private const val CREATE_RPC_PATH = "/rest/v1/rpc/create_pre_application_with_children"
 private const val UPDATE_RPC_PATH = "/rest/v1/rpc/update_pre_application_with_children"
 private const val GET_RPC_PATH = "/rest/v1/rpc/get_pre_application_with_children"
+private const val ROTATE_RPC_PATH = "/rest/v1/rpc/rotate_pre_application_access_token"
 private const val PARENT_PATH = "/rest/v1/pre_applications"
 
 private fun familySession(folio: String = "PRE-TEST-01", token: String = "family-token-1") =
@@ -204,6 +205,54 @@ class SupabasePreApplicationRepositoryImplTest {
         val result = repo.update(draftPreApplication(folio = "PRE-AJENO"))
         val failed = assertIs<PreApplicationUpdateResult.Failed>(result)
         assertEquals(PreApplicationPersistenceFailure.REJECTED, failed.reason)
+    }
+
+    @Test
+    fun familyTokenRotationUsesAnonymousRpcAndReturnsReplacementToken() = runTest {
+        val requests = mutableListOf<HttpRequestData>()
+        val engine = MockEngine { request ->
+            requests += request
+            respond(
+                "{\"folio\":\"PRE-TEST-01\",\"access_token\":\"family-token-2\",\"access_token_expires_at\":\"2099-01-01T00:00:00Z\"}",
+                HttpStatusCode.OK,
+                headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession() },
+            httpClient = clientFor(engine)
+        )
+
+        val result = repo.rotateFamilyAccessToken()
+        val rotated = assertIs<PreApplicationTokenRotationResult.Rotated>(result)
+        assertEquals("family-token-2", rotated.accessToken)
+        assertEquals(ROTATE_RPC_PATH, requests.single().url.encodedPath)
+        assertEquals(HttpMethod.Post, requests.single().method)
+    }
+
+    @Test
+    fun rateLimitedUpdateIsNotReportedAsGenericNetworkFailure() = runTest {
+        val engine = MockEngine {
+            respond(
+                content = ByteReadChannel("{\"message\":\"SASE_PRE_APPLICATION_RATE_LIMITED\"}"),
+                status = HttpStatusCode.BadRequest,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession(folio = "PRE-TEST-01") },
+            httpClient = clientFor(engine)
+        )
+
+        val result = repo.update(draftPreApplication())
+        val failed = assertIs<PreApplicationUpdateResult.Failed>(result)
+        assertEquals(PreApplicationPersistenceFailure.RATE_LIMITED, failed.reason)
     }
 
     @Test

@@ -42,9 +42,8 @@
 -- primero, asi que el grant explicito quedo siendo redundante con una
 -- superficie mas amplia (PUBLIC) que seguia abierta por debajo.
 --
--- ESTADO: escrita, NO aplicada. Requiere autorizacion explicita de Hugo
--- antes de tocar el proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh),
--- igual que 0015.
+-- ESTADO: aplicada al proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh) como
+-- 20260824131027_0016_pre_application_privilege_hardening, igual que 0015.
 
 -- Precondiciones fail-fast: esta migracion es solo hardening de privilegios
 -- sobre objetos que 0015 ya debe haber creado. No recrea tablas, funciones

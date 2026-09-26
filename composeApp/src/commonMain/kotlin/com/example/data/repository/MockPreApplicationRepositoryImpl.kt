@@ -44,6 +44,9 @@ class MockPreApplicationRepositoryImpl : PreApplicationRepository {
         return PreApplicationUpdateResult.Updated(preApplication)
     }
 
+    override suspend fun rotateFamilyAccessToken(): PreApplicationTokenRotationResult =
+        PreApplicationTokenRotationResult.Rotated("demo-local-token-rotated")
+
     override fun clear() {
         // DEMO_LOCAL es un dataset compartido de demostracion, no datos de un
         // usuario real: no hay sesion anterior de la que aislarse (mismo

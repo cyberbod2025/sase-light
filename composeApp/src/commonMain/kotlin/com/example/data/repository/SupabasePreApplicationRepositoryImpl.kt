@@ -167,6 +167,13 @@ internal data class CreatePreApplicationResponse(
     @SerialName("access_token") val accessToken: String
 )
 
+@Serializable
+internal data class RotatePreApplicationAccessTokenResponse(
+    val folio: String,
+    @SerialName("access_token") val accessToken: String,
+    @SerialName("access_token_expires_at") val accessTokenExpiresAt: String? = null
+)
+
 /** Respuesta de `get_pre_application_with_children` (migracion 0015): unica via de lectura familiar (sin RLS por sesion, ver comentario de la migracion). */
 @Serializable
 internal data class PreApplicationWithChildrenResponse(
@@ -517,6 +524,41 @@ class SupabasePreApplicationRepositoryImpl(
             is PreApplicationAuthContext.Family -> refreshForFamily(auth)
         }
 
+    override suspend fun rotateFamilyAccessToken(): PreApplicationTokenRotationResult {
+        val auth = currentAuth() as? PreApplicationAuthContext.Family
+            ?: return PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NO_SESSION)
+        val response = try {
+            httpClient.post("$baseUrl/rest/v1/rpc/rotate_pre_application_access_token") {
+                authHeaders(auth)
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("p_folio", auth.session.folio)
+                    put("p_access_token", auth.session.accessToken)
+                })
+            }
+        } catch (e: Exception) {
+            return PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK)
+        }
+
+        if (response.status != HttpStatusCode.OK) {
+            val detail = runCatching { response.bodyAsText() }.getOrDefault("")
+            return PreApplicationTokenRotationResult.Failed(
+                if (detail.contains("SASE_PRE_APPLICATION_RATE_LIMITED")) {
+                    PreApplicationPersistenceFailure.RATE_LIMITED
+                } else {
+                    response.status.toPreApplicationFailure()
+                }
+            )
+        }
+
+        return try {
+            val rotated = response.body<RotatePreApplicationAccessTokenResponse>()
+            PreApplicationTokenRotationResult.Rotated(rotated.accessToken)
+        } catch (e: Exception) {
+            PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+        }
+    }
+
     private suspend fun refreshForStaff(auth: PreApplicationAuthContext.Staff): PreApplicationSyncResult {
       return try {
         val parents = fetchTable<PreApplicationRow>(auth, "pre_applications", PARENT_COLUMNS)
@@ -644,7 +686,14 @@ class SupabasePreApplicationRepositoryImpl(
                 ?: PreApplicationSubmitResult.Failed(PreApplicationPersistenceFailure.REJECTED)
         }
         if (response.status != HttpStatusCode.OK && response.status != HttpStatusCode.Created) {
-            return PreApplicationSubmitResult.Failed(response.status.toPreApplicationFailure())
+            val detail = runCatching { response.bodyAsText() }.getOrDefault("")
+            return PreApplicationSubmitResult.Failed(
+                if (detail.contains("SASE_PRE_APPLICATION_RATE_LIMITED")) {
+                    PreApplicationPersistenceFailure.RATE_LIMITED
+                } else {
+                    response.status.toPreApplicationFailure()
+                }
+            )
         }
 
         val createdRef = try {
@@ -683,7 +732,14 @@ class SupabasePreApplicationRepositoryImpl(
         }
 
         if (response.status != HttpStatusCode.OK) {
-            return PreApplicationUpdateResult.Failed(response.status.toPreApplicationFailure())
+            val detail = runCatching { response.bodyAsText() }.getOrDefault("")
+            return PreApplicationUpdateResult.Failed(
+                if (detail.contains("SASE_PRE_APPLICATION_RATE_LIMITED")) {
+                    PreApplicationPersistenceFailure.RATE_LIMITED
+                } else {
+                    response.status.toPreApplicationFailure()
+                }
+            )
         }
 
         val folio = try {

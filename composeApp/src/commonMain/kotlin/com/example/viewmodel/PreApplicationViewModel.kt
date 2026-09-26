@@ -21,6 +21,7 @@ import com.example.data.repository.PreApplicationPersistenceFailure
 import com.example.data.repository.PreApplicationRepository
 import com.example.data.repository.PreApplicationSubmitResult
 import com.example.data.repository.PreApplicationSyncResult
+import com.example.data.repository.PreApplicationTokenRotationResult
 import com.example.data.repository.PreApplicationUpdateResult
 import com.example.data.repository.StudentRepository
 import com.example.getPlatformName
@@ -622,6 +623,25 @@ class PreApplicationViewModel {
             if (preApplication == null) {
                 clearFamilySessionAndCache()
                 return FamilyPreApplicationLookupResult.Error()
+            }
+
+            when (val rotation = preApplicationRepository.rotateFamilyAccessToken()) {
+                is PreApplicationTokenRotationResult.Rotated -> {
+                    _activeFamilySession.value = FamilySession(
+                        folio = normalizedFolio,
+                        accessToken = rotation.accessToken
+                    )
+                }
+                is PreApplicationTokenRotationResult.Failed -> {
+                    if (rotation.reason == PreApplicationPersistenceFailure.REJECTED ||
+                        rotation.reason == PreApplicationPersistenceFailure.NO_SESSION
+                    ) {
+                        clearFamilySessionAndCache()
+                        return FamilyPreApplicationLookupResult.Error()
+                    }
+                    // A transient network/rate-limit failure leaves the old
+                    // valid token active; the next lookup can rotate it.
+                }
             }
 
             return FamilyPreApplicationLookupResult.Success(
@@ -2335,6 +2355,7 @@ class PreApplicationViewModel {
                     errs["promedio"] = "Promedio requerido entre 5.0 y 10.0"
                 }
                 if (_telefonoPrincipal.value.length < 10) errs["telefono"] = "10 dígitos requeridos"
+                if (_domicilio.value.isBlank()) errs["domicilio"] = "Domicilio obligatorio"
                 if (!_aceptaAvisoPrivacidad.value) errs["aviso"] = "Debes aceptar el aviso de privacidad"
             }
             1 -> {
@@ -2347,8 +2368,9 @@ class PreApplicationViewModel {
                 if (_responsableTelefono.value.length < 10) errs["responsableTel"] = "Teléfono 10 dígitos requerido"
             }
             2 -> {
-                if (_servicioMedico.value.isBlank()) errs["servicioMedico"] = "Servicio médico obligatorio"
-                if (_tipoSangre.value.isBlank()) errs["tipoSangre"] = "Tipo de sangre obligatorio"
+                // Servicio médico y tipo de sangre son opcionales -- la propia pantalla dice
+                // "Estos campos son opcionales y no bloquean el envío de la pre-solicitud"
+                // (bloque Médico Escolar); exigirlos aquí contradecía ese texto.
                 if (_tieneAlergias.value && _alergiasDetalle.value.isBlank()) errs["alergiasDetalle"] = "Detalle de alergias obligatorio"
                 if (_tienePadecimientos.value && _padecimientosDetalle.value.isBlank()) errs["padecimientosDetalle"] = "Detalle de padecimientos obligatorio"
                 if (_tomaMedicamentos.value && _medicamentosDetalle.value.isBlank()) errs["medicamentosDetalle"] = "Detalle de medicamentos obligatorio"
@@ -2390,6 +2412,7 @@ class PreApplicationViewModel {
             errs["promedio"] = "Promedio requerido entre 5.0 y 10.0"
         }
         if (_telefonoPrincipal.value.length < 10) errs["telefono"] = "10 dígitos requeridos"
+        if (_domicilio.value.isBlank()) errs["domicilio"] = "Domicilio obligatorio"
         if (!_aceptaAvisoPrivacidad.value) errs["aviso"] = "Debes aceptar el aviso de privacidad"
         if (_personaTramiteNombre.value.isBlank()) errs["personaTramite"] = "Persona que realiza el trámite obligatoria"
         if (_personaTramiteParentesco.value.isBlank()) errs["personaTramiteParentesco"] = "Parentesco obligatorio"
@@ -2398,8 +2421,6 @@ class PreApplicationViewModel {
         if (_responsableNombre.value.isBlank()) errs["responsable"] = "Nombre del responsable obligatorio"
         if (_responsableParentesco.value.isBlank()) errs["parentesco"] = "Parentesco obligatorio"
         if (_responsableTelefono.value.length < 10) errs["responsableTel"] = "Teléfono 10 dígitos requerido"
-        if (_servicioMedico.value.isBlank()) errs["servicioMedico"] = "Servicio médico obligatorio"
-        if (_tipoSangre.value.isBlank()) errs["tipoSangre"] = "Tipo de sangre obligatorio"
         if (_tieneAlergias.value && _alergiasDetalle.value.isBlank()) errs["alergiasDetalle"] = "Detalle de alergias obligatorio"
         if (_tienePadecimientos.value && _padecimientosDetalle.value.isBlank()) errs["padecimientosDetalle"] = "Detalle de padecimientos obligatorio"
         if (_tomaMedicamentos.value && _medicamentosDetalle.value.isBlank()) errs["medicamentosDetalle"] = "Detalle de medicamentos obligatorio"
@@ -2418,7 +2439,7 @@ class PreApplicationViewModel {
             _currentStep.value = when {
                 errs.containsKey("consentimientoUsoDatos") || errs.containsKey("consentimientoCorresponsabilidad") -> 4
                 errs.keys.any { it.startsWith("personaTramite") } || errs.containsKey("responsable") || errs.containsKey("parentesco") || errs.containsKey("responsableTel") -> 1
-                errs.keys.any { it in setOf("servicioMedico", "tipoSangre", "alergiasDetalle", "padecimientosDetalle", "medicamentosDetalle", "viveConQuien", "tipoFamilia", "integrantesHogar", "personaAtiendeAvisos") } -> 2
+                errs.keys.any { it in setOf("alergiasDetalle", "padecimientosDetalle", "medicamentosDetalle", "viveConQuien", "tipoFamilia", "integrantesHogar", "personaAtiendeAvisos") } -> 2
                 errs.containsKey("documentos") -> 3
                 else -> 0
             }
