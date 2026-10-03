@@ -27,6 +27,7 @@ import com.example.data.presolicitud.Responsable
 import com.example.data.repository.MockPreApplicationRepositoryImpl
 import com.example.data.repository.PreApplicationPersistenceFailure
 import com.example.data.repository.PreApplicationRepository
+import com.example.data.repository.PreApplicationSubmitResult
 import com.example.data.repository.PreApplicationSyncResult
 import com.example.data.repository.PreApplicationTokenRotationResult
 import kotlin.test.BeforeTest
@@ -1335,6 +1336,19 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
+    fun familySubmissionExposesInitialTokenExpirationSoTheUiCanShowTheDeadline() = runTest {
+        PreApplicationViewModel.configurePreApplicationRepository(
+            ExpiringSubmitRepository(MockPreApplicationRepositoryImpl(), "2026-11-02T12:28:12+00:00")
+        )
+
+        val result = PreApplicationViewModel.submitFamilyPreApplication(preApplication(curp = uniqueCurp("EXPIRY")))
+
+        val success = assertIs<FamilySubmissionResult.Success>(result)
+        assertEquals("initial-token", success.accessToken)
+        assertEquals("2026-11-02T12:28:12+00:00", success.accessTokenExpiresAt)
+    }
+
+    @Test
     fun familyLookupExposesRotatedTokenExpirationSoTheUiCanShowTheDeadline() = runTest {
         // El codigo guardado deja de servir a los 30 dias sin consultar,
         // igual que uno invalido y sin ruta de recuperacion (P2 de Codex).
@@ -2034,6 +2048,15 @@ private class ScriptedRotationRepository(
             delegate.rotateFamilyAccessToken()
         }
     }
+}
+
+/** Delega todo en [delegate] excepto submit, que confirma con el vencimiento de token indicado. */
+private class ExpiringSubmitRepository(
+    private val delegate: PreApplicationRepository,
+    private val expiresAt: String
+) : PreApplicationRepository by delegate {
+    override suspend fun submit(preApplication: PreApplication): PreApplicationSubmitResult =
+        PreApplicationSubmitResult.Submitted(preApplication, accessToken = "initial-token", accessTokenExpiresAt = expiresAt)
 }
 
 /** Delega todo en [delegate] excepto refresh, que siempre devuelve [scriptedResult]. */

@@ -24,7 +24,12 @@ sealed class PreApplicationSubmitResult {
      * vez; el llamador (ViewModel) es responsable de conservarlo en un
      * [com.example.data.auth.FamilySession] y de mostrarlo a la familia.
      */
-    data class Submitted(val preApplication: PreApplication, val accessToken: String) : PreApplicationSubmitResult()
+    data class Submitted(
+        val preApplication: PreApplication,
+        val accessToken: String,
+        /** Vencimiento ISO-8601 del token inicial segun el servidor (null en DEMO_LOCAL). */
+        val accessTokenExpiresAt: String? = null
+    ) : PreApplicationSubmitResult()
     data class DuplicateCurp(val curp: String, val existing: PreApplication) : PreApplicationSubmitResult()
     data class DuplicateFolio(val folio: String) : PreApplicationSubmitResult()
     data class Failed(val reason: PreApplicationPersistenceFailure) : PreApplicationSubmitResult()

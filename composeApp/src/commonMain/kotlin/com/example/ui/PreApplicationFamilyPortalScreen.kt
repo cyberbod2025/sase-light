@@ -70,6 +70,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
     val currentStep by familyViewModel.currentStep.collectAsState()
     val submittedFolio by familyViewModel.submittedFolio.collectAsState()
     val submittedAccessToken by familyViewModel.submittedAccessToken.collectAsState()
+    val submittedAccessTokenExpiresAt by familyViewModel.submittedAccessTokenExpiresAt.collectAsState()
     val errors by familyViewModel.errors.collectAsState()
     val isSubmitting by familyViewModel.isSubmitting.collectAsState()
     var showLookupDialog by remember { mutableStateOf(false) }
@@ -328,6 +329,15 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                                 maxLines = 3,
                                 softWrap = true,
                                 textAlign = TextAlign.Center
+                            )
+                        }
+                        submittedAccessTokenExpiresAt?.let { expiresAt ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Este código vence el ${expiresAt.substringBefore('T')}. " +
+                                    "Cada vez que consultes tu pre-registro se renueva por 30 días más; " +
+                                    "si pasa esa fecha sin consultar, tendrás que acudir a Secretaría.",
+                                textAlign = TextAlign.Center, color = PortalMuted, fontSize = 12.sp
                             )
                         }
                     }

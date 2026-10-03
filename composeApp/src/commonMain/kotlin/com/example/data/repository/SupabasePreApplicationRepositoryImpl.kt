@@ -165,7 +165,8 @@ internal data class DocumentoRow(
 @Serializable
 internal data class CreatePreApplicationResponse(
     val folio: String,
-    @SerialName("access_token") val accessToken: String
+    @SerialName("access_token") val accessToken: String,
+    @SerialName("access_token_expires_at") val accessTokenExpiresAt: String? = null
 )
 
 @Serializable
@@ -755,7 +756,7 @@ class SupabasePreApplicationRepositoryImpl(
             ?.preApplication
             ?: preApplication.copy(folio = createdRef.folio)
         _preApplications.value = (_preApplications.value.filterNot { it.folio == created.folio } + created)
-        return PreApplicationSubmitResult.Submitted(created, createdRef.accessToken)
+        return PreApplicationSubmitResult.Submitted(created, createdRef.accessToken, createdRef.accessTokenExpiresAt)
     }
 
     override suspend fun update(preApplication: PreApplication): PreApplicationUpdateResult {

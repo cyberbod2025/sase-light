@@ -95,6 +95,33 @@ private fun clientFor(engine: MockEngine) = HttpClient(engine) {
 class SupabasePreApplicationRepositoryImplTest {
 
     @Test
+    fun submitPropagatesTheInitialTokenExpirationFromTheServer() = runTest {
+        // El token inicial tambien vence a los 30 dias (0017); sin propagar
+        // el vencimiento, la confirmacion de envio pedia guardar el codigo
+        // sin decir que caduca (P2 de Codex, PR #52).
+        val engine = MockEngine { request ->
+            if (request.url.encodedPath == CREATE_RPC_PATH) {
+                respond(
+                    "{\"folio\":\"PRE-TEST-01\",\"access_token\":\"family-token-1\",\"access_token_expires_at\":\"2026-11-02T12:28:12+00:00\"}",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            } else {
+                respond("[]", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { null },
+            httpClient = clientFor(engine)
+        )
+        val submitted = assertIs<PreApplicationSubmitResult.Submitted>(repo.submit(draftPreApplication()))
+        assertEquals("2026-11-02T12:28:12+00:00", submitted.accessTokenExpiresAt)
+    }
+
+    @Test
     fun submitWithoutAnySessionUsesAnonymousCreate() = runTest {
         val engine = MockEngine { request ->
             if (request.url.encodedPath == CREATE_RPC_PATH) {

@@ -104,6 +104,8 @@ sealed class FamilySubmissionResult {
          * antes de devolver este resultado.
          */
         val accessToken: String,
+        /** Vencimiento ISO-8601 de [accessToken] segun el servidor (null en DEMO_LOCAL): la UI debe mostrarlo (P2 de Codex en PR #52). */
+        val accessTokenExpiresAt: String? = null,
         override val message: String = "Pre-solicitud enviada."
     ) : FamilySubmissionResult()
 
@@ -943,7 +945,7 @@ class PreApplicationViewModel {
                         folio = result.preApplication.folio,
                         accessToken = result.accessToken
                     )
-                    FamilySubmissionResult.Success(result.preApplication, result.accessToken)
+                    FamilySubmissionResult.Success(result.preApplication, result.accessToken, result.accessTokenExpiresAt)
                 }
                 is PreApplicationSubmitResult.DuplicateCurp -> FamilySubmissionResult.DuplicateCurp(result.curp)
                 is PreApplicationSubmitResult.DuplicateFolio -> FamilySubmissionResult.DuplicateFolio(result.folio)
@@ -2181,6 +2183,8 @@ class PreApplicationViewModel {
      */
     private val _submittedAccessToken = MutableStateFlow<String?>(null)
     val submittedAccessToken: StateFlow<String?> = _submittedAccessToken.asStateFlow()
+    private val _submittedAccessTokenExpiresAt = MutableStateFlow<String?>(null)
+    val submittedAccessTokenExpiresAt: StateFlow<String?> = _submittedAccessTokenExpiresAt.asStateFlow()
 
     private val _isSubmitting = MutableStateFlow(false)
     val isSubmitting: StateFlow<Boolean> = _isSubmitting.asStateFlow()
@@ -2647,11 +2651,13 @@ class PreApplicationViewModel {
             is FamilySubmissionResult.Success -> {
                 _submittedFolio.value = submission.preApplication.folio
                 _submittedAccessToken.value = submission.accessToken
+                _submittedAccessTokenExpiresAt.value = submission.accessTokenExpiresAt
                 _errors.value = emptyMap()
             }
             else -> {
                 _submittedFolio.value = null
                 _submittedAccessToken.value = null
+                _submittedAccessTokenExpiresAt.value = null
                 _errors.value = mapOf("submit" to submission.message)
             }
         }
@@ -2750,5 +2756,6 @@ class PreApplicationViewModel {
         _errors.value = emptyMap()
         _submittedFolio.value = null
         _submittedAccessToken.value = null
+        _submittedAccessTokenExpiresAt.value = null
     }
 }
