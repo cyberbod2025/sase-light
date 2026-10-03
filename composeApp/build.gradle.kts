@@ -143,6 +143,16 @@ compose.desktop {
   }
 }
 
+// Sin este reenvio, `desktopRun` siempre arrancaba en DEMO_LOCAL: las gradle
+// properties `sase.*` solo llegaban al build script (BuildConfig de Android),
+// nunca como propiedades de sistema JVM que PlatformEnvironment.desktop.kt
+// puede leer en runtime.
+tasks.withType<JavaExec>().matching { it.name == "desktopRun" }.configureEach {
+  systemProperty("sase.environment", saseEnvironment.get())
+  systemProperty("sase.supabaseUrl", saseSupabaseUrl.get())
+  systemProperty("sase.supabasePublishableKey", saseSupabasePublishableKey.get())
+}
+
 android {
   namespace = "com.example"
   compileSdk = 35

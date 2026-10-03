@@ -21,6 +21,7 @@ import com.example.data.repository.PreApplicationPersistenceFailure
 import com.example.data.repository.PreApplicationRepository
 import com.example.data.repository.PreApplicationSubmitResult
 import com.example.data.repository.PreApplicationSyncResult
+import com.example.data.repository.PreApplicationTokenRotationResult
 import com.example.data.repository.PreApplicationUpdateResult
 import com.example.data.repository.StudentRepository
 import com.example.getPlatformName
@@ -37,10 +38,18 @@ import com.example.formatTimestamp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.random.Random
 
 private const val FAMILY_LOOKUP_ERROR =
     "No fue posible consultar la pre-solicitud con los datos proporcionados."
+
+private const val FAMILY_LOOKUP_RATE_LIMITED_ERROR =
+    "Hay demasiadas consultas desde tu red en este momento. Espera unos minutos e intenta de nuevo -- tu folio y código siguen siendo válidos."
+
+private const val FAMILY_LOOKUP_ROTATION_RETRY_ERROR =
+    "Encontramos tu pre-solicitud, pero no pudimos confirmar tu nuevo código de acceso por una falla de red. Vuelve a consultar en unos minutos con el mismo folio y código -- siguen siendo válidos."
 
 internal fun interface InstitutionalPreApplicationSynchronizer {
     suspend fun synchronize(
@@ -55,7 +64,25 @@ sealed class FamilyPreApplicationLookupResult {
         val folio: String,
         val status: PreApplicationStatus,
         val correctionReason: String,
-        val secretariaObservations: String
+        val secretariaObservations: String,
+        /**
+         * El token que la familia escribio para entrar queda invalido de
+         * inmediato (se rota en el servidor en cada consulta exitosa, ver
+         * [FamilySession]). Si no es null, es el reemplazo y la UI debe
+         * mostrarlo para que la familia lo guarde -- sin esto, cerrar la
+         * app tras una consulta deja a la familia sin forma de volver a
+         * entrar. Null solo cuando la rotacion no pudo completarse (ver
+         * comentario en lookupFamilyPreApplication): el token viejo sigue
+         * activo en ese caso, no hace falta mostrar uno nuevo.
+         */
+        val newAccessToken: String? = null,
+        /**
+         * Vencimiento (ISO-8601) de [newAccessToken] segun el servidor. El
+         * codigo guardado deja de servir al vencer (30 dias sin consultar),
+         * igual que uno invalido y sin ruta de recuperacion: la UI debe
+         * mostrar la fecha limite (P2 de Codex en PR #52). Null en DEMO_LOCAL.
+         */
+        val newAccessTokenExpiresAt: String? = null
     ) : FamilyPreApplicationLookupResult()
 
     data class Error(
@@ -77,6 +104,8 @@ sealed class FamilySubmissionResult {
          * antes de devolver este resultado.
          */
         val accessToken: String,
+        /** Vencimiento ISO-8601 de [accessToken] segun el servidor (null en DEMO_LOCAL): la UI debe mostrarlo (P2 de Codex en PR #52). */
+        val accessTokenExpiresAt: String? = null,
         override val message: String = "Pre-solicitud enviada."
     ) : FamilySubmissionResult()
 
@@ -298,6 +327,19 @@ class PreApplicationViewModel {
         // authSessionProvider.
         private val _activeFamilySession = MutableStateFlow<FamilySession?>(null)
         val activeFamilySession: FamilySession? get() = _activeFamilySession.value
+
+        /**
+         * Serializa [lookupFamilyPreApplication]: esa funcion rota el token
+         * de acceso en cada consulta exitosa (ver FamilySession). Dos
+         * llamadas concurrentes con el mismo token (doble toque en
+         * "Consultar" antes de que la UI reaccione a la primera) podian
+         * rotar dos veces; si la respuesta de la primera llegaba despues
+         * que la de la segunda, pisaba _activeFamilySession con un token
+         * ya superado (P1 de Codex en PR #52). Con las llamadas en fila,
+         * el orden de finalizacion coincide con el orden de llegada y el
+         * ultimo estado siempre es el mas reciente.
+         */
+        private val familyLookupMutex = Mutex()
 
         private val preApplicationFolioChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         private const val preApplicationTimestampPrefix = "Hoy "
@@ -602,7 +644,7 @@ class PreApplicationViewModel {
             folio: String,
             curp: String,
             accessToken: String
-        ): FamilyPreApplicationLookupResult {
+        ): FamilyPreApplicationLookupResult = familyLookupMutex.withLock {
             val normalizedFolio = normalizeFamilyLookupValue(folio)
             val normalizedCurp = normalizeFamilyLookupValue(curp)
             val normalizedToken = accessToken.trim()
@@ -612,6 +654,14 @@ class PreApplicationViewModel {
 
             _activeFamilySession.value = FamilySession(folio = normalizedFolio, accessToken = normalizedToken)
             val syncResult = preApplicationRepository.refresh()
+            if (syncResult is PreApplicationSyncResult.Failed &&
+                syncResult.reason == PreApplicationPersistenceFailure.RATE_LIMITED
+            ) {
+                // No se limpia la sesion ni el token que la familia acaba de
+                // escribir: la consulta se saturo (0021, limites compartidos
+                // por red), no significa que el token sea invalido.
+                return FamilyPreApplicationLookupResult.Error(FAMILY_LOOKUP_RATE_LIMITED_ERROR)
+            }
             val preApplication = (syncResult as? PreApplicationSyncResult.Loaded)
                 ?.preApplications
                 ?.firstOrNull { preApplication ->
@@ -624,11 +674,64 @@ class PreApplicationViewModel {
                 return FamilyPreApplicationLookupResult.Error()
             }
 
+            // rotateFamilyAccessToken es idempotente entre llamadores
+            // concurrentes (migracion 0022): un reintento tras un fallo
+            // transitorio (red/rate limit) nunca genera una tercera
+            // generacion de token -- o completa la rotacion que no se
+            // pudo confirmar la primera vez, o converge al token vigente
+            // real si esa rotacion si se habia confirmado en el servidor.
+            // Sin reintentar, una respuesta perdida dejaba a la familia
+            // con un codigo que solo sigue funcionando dentro de la
+            // ventana de gracia de 10 minutos, sin aviso de que expira
+            // (P1 de Codex en PR #52).
+            var rotatedAccessToken: String? = null
+            var rotatedExpiresAt: String? = null
+            var rotationAttempt = 0
+            while (rotatedAccessToken == null && rotationAttempt < 3) {
+                rotationAttempt++
+                when (val rotation = preApplicationRepository.rotateFamilyAccessToken()) {
+                    is PreApplicationTokenRotationResult.Rotated -> {
+                        rotatedAccessToken = rotation.accessToken
+                        rotatedExpiresAt = rotation.expiresAt
+                        _activeFamilySession.value = FamilySession(
+                            folio = normalizedFolio,
+                            accessToken = rotation.accessToken
+                        )
+                    }
+                    is PreApplicationTokenRotationResult.Failed -> {
+                        if (rotation.reason == PreApplicationPersistenceFailure.REJECTED ||
+                            rotation.reason == PreApplicationPersistenceFailure.NO_SESSION
+                        ) {
+                            clearFamilySessionAndCache()
+                            return FamilyPreApplicationLookupResult.Error()
+                        }
+                        // NETWORK o RATE_LIMITED: transitorio, se reintenta
+                        // (idempotente).
+                    }
+                }
+            }
+
+            if (rotatedAccessToken == null) {
+                // Los 3 intentos fallaron -- ya no es un glitch transitorio,
+                // es una falla persistente. No se devuelve Success con
+                // newAccessToken=null: eso le decia a la familia que todo
+                // estaba bien mientras el codigo que tiene solo sigue
+                // valido dentro de la ventana de gracia de 10 minutos, sin
+                // ningun aviso de que puede dejar de funcionar (P1 de Codex
+                // en PR #52). La sesion NO se borra -- el token de entrada
+                // sigue activo (de gracia si alguno de los 3 intentos si se
+                // confirmo en el servidor pero se perdio la respuesta) --
+                // un reintento del usuario puede recuperarlo.
+                return FamilyPreApplicationLookupResult.Error(FAMILY_LOOKUP_ROTATION_RETRY_ERROR)
+            }
+
             return FamilyPreApplicationLookupResult.Success(
                 folio = preApplication.folio,
                 status = preApplication.status,
                 correctionReason = preApplication.motivoCorreccion,
-                secretariaObservations = preApplication.observacionesSecretaria
+                secretariaObservations = preApplication.observacionesSecretaria,
+                newAccessToken = rotatedAccessToken,
+                newAccessTokenExpiresAt = rotatedExpiresAt
             )
         }
 
@@ -842,7 +945,7 @@ class PreApplicationViewModel {
                         folio = result.preApplication.folio,
                         accessToken = result.accessToken
                     )
-                    FamilySubmissionResult.Success(result.preApplication, result.accessToken)
+                    FamilySubmissionResult.Success(result.preApplication, result.accessToken, result.accessTokenExpiresAt)
                 }
                 is PreApplicationSubmitResult.DuplicateCurp -> FamilySubmissionResult.DuplicateCurp(result.curp)
                 is PreApplicationSubmitResult.DuplicateFolio -> FamilySubmissionResult.DuplicateFolio(result.folio)
@@ -2080,6 +2183,8 @@ class PreApplicationViewModel {
      */
     private val _submittedAccessToken = MutableStateFlow<String?>(null)
     val submittedAccessToken: StateFlow<String?> = _submittedAccessToken.asStateFlow()
+    private val _submittedAccessTokenExpiresAt = MutableStateFlow<String?>(null)
+    val submittedAccessTokenExpiresAt: StateFlow<String?> = _submittedAccessTokenExpiresAt.asStateFlow()
 
     private val _isSubmitting = MutableStateFlow(false)
     val isSubmitting: StateFlow<Boolean> = _isSubmitting.asStateFlow()
@@ -2335,6 +2440,7 @@ class PreApplicationViewModel {
                     errs["promedio"] = "Promedio requerido entre 5.0 y 10.0"
                 }
                 if (_telefonoPrincipal.value.length < 10) errs["telefono"] = "10 dígitos requeridos"
+                if (_domicilio.value.isBlank()) errs["domicilio"] = "Domicilio obligatorio"
                 if (!_aceptaAvisoPrivacidad.value) errs["aviso"] = "Debes aceptar el aviso de privacidad"
             }
             1 -> {
@@ -2347,8 +2453,9 @@ class PreApplicationViewModel {
                 if (_responsableTelefono.value.length < 10) errs["responsableTel"] = "Teléfono 10 dígitos requerido"
             }
             2 -> {
-                if (_servicioMedico.value.isBlank()) errs["servicioMedico"] = "Servicio médico obligatorio"
-                if (_tipoSangre.value.isBlank()) errs["tipoSangre"] = "Tipo de sangre obligatorio"
+                // Servicio médico y tipo de sangre son opcionales -- la propia pantalla dice
+                // "Estos campos son opcionales y no bloquean el envío de la pre-solicitud"
+                // (bloque Médico Escolar); exigirlos aquí contradecía ese texto.
                 if (_tieneAlergias.value && _alergiasDetalle.value.isBlank()) errs["alergiasDetalle"] = "Detalle de alergias obligatorio"
                 if (_tienePadecimientos.value && _padecimientosDetalle.value.isBlank()) errs["padecimientosDetalle"] = "Detalle de padecimientos obligatorio"
                 if (_tomaMedicamentos.value && _medicamentosDetalle.value.isBlank()) errs["medicamentosDetalle"] = "Detalle de medicamentos obligatorio"
@@ -2390,6 +2497,7 @@ class PreApplicationViewModel {
             errs["promedio"] = "Promedio requerido entre 5.0 y 10.0"
         }
         if (_telefonoPrincipal.value.length < 10) errs["telefono"] = "10 dígitos requeridos"
+        if (_domicilio.value.isBlank()) errs["domicilio"] = "Domicilio obligatorio"
         if (!_aceptaAvisoPrivacidad.value) errs["aviso"] = "Debes aceptar el aviso de privacidad"
         if (_personaTramiteNombre.value.isBlank()) errs["personaTramite"] = "Persona que realiza el trámite obligatoria"
         if (_personaTramiteParentesco.value.isBlank()) errs["personaTramiteParentesco"] = "Parentesco obligatorio"
@@ -2398,8 +2506,6 @@ class PreApplicationViewModel {
         if (_responsableNombre.value.isBlank()) errs["responsable"] = "Nombre del responsable obligatorio"
         if (_responsableParentesco.value.isBlank()) errs["parentesco"] = "Parentesco obligatorio"
         if (_responsableTelefono.value.length < 10) errs["responsableTel"] = "Teléfono 10 dígitos requerido"
-        if (_servicioMedico.value.isBlank()) errs["servicioMedico"] = "Servicio médico obligatorio"
-        if (_tipoSangre.value.isBlank()) errs["tipoSangre"] = "Tipo de sangre obligatorio"
         if (_tieneAlergias.value && _alergiasDetalle.value.isBlank()) errs["alergiasDetalle"] = "Detalle de alergias obligatorio"
         if (_tienePadecimientos.value && _padecimientosDetalle.value.isBlank()) errs["padecimientosDetalle"] = "Detalle de padecimientos obligatorio"
         if (_tomaMedicamentos.value && _medicamentosDetalle.value.isBlank()) errs["medicamentosDetalle"] = "Detalle de medicamentos obligatorio"
@@ -2418,7 +2524,7 @@ class PreApplicationViewModel {
             _currentStep.value = when {
                 errs.containsKey("consentimientoUsoDatos") || errs.containsKey("consentimientoCorresponsabilidad") -> 4
                 errs.keys.any { it.startsWith("personaTramite") } || errs.containsKey("responsable") || errs.containsKey("parentesco") || errs.containsKey("responsableTel") -> 1
-                errs.keys.any { it in setOf("servicioMedico", "tipoSangre", "alergiasDetalle", "padecimientosDetalle", "medicamentosDetalle", "viveConQuien", "tipoFamilia", "integrantesHogar", "personaAtiendeAvisos") } -> 2
+                errs.keys.any { it in setOf("alergiasDetalle", "padecimientosDetalle", "medicamentosDetalle", "viveConQuien", "tipoFamilia", "integrantesHogar", "personaAtiendeAvisos") } -> 2
                 errs.containsKey("documentos") -> 3
                 else -> 0
             }
@@ -2545,11 +2651,13 @@ class PreApplicationViewModel {
             is FamilySubmissionResult.Success -> {
                 _submittedFolio.value = submission.preApplication.folio
                 _submittedAccessToken.value = submission.accessToken
+                _submittedAccessTokenExpiresAt.value = submission.accessTokenExpiresAt
                 _errors.value = emptyMap()
             }
             else -> {
                 _submittedFolio.value = null
                 _submittedAccessToken.value = null
+                _submittedAccessTokenExpiresAt.value = null
                 _errors.value = mapOf("submit" to submission.message)
             }
         }
@@ -2648,5 +2756,6 @@ class PreApplicationViewModel {
         _errors.value = emptyMap()
         _submittedFolio.value = null
         _submittedAccessToken.value = null
+        _submittedAccessTokenExpiresAt.value = null
     }
 }

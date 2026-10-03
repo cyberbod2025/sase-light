@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 enum class PreApplicationPersistenceFailure {
     NO_SESSION,
     NETWORK,
-    REJECTED
+    REJECTED,
+    RATE_LIMITED
 }
 
 sealed class PreApplicationSyncResult {
@@ -23,7 +24,12 @@ sealed class PreApplicationSubmitResult {
      * vez; el llamador (ViewModel) es responsable de conservarlo en un
      * [com.example.data.auth.FamilySession] y de mostrarlo a la familia.
      */
-    data class Submitted(val preApplication: PreApplication, val accessToken: String) : PreApplicationSubmitResult()
+    data class Submitted(
+        val preApplication: PreApplication,
+        val accessToken: String,
+        /** Vencimiento ISO-8601 del token inicial segun el servidor (null en DEMO_LOCAL). */
+        val accessTokenExpiresAt: String? = null
+    ) : PreApplicationSubmitResult()
     data class DuplicateCurp(val curp: String, val existing: PreApplication) : PreApplicationSubmitResult()
     data class DuplicateFolio(val folio: String) : PreApplicationSubmitResult()
     data class Failed(val reason: PreApplicationPersistenceFailure) : PreApplicationSubmitResult()
@@ -32,6 +38,12 @@ sealed class PreApplicationSubmitResult {
 sealed class PreApplicationUpdateResult {
     data class Updated(val preApplication: PreApplication) : PreApplicationUpdateResult()
     data class Failed(val reason: PreApplicationPersistenceFailure) : PreApplicationUpdateResult()
+}
+
+sealed class PreApplicationTokenRotationResult {
+    /** [expiresAt]: instante ISO-8601 de vencimiento que informa el servidor (null en DEMO_LOCAL). */
+    data class Rotated(val accessToken: String, val expiresAt: String? = null) : PreApplicationTokenRotationResult()
+    data class Failed(val reason: PreApplicationPersistenceFailure) : PreApplicationTokenRotationResult()
 }
 
 /**
@@ -66,6 +78,10 @@ interface PreApplicationRepository {
      * pre-solicitud ya existente, identificada por [PreApplication.folio].
      */
     suspend fun update(preApplication: PreApplication): PreApplicationUpdateResult
+
+    /** Rota el token familiar despues de una revalidacion exitosa. */
+    suspend fun rotateFamilyAccessToken(): PreApplicationTokenRotationResult =
+        PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK)
 
     /**
      * Vacia el estado en memoria (sin red). Se invoca en logout/expiracion de

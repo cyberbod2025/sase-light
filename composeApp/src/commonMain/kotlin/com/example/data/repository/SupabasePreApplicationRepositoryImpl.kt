@@ -33,6 +33,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -164,7 +165,15 @@ internal data class DocumentoRow(
 @Serializable
 internal data class CreatePreApplicationResponse(
     val folio: String,
-    @SerialName("access_token") val accessToken: String
+    @SerialName("access_token") val accessToken: String,
+    @SerialName("access_token_expires_at") val accessTokenExpiresAt: String? = null
+)
+
+@Serializable
+internal data class RotatePreApplicationAccessTokenResponse(
+    val folio: String,
+    @SerialName("access_token") val accessToken: String,
+    @SerialName("access_token_expires_at") val accessTokenExpiresAt: String? = null
 )
 
 /** Respuesta de `get_pre_application_with_children` (migracion 0015): unica via de lectura familiar (sin RLS por sesion, ver comentario de la migracion). */
@@ -517,6 +526,61 @@ class SupabasePreApplicationRepositoryImpl(
             is PreApplicationAuthContext.Family -> refreshForFamily(auth)
         }
 
+    override suspend fun rotateFamilyAccessToken(): PreApplicationTokenRotationResult {
+        val auth = currentAuth() as? PreApplicationAuthContext.Family
+            ?: return PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NO_SESSION)
+        val response = try {
+            httpClient.post("$baseUrl/rest/v1/rpc/rotate_pre_application_access_token") {
+                authHeaders(auth)
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("p_folio", auth.session.folio)
+                    put("p_access_token", auth.session.accessToken)
+                })
+            }
+        } catch (e: Exception) {
+            return PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK)
+        }
+
+        if (response.status != HttpStatusCode.OK) {
+            val detail = runCatching { response.bodyAsText() }.getOrDefault("")
+            return PreApplicationTokenRotationResult.Failed(
+                if (detail.contains("SASE_PRE_APPLICATION_RATE_LIMITED")) {
+                    PreApplicationPersistenceFailure.RATE_LIMITED
+                } else {
+                    response.status.toPreApplicationFailure()
+                }
+            )
+        }
+
+        // Solo un cuerpo `null` es un rechazo definitivo (token invalido,
+        // 0018/0022). Un cuerpo truncado o ilegible tras un 200 es ambiguo:
+        // el servidor pudo haber confirmado ya la rotacion. Se reporta como
+        // NETWORK (reintentable, la rotacion es idempotente desde 0022) en
+        // vez de REJECTED, que borra la sesion y deja a la familia fuera
+        // cuando venza la ventana de gracia (P1 de Codex en PR #52).
+        val text = try {
+            response.bodyAsText()
+        } catch (e: Exception) {
+            return PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK)
+        }
+        val element = try {
+            Json.parseToJsonElement(text)
+        } catch (e: Exception) {
+            return PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK)
+        }
+        if (element is JsonNull) {
+            return PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+        }
+        return try {
+            val rotated = Json { ignoreUnknownKeys = true }
+                .decodeFromJsonElement(RotatePreApplicationAccessTokenResponse.serializer(), element)
+            PreApplicationTokenRotationResult.Rotated(rotated.accessToken, rotated.accessTokenExpiresAt)
+        } catch (e: Exception) {
+            PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK)
+        }
+    }
+
     private suspend fun refreshForStaff(auth: PreApplicationAuthContext.Staff): PreApplicationSyncResult {
       return try {
         val parents = fetchTable<PreApplicationRow>(auth, "pre_applications", PARENT_COLUMNS)
@@ -560,8 +624,14 @@ class SupabasePreApplicationRepositoryImpl(
      * definer` -- un GET directo con `Authorization: Bearer` no aplica aqui.
      */
     private suspend fun refreshForFamily(auth: PreApplicationAuthContext.Family): PreApplicationSyncResult {
-        val loaded = fetchByToken(auth.session.folio, auth.session.accessToken)
-            ?: return PreApplicationSyncResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+        val outcome = fetchByToken(auth.session.folio, auth.session.accessToken)
+        val loaded = when (outcome) {
+            is FetchByTokenOutcome.Found -> outcome.preApplication
+            FetchByTokenOutcome.RateLimited ->
+                return PreApplicationSyncResult.Failed(PreApplicationPersistenceFailure.RATE_LIMITED)
+            FetchByTokenOutcome.NotFound ->
+                return PreApplicationSyncResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+        }
 
         if (currentAuth()?.accessToken != auth.accessToken) {
             return PreApplicationSyncResult.Failed(PreApplicationPersistenceFailure.NO_SESSION)
@@ -585,12 +655,25 @@ class SupabasePreApplicationRepositoryImpl(
         return if (response.status == HttpStatusCode.OK) response.body<List<T>>() else null
     }
 
+    private sealed class FetchByTokenOutcome {
+        data class Found(val preApplication: PreApplication) : FetchByTokenOutcome()
+        object NotFound : FetchByTokenOutcome()
+        object RateLimited : FetchByTokenOutcome()
+    }
+
     /**
      * Unica via de LECTURA familiar: RPC `security definer` que valida el
      * token a mano (sin JWT, RLS no puede autorizar a la familia -- ver
      * migracion 0015). `access_token` nunca vuelve en la respuesta.
+     *
+     * Distingue "no encontrado/token invalido" (200 con cuerpo null) de
+     * "rate limited" (0021, huella compartida por red) -- antes ambos
+     * colapsaban a `null` y el llamador familiar terminaba borrando su
+     * sesion y mostrando "credenciales invalidas" cuando en realidad el
+     * token seguia siendo valido, solo la consulta se saturo (P2 de Codex
+     * en PR #52).
      */
-    private suspend fun fetchByToken(folio: String, accessToken: String): PreApplication? {
+    private suspend fun fetchByToken(folio: String, accessToken: String): FetchByTokenOutcome {
       return try {
         val response = httpClient.post("$baseUrl/rest/v1/rpc/get_pre_application_with_children") {
             header("apikey", apiKey)
@@ -600,11 +683,18 @@ class SupabasePreApplicationRepositoryImpl(
                 put("p_access_token", accessToken)
             })
         }
-        if (response.status != HttpStatusCode.OK) return null
-        val body = response.body<PreApplicationWithChildrenResponse?>() ?: return null
-        body.record.toDomain(body.responsables, body.autorizados, body.documentos)
+        if (response.status != HttpStatusCode.OK) {
+            val detail = runCatching { response.bodyAsText() }.getOrDefault("")
+            return if (detail.contains("SASE_PRE_APPLICATION_RATE_LIMITED")) {
+                FetchByTokenOutcome.RateLimited
+            } else {
+                FetchByTokenOutcome.NotFound
+            }
+        }
+        val body = response.body<PreApplicationWithChildrenResponse?>() ?: return FetchByTokenOutcome.NotFound
+        FetchByTokenOutcome.Found(body.record.toDomain(body.responsables, body.autorizados, body.documentos))
       } catch (e: Exception) {
-        null
+        FetchByTokenOutcome.NotFound
       }
     }
 
@@ -644,7 +734,14 @@ class SupabasePreApplicationRepositoryImpl(
                 ?: PreApplicationSubmitResult.Failed(PreApplicationPersistenceFailure.REJECTED)
         }
         if (response.status != HttpStatusCode.OK && response.status != HttpStatusCode.Created) {
-            return PreApplicationSubmitResult.Failed(response.status.toPreApplicationFailure())
+            val detail = runCatching { response.bodyAsText() }.getOrDefault("")
+            return PreApplicationSubmitResult.Failed(
+                if (detail.contains("SASE_PRE_APPLICATION_RATE_LIMITED")) {
+                    PreApplicationPersistenceFailure.RATE_LIMITED
+                } else {
+                    response.status.toPreApplicationFailure()
+                }
+            )
         }
 
         val createdRef = try {
@@ -655,10 +752,11 @@ class SupabasePreApplicationRepositoryImpl(
 
         // La RPC ya confirmo el agregado. No se hace una segunda lectura que
         // pueda perder el token de un solo uso si la red falla despues.
-        val created = fetchByToken(createdRef.folio, createdRef.accessToken)
+        val created = (fetchByToken(createdRef.folio, createdRef.accessToken) as? FetchByTokenOutcome.Found)
+            ?.preApplication
             ?: preApplication.copy(folio = createdRef.folio)
         _preApplications.value = (_preApplications.value.filterNot { it.folio == created.folio } + created)
-        return PreApplicationSubmitResult.Submitted(created, createdRef.accessToken)
+        return PreApplicationSubmitResult.Submitted(created, createdRef.accessToken, createdRef.accessTokenExpiresAt)
     }
 
     override suspend fun update(preApplication: PreApplication): PreApplicationUpdateResult {
@@ -683,11 +781,29 @@ class SupabasePreApplicationRepositoryImpl(
         }
 
         if (response.status != HttpStatusCode.OK) {
-            return PreApplicationUpdateResult.Failed(response.status.toPreApplicationFailure())
+            val detail = runCatching { response.bodyAsText() }.getOrDefault("")
+            return PreApplicationUpdateResult.Failed(
+                if (detail.contains("SASE_PRE_APPLICATION_RATE_LIMITED")) {
+                    PreApplicationPersistenceFailure.RATE_LIMITED
+                } else {
+                    response.status.toPreApplicationFailure()
+                }
+            )
         }
 
+        // Ktor excluye String de ContentNegotiation: body<String>() devuelve
+        // el texto crudo, comillas JSON incluidas ("PRE-X"), y un 200 con
+        // cuerpo `null` (rechazo desde 0018) llegaria como la cadena "null".
+        // Con el folio entre comillas, el refetch de confirmacion buscaba un
+        // folio inexistente y toda actualizacion exitosa se reportaba como
+        // REJECTED. Se decodifica el JSON de verdad.
         val folio = try {
-            response.body<String>()
+            val element = Json.parseToJsonElement(response.bodyAsText())
+            val primitive = element as? JsonPrimitive
+            if (primitive == null || primitive is JsonNull || !primitive.isString) {
+                return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+            }
+            primitive.content
         } catch (e: Exception) {
             return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
         }
@@ -697,9 +813,24 @@ class SupabasePreApplicationRepositoryImpl(
         }
 
         val updated = when (auth) {
-            is PreApplicationAuthContext.Staff -> fetchOne(auth, folio)
-            is PreApplicationAuthContext.Family -> fetchByToken(folio, auth.session.accessToken)
-        } ?: return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+            is PreApplicationAuthContext.Staff ->
+                fetchOne(auth, folio) ?: return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+            is PreApplicationAuthContext.Family ->
+                when (val outcome = fetchByToken(folio, auth.session.accessToken)) {
+                    is FetchByTokenOutcome.Found -> outcome.preApplication
+                    // La RPC ya confirmo la mutacion (200 + folio, arriba).
+                    // Que el refetch de confirmacion se tope con el rate
+                    // limit compartido (0021) no deshace lo ya guardado --
+                    // reportarlo como REJECTED le decia a la familia que su
+                    // correccion habia fallado cuando en realidad ya estaba
+                    // en ENVIADA, y un reintento fallaba de verdad porque el
+                    // estado ya no era PENDIENTE_CORRECCION (P1 de Codex en
+                    // PR #52). Mismo fallback que usa submit() tras crear.
+                    FetchByTokenOutcome.RateLimited -> preApplication.copy(folio = folio)
+                    FetchByTokenOutcome.NotFound ->
+                        return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+                }
+        }
         _preApplications.value = _preApplications.value.map { if (it.folio == updated.folio) updated else it }
         return PreApplicationUpdateResult.Updated(updated)
     }

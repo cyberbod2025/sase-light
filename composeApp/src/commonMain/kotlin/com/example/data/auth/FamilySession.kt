@@ -6,14 +6,14 @@ package com.example.data.auth
  * membresia institucional, no tiene [StaffRole], no pasa por
  * [StaffPermissions] -- es un actor distinto, sin login, identificado
  * unicamente por un token de acceso opaco no adivinable (uuid) que el
- * servidor genera al crear la pre-solicitud (migracion 0015,
- * `create_pre_application_with_children`) y devuelve una sola vez.
+ * servidor genera al crear la pre-solicitud (migraciones 0015/0017), expira,
+ * puede revocarse y se rota despues de una revalidacion exitosa.
  *
  * La familia guarda [folio] y [accessToken] (se muestran en pantalla junto
  * con el resto de la confirmacion, igual que el folio ya se mostraba antes)
  * y los vuelve a capturar para consultar o editar su tramite despues -- no
  * hay recuperacion automatica (correo/SMS), es responsabilidad de la
- * familia conservarlos.
+ * familia conservarlos. Un token anterior deja de ser valido al rotarse.
  *
  * `institution_id` de la fila que la familia escribe en `pre_applications`
  * lo deriva siempre el servidor (trigger

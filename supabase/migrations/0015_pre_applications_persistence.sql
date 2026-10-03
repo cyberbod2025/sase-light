@@ -68,8 +68,11 @@
 -- hace la RPC de creacion -- institution_id se deriva igual, nunca via
 -- parametro de la RPC; access_token lo genera el default de la columna.
 --
--- ESTADO: escrita, NO aplicada. Requiere autorizacion explicita de Hugo
--- antes de tocar el proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh).
+-- ESTADO: aplicada al proyecto remoto "SASE-Light" (plyjvvpkaafnkxmmqkbh) como
+-- 20260822144753_0015_pre_applications_persistence. Verificado en vivo
+-- (2026-09-01): create/get/update_pre_application_with_children responden
+-- correctamente vía anon; SELECT directo a pre_applications como anon queda
+-- bloqueado por RLS/grants como se espera.
 
 -- Precondiciones fail-fast: esta migracion debe usar el permiso institucional
 -- ya existente y asignado a SECRETARIA. No crea aliases ni modifica el
@@ -452,11 +455,17 @@ drop policy pre_application_documentos_write on public.pre_application_documento
 -- colecciones 1:N como jsonb arrays. `security definer`: la familia nunca
 -- tiene JWT de Supabase Auth (ver decision de identidad arriba), asi que
 -- RLS por sesion no puede autorizarla -- estas funciones son la unica via
--- de acceso familiar y hacen su propia validacion. folio/institution_id/
+-- de acceso familiar y hacen su propia validacion. institution_id/
 -- access_token que el cliente pudiera incluir en p_record se ignoran: el
 -- trigger `trg_pre_applications_stamp_owner` fija institution_id siempre
 -- dentro del mismo INSERT, y access_token nunca esta en la lista de
 -- columnas que la RPC inserta (lo genera el default de la columna).
+-- CORRECCION (verificado en vivo, 2026-09-01): folio NO se ignora -- se
+-- inserta tal cual lo manda el cliente (`x.folio` viene de p_record). Esto
+-- es intencional: el cliente Kotlin genera el folio con el patron
+-- `PRE-310-XXXX` antes de llamar a esta RPC; un folio duplicado simplemente
+-- falla por la primary key de `pre_applications`, no hay forma de
+-- sobreescribir una fila existente.
 
 create or replace function public.create_pre_application_with_children(
   p_record jsonb,

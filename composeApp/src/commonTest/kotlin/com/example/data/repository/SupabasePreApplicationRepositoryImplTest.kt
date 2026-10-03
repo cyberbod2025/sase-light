@@ -36,6 +36,7 @@ private const val BASE_URL = "https://proyecto-ficticio.supabase.invalid"
 private const val CREATE_RPC_PATH = "/rest/v1/rpc/create_pre_application_with_children"
 private const val UPDATE_RPC_PATH = "/rest/v1/rpc/update_pre_application_with_children"
 private const val GET_RPC_PATH = "/rest/v1/rpc/get_pre_application_with_children"
+private const val ROTATE_RPC_PATH = "/rest/v1/rpc/rotate_pre_application_access_token"
 private const val PARENT_PATH = "/rest/v1/pre_applications"
 
 private fun familySession(folio: String = "PRE-TEST-01", token: String = "family-token-1") =
@@ -92,6 +93,33 @@ private fun clientFor(engine: MockEngine) = HttpClient(engine) {
 }
 
 class SupabasePreApplicationRepositoryImplTest {
+
+    @Test
+    fun submitPropagatesTheInitialTokenExpirationFromTheServer() = runTest {
+        // El token inicial tambien vence a los 30 dias (0017); sin propagar
+        // el vencimiento, la confirmacion de envio pedia guardar el codigo
+        // sin decir que caduca (P2 de Codex, PR #52).
+        val engine = MockEngine { request ->
+            if (request.url.encodedPath == CREATE_RPC_PATH) {
+                respond(
+                    "{\"folio\":\"PRE-TEST-01\",\"access_token\":\"family-token-1\",\"access_token_expires_at\":\"2026-11-02T12:28:12+00:00\"}",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            } else {
+                respond("[]", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { null },
+            httpClient = clientFor(engine)
+        )
+        val submitted = assertIs<PreApplicationSubmitResult.Submitted>(repo.submit(draftPreApplication()))
+        assertEquals("2026-11-02T12:28:12+00:00", submitted.accessTokenExpiresAt)
+    }
 
     @Test
     fun submitWithoutAnySessionUsesAnonymousCreate() = runTest {
@@ -207,6 +235,219 @@ class SupabasePreApplicationRepositoryImplTest {
     }
 
     @Test
+    fun successfulFamilyUpdateRefetchesWithUnquotedFolioAndReportsUpdated() = runTest {
+        // Ktor excluye String de ContentNegotiation: body<String>() devolvia
+        // el folio con comillas JSON ("PRE-TEST-01"), el refetch buscaba un
+        // folio inexistente y toda actualizacion exitosa terminaba en
+        // REJECTED. Este es el primer test del camino exitoso de update().
+        val getBodies = mutableListOf<String>()
+        val engine = MockEngine { request ->
+            when (request.url.encodedPath) {
+                UPDATE_RPC_PATH -> respond(
+                    content = ByteReadChannel("\"PRE-TEST-01\""),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+                GET_RPC_PATH -> {
+                    getBodies += (request.body as io.ktor.http.content.TextContent).text
+                    respond(
+                        withChildrenJson(parentRowJson("PRE-TEST-01")),
+                        HttpStatusCode.OK,
+                        headersOf(HttpHeaders.ContentType, "application/json")
+                    )
+                }
+                else -> respond("[]", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession(folio = "PRE-TEST-01") },
+            httpClient = clientFor(engine)
+        )
+
+        val result = repo.update(draftPreApplication(folio = "PRE-TEST-01"))
+
+        val updated = assertIs<PreApplicationUpdateResult.Updated>(result)
+        assertEquals("PRE-TEST-01", updated.preApplication.folio)
+        val sentFolio = getBodies.single()
+        assertTrue(
+            sentFolio.contains("\"p_folio\":\"PRE-TEST-01\""),
+            "El refetch debe enviar el folio sin comillas JSON extra: $sentFolio"
+        )
+    }
+
+    @Test
+    fun committedFamilyUpdateIsNotReportedAsRejectedWhenConfirmationGetIsRateLimited() = runTest {
+        // La RPC de UPDATE ya confirmo la mutacion (200 + folio). Si el GET
+        // de confirmacion posterior se topa con el rate limit compartido
+        // (0021), reportar REJECTED le decia a la familia que su correccion
+        // fallo cuando el registro ya estaba en ENVIADA -- y reintentar
+        // fallaba de verdad, porque ya no estaba en PENDIENTE_CORRECCION
+        // (P1 de Codex, PR #52).
+        val engine = MockEngine { request ->
+            when (request.url.encodedPath) {
+                UPDATE_RPC_PATH -> respond(
+                    content = ByteReadChannel("\"PRE-TEST-01\""),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+                GET_RPC_PATH -> respond(
+                    content = ByteReadChannel("{\"message\":\"SASE_PRE_APPLICATION_RATE_LIMITED\"}"),
+                    status = HttpStatusCode.BadRequest,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+                else -> respond("[]", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession(folio = "PRE-TEST-01") },
+            httpClient = clientFor(engine)
+        )
+
+        val result = repo.update(draftPreApplication(folio = "PRE-TEST-01"))
+
+        val updated = assertIs<PreApplicationUpdateResult.Updated>(result)
+        assertEquals("PRE-TEST-01", updated.preApplication.folio)
+    }
+
+    @Test
+    fun updateRejectedByInvalidFamilyTokenReturnsNullBodyNotException() = runTest {
+        // Desde 0018: un token/folio de familia invalido para UPDATE ya no
+        // lanza excepcion en el servidor (eso deshacia, dentro de la misma
+        // transaccion, el incremento del contador de rate limit que el
+        // propio intento rechazado acababa de confirmar). El servidor
+        // responde 200 con cuerpo `null`; el cliente debe seguir
+        // reportando REJECTED, no Updated.
+        val engine = MockEngine { request ->
+            if (request.url.encodedPath == UPDATE_RPC_PATH) {
+                respond(
+                    content = ByteReadChannel("null"),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            } else {
+                respond("[]", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession(folio = "PRE-AJENO", token = "otro-token") },
+            httpClient = clientFor(engine)
+        )
+        val result = repo.update(draftPreApplication(folio = "PRE-AJENO"))
+        val failed = assertIs<PreApplicationUpdateResult.Failed>(result)
+        assertEquals(PreApplicationPersistenceFailure.REJECTED, failed.reason)
+    }
+
+    @Test
+    fun rotationWithUndecodableSuccessBodyIsRetryableNotRejected() = runTest {
+        // El servidor pudo haber confirmado la rotacion aunque el cuerpo del
+        // 200 llegue truncado o sin el token: clasificarlo REJECTED borraba
+        // la sesion y dejaba a la familia fuera al vencer la ventana de
+        // gracia (P1 de Codex, PR #52). Debe ser reintentable (NETWORK).
+        val badBodies = listOf(
+            "{\"folio\":\"PRE-TEST-01\",\"access_to",
+            "{\"folio\":\"PRE-TEST-01\"}",
+            ""
+        )
+        for (body in badBodies) {
+            val engine = MockEngine {
+                respond(
+                    content = ByteReadChannel(body),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            }
+            val repo = SupabasePreApplicationRepositoryImpl(
+                baseUrl = BASE_URL,
+                apiKey = "anon-key",
+                staffSessionProvider = { null },
+                familySessionProvider = { familySession() },
+                httpClient = clientFor(engine)
+            )
+            val failed = assertIs<PreApplicationTokenRotationResult.Failed>(repo.rotateFamilyAccessToken())
+            assertEquals(PreApplicationPersistenceFailure.NETWORK, failed.reason, "cuerpo: '$body'")
+        }
+    }
+
+    @Test
+    fun rotationRejectedByInvalidFamilyTokenReturnsNullBodyNotException() = runTest {
+        val engine = MockEngine { request ->
+            respond(
+                content = ByteReadChannel("null"),
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession() },
+            httpClient = clientFor(engine)
+        )
+        val result = repo.rotateFamilyAccessToken()
+        val failed = assertIs<PreApplicationTokenRotationResult.Failed>(result)
+        assertEquals(PreApplicationPersistenceFailure.REJECTED, failed.reason)
+    }
+
+    @Test
+    fun familyTokenRotationUsesAnonymousRpcAndReturnsReplacementToken() = runTest {
+        val requests = mutableListOf<HttpRequestData>()
+        val engine = MockEngine { request ->
+            requests += request
+            respond(
+                "{\"folio\":\"PRE-TEST-01\",\"access_token\":\"family-token-2\",\"access_token_expires_at\":\"2099-01-01T00:00:00Z\"}",
+                HttpStatusCode.OK,
+                headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession() },
+            httpClient = clientFor(engine)
+        )
+
+        val result = repo.rotateFamilyAccessToken()
+        val rotated = assertIs<PreApplicationTokenRotationResult.Rotated>(result)
+        assertEquals("family-token-2", rotated.accessToken)
+        assertEquals("2099-01-01T00:00:00Z", rotated.expiresAt, "El vencimiento del servidor debe llegar hasta la UI")
+        assertEquals(ROTATE_RPC_PATH, requests.single().url.encodedPath)
+        assertEquals(HttpMethod.Post, requests.single().method)
+    }
+
+    @Test
+    fun rateLimitedUpdateIsNotReportedAsGenericNetworkFailure() = runTest {
+        val engine = MockEngine {
+            respond(
+                content = ByteReadChannel("{\"message\":\"SASE_PRE_APPLICATION_RATE_LIMITED\"}"),
+                status = HttpStatusCode.BadRequest,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession(folio = "PRE-TEST-01") },
+            httpClient = clientFor(engine)
+        )
+
+        val result = repo.update(draftPreApplication())
+        val failed = assertIs<PreApplicationUpdateResult.Failed>(result)
+        assertEquals(PreApplicationPersistenceFailure.RATE_LIMITED, failed.reason)
+    }
+
+    @Test
     fun obsoleteSessionMutationResponseIsDiscarded() = runTest {
         var currentToken = "token-A"
         val engine = MockEngine { request ->
@@ -295,6 +536,31 @@ class SupabasePreApplicationRepositoryImplTest {
         assertTrue(requests.none { it.url.encodedPath == PARENT_PATH })
         val rpcRequest = requests.first { it.url.encodedPath == GET_RPC_PATH }
         assertEquals(HttpMethod.Post, rpcRequest.method)
+    }
+
+    @Test
+    fun refreshForFamilyRateLimitedByGetIsNotReportedAsGenericRejection() = runTest {
+        // Antes, fetchByToken colapsaba tanto "token invalido" como "rate
+        // limited" a null; refreshForFamily siempre devolvia REJECTED, y el
+        // llamador familiar terminaba borrando la sesion y mostrando
+        // "credenciales invalidas" aunque el token siguiera siendo valido.
+        val engine = MockEngine {
+            respond(
+                content = ByteReadChannel("{\"message\":\"SASE_PRE_APPLICATION_RATE_LIMITED\"}"),
+                status = HttpStatusCode.BadRequest,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession() },
+            httpClient = clientFor(engine)
+        )
+        val result = repo.refresh()
+        val failed = assertIs<PreApplicationSyncResult.Failed>(result)
+        assertEquals(PreApplicationPersistenceFailure.RATE_LIMITED, failed.reason)
     }
 
     @Test

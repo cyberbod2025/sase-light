@@ -70,6 +70,7 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
     val currentStep by familyViewModel.currentStep.collectAsState()
     val submittedFolio by familyViewModel.submittedFolio.collectAsState()
     val submittedAccessToken by familyViewModel.submittedAccessToken.collectAsState()
+    val submittedAccessTokenExpiresAt by familyViewModel.submittedAccessTokenExpiresAt.collectAsState()
     val errors by familyViewModel.errors.collectAsState()
     val isSubmitting by familyViewModel.isSubmitting.collectAsState()
     var showLookupDialog by remember { mutableStateOf(false) }
@@ -184,30 +185,32 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                         3 -> StepDocumentos(familyViewModel)
                         4 -> StepResumenEnvio(familyViewModel)
                     }
-                }
-            }
 
-            // Errors banner
-            if (errors.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                GlassCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    containerColor = Color(0xFF2A1824).copy(alpha = 0.96f),
-                    borderColor = SaseRed.copy(alpha = 0.36f)
-                ) {
-                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Hay campos pendientes por corregir", color = Color(0xFFFCA5A5), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        errors.forEach { (field, msg) ->
-                            Text("• $field: $msg", color = PortalText, fontSize = 10.sp)
-                        }
-                        OutlinedButton(
-                            onClick = { coroutineScope.launch { scrollState.animateScrollTo(0) } },
-                            border = BorderStroke(1.dp, SaseRed.copy(alpha = 0.45f)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFCA5A5)),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth()
+                    // Errors banner: vive DENTRO del scroll interno del GlassCard, no como
+                    // hermano en la Column externa (que no es scrolleable) -- de lo contrario
+                    // esta tarjeta le roba todo el espacio al GlassCard con weight(1f) y lo
+                    // colapsa, dejando los campos del formulario invisibles e inalcanzables.
+                    if (errors.isNotEmpty()) {
+                        GlassCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerColor = Color(0xFF2A1824).copy(alpha = 0.96f),
+                            borderColor = SaseRed.copy(alpha = 0.36f)
                         ) {
-                            Text("Corregir campos", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Hay campos pendientes por corregir", color = Color(0xFFFCA5A5), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                errors.forEach { (field, msg) ->
+                                    Text("• $field: $msg", color = PortalText, fontSize = 10.sp)
+                                }
+                                OutlinedButton(
+                                    onClick = { coroutineScope.launch { scrollState.animateScrollTo(0) } },
+                                    border = BorderStroke(1.dp, SaseRed.copy(alpha = 0.45f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFCA5A5)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Corregir campos", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }
@@ -326,6 +329,15 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                                 maxLines = 3,
                                 softWrap = true,
                                 textAlign = TextAlign.Center
+                            )
+                        }
+                        submittedAccessTokenExpiresAt?.let { expiresAt ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Este código vence el ${expiresAt.substringBefore('T')}. " +
+                                    "Cada vez que consultes tu pre-registro se renueva por 30 días más; " +
+                                    "si pasa esa fecha sin consultar, tendrás que acudir a Secretaría.",
+                                textAlign = TextAlign.Center, color = PortalMuted, fontSize = 12.sp
                             )
                         }
                     }
@@ -498,6 +510,37 @@ private fun FamilyPreApplicationLookupDialog(onDismiss: () -> Unit) {
                             "Observaciones de Secretaría",
                             result.secretariaObservations.ifBlank { "Sin observaciones de Secretaría." }
                         )
+                        if (result.newAccessToken != null) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFF1F2A3A), RoundedCornerShape(10.dp))
+                                    .padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    "Tu código de acceso anterior ya no sirve. Guarda este nuevo código para tu próxima consulta:",
+                                    color = PortalText,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    result.newAccessToken,
+                                    color = PortalCyan,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                result.newAccessTokenExpiresAt?.let { expiresAt ->
+                                    Text(
+                                        "Este código vence el ${expiresAt.substringBefore('T')}. " +
+                                            "Si no consultas antes de esa fecha, tendrás que acudir a Secretaría. " +
+                                            "Cada consulta lo renueva por 30 días más.",
+                                        color = PortalText,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
                     }
                     is FamilyPreApplicationLookupResult.Error -> Text(
                         result.message,
@@ -695,7 +738,7 @@ private fun StepDatosBasicos(vm: PreApplicationViewModel) {
     FormField("Entidad de nacimiento", entidadNac, { vm.setEntidadNacimiento(it) }, false, null)
 
     Text("Domicilio", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PortalText)
-    FormField("Domicilio (calle, colonia, municipio, estado)", domicilio, { vm.setDomicilio(it) }, false, null)
+    FormField("Domicilio (calle, colonia, municipio, estado)", domicilio, { vm.setDomicilio(it) }, errors.containsKey("domicilio"), "Domicilio obligatorio")
 
     Text("Contacto", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PortalText)
     FormField("Telefono principal (10 digitos)", telefono, { vm.setTelefonoPrincipal(it) }, errors.containsKey("telefono"), "10 digitos requeridos")
@@ -911,6 +954,7 @@ private fun AutorizadoDialog(
 
 @Composable
 private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
+    val errors by vm.errors.collectAsState()
     val servicioMedico by vm.servicioMedico.collectAsState()
     val numeroAfiliacionPoliza by vm.numeroAfiliacionPoliza.collectAsState()
     val tipoSangre by vm.tipoSangre.collectAsState()
@@ -1073,6 +1117,9 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
             vm.setViveConQuien(current.joinToString(", "))
         })
     }
+    if (errors.containsKey("viveConQuien")) {
+        Text(errors.getValue("viveConQuien"), color = SaseRed, fontSize = 11.sp)
+    }
 
     Text("Tipo de familia", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
     DeclarativeCheckbox("Nuclear", tipoFamilia == "Nuclear", { vm.setTipoFamilia(if (it) "Nuclear" else "") })
@@ -1080,13 +1127,22 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
     DeclarativeCheckbox("Monoparental", tipoFamilia == "Monoparental", { vm.setTipoFamilia(if (it) "Monoparental" else "") })
     DeclarativeCheckbox("Reconstituida", tipoFamilia == "Reconstituida", { vm.setTipoFamilia(if (it) "Reconstituida" else "") })
     DeclarativeCheckbox("Otra", tipoFamilia == "Otra", { vm.setTipoFamilia(if (it) "Otra" else "") })
+    if (errors.containsKey("tipoFamilia")) {
+        Text(errors.getValue("tipoFamilia"), color = SaseRed, fontSize = 11.sp)
+    }
 
     DeclarativeCheckbox("Hijo único", hijoUnico, { vm.setHijoUnico(it) })
     if (!hijoUnico) {
         FormField("Lugar entre hermanos", lugarEntreHermanos, { vm.setLugarEntreHermanos(it) }, false, null)
     }
     DeclarativeCheckbox("Hermanos en la escuela", hermanosEnEscuela, { vm.setHermanosEnEscuela(it) })
-    FormField("Integrantes del hogar", integrantesHogar, { vm.setIntegrantesHogar(it) }, false, null)
+    FormField(
+        "Integrantes del hogar",
+        integrantesHogar,
+        { vm.setIntegrantesHogar(it) },
+        errors.containsKey("integrantesHogar"),
+        errors["integrantesHogar"]
+    )
 
     Text("Principal sostén económico", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
     listOf("Madre", "Padre", "Ambos", "Otro").forEach { opt ->
@@ -1136,7 +1192,13 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
         dificultadComprarMateriales,
         { vm.setDificultadComprarMateriales(it) }
     )
-    FormField("Persona que atiende avisos escolares", personaAtiendeAvisos, { vm.setPersonaAtiendeAvisos(it) }, false, null)
+    FormField(
+        "Persona que atiende avisos escolares",
+        personaAtiendeAvisos,
+        { vm.setPersonaAtiendeAvisos(it) },
+        errors.containsKey("personaAtiendeAvisos"),
+        errors["personaAtiendeAvisos"]
+    )
     CompactOptionGroup(
         label = "Horario preferente de comunicación",
         options = listOf("Mañana", "Tarde", "Noche", "Indistinto"),
