@@ -27,14 +27,16 @@ The family portal remains anonymous by design. It uses the Supabase RPCs and a
 short-lived, rotatable bearer token; it does not create Supabase Auth accounts.
 
 The tracked database migrations live in `supabase/migrations/`, numbered
-sequentially. All of them are applied to the staging Supabase project
-(`SASE-Light`); the migration list itself is the source of truth for what is
-applied and why -- do not hardcode a "latest migration number" here, it will
-drift. As of this writing the family-portal token lifecycle spans `0015`
-(persistence) through `0022` (token expiry, revocation, rotation with a short
-grace period for lost responses, anti-abuse rate limiting, and making
-rotation idempotent across concurrent callers) -- read the migration files in
-order for the full history of what each one fixed and why.
+sequentially and applied in order. Each file's header comment states what it
+fixes and why, and whether it has been applied to the staging Supabase project
+(`SASE-Light`). That directory is the only source of truth for the schema's
+state: this README deliberately names no migration numbers, because every
+range written here went stale within a review round. To audit or deploy, apply
+every file in the directory in order.
+
+The family portal's access-token lifecycle (expiry, revocation, rotation,
+anti-abuse rate limiting) is implemented across several of those migrations and
+in `PreApplicationViewModel` / `SupabasePreApplicationRepositoryImpl`.
 
 ## Setup
 
