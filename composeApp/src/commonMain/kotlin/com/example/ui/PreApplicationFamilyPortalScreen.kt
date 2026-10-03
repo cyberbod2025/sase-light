@@ -520,6 +520,15 @@ private fun FamilyPreApplicationLookupDialog(onDismiss: () -> Unit) {
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
                                 )
+                                result.newAccessTokenExpiresAt?.let { expiresAt ->
+                                    Text(
+                                        "Este código vence el ${expiresAt.substringBefore('T')}. " +
+                                            "Si no consultas antes de esa fecha, tendrás que acudir a Secretaría. " +
+                                            "Cada consulta lo renueva por 30 días más.",
+                                        color = PortalText,
+                                        fontSize = 11.sp
+                                    )
+                                }
                             }
                         }
                     }

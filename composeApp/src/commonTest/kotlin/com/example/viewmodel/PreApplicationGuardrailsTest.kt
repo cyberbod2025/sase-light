@@ -1335,6 +1335,26 @@ class PreApplicationGuardrailsTest {
     }
 
     @Test
+    fun familyLookupExposesRotatedTokenExpirationSoTheUiCanShowTheDeadline() = runTest {
+        // El codigo guardado deja de servir a los 30 dias sin consultar,
+        // igual que uno invalido y sin ruta de recuperacion (P2 de Codex).
+        val stored = PreApplicationViewModel.sharedPreApplications.value.first()
+        val scripted = ScriptedRotationRepository(
+            delegate = MockPreApplicationRepositoryImpl(),
+            scriptedOutcomes = mutableListOf(
+                PreApplicationTokenRotationResult.Rotated("fresh-token", "2026-11-02T12:13:07+00:00")
+            )
+        )
+        PreApplicationViewModel.configurePreApplicationRepository(scripted)
+
+        val result = PreApplicationViewModel.lookupFamilyPreApplication(stored.folio, stored.alumnoCurp, "test-access-token")
+
+        val success = assertIs<FamilyPreApplicationLookupResult.Success>(result)
+        assertEquals("fresh-token", success.newAccessToken)
+        assertEquals("2026-11-02T12:13:07+00:00", success.newAccessTokenExpiresAt)
+    }
+
+    @Test
     fun familyLookupRetriesIdempotentRotationAfterTransientFailure() = runTest {
         // rotateFamilyAccessToken es idempotente entre llamadores
         // concurrentes (migracion 0022 del servidor): un reintento tras un

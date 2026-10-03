@@ -36,7 +36,8 @@ sealed class PreApplicationUpdateResult {
 }
 
 sealed class PreApplicationTokenRotationResult {
-    data class Rotated(val accessToken: String) : PreApplicationTokenRotationResult()
+    /** [expiresAt]: instante ISO-8601 de vencimiento que informa el servidor (null en DEMO_LOCAL). */
+    data class Rotated(val accessToken: String, val expiresAt: String? = null) : PreApplicationTokenRotationResult()
     data class Failed(val reason: PreApplicationPersistenceFailure) : PreApplicationTokenRotationResult()
 }
 

@@ -393,6 +393,7 @@ class SupabasePreApplicationRepositoryImplTest {
         val result = repo.rotateFamilyAccessToken()
         val rotated = assertIs<PreApplicationTokenRotationResult.Rotated>(result)
         assertEquals("family-token-2", rotated.accessToken)
+        assertEquals("2099-01-01T00:00:00Z", rotated.expiresAt, "El vencimiento del servidor debe llegar hasta la UI")
         assertEquals(ROTATE_RPC_PATH, requests.single().url.encodedPath)
         assertEquals(HttpMethod.Post, requests.single().method)
     }

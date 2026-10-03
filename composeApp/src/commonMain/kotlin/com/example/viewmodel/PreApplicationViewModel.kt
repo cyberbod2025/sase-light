@@ -75,7 +75,14 @@ sealed class FamilyPreApplicationLookupResult {
          * comentario en lookupFamilyPreApplication): el token viejo sigue
          * activo en ese caso, no hace falta mostrar uno nuevo.
          */
-        val newAccessToken: String? = null
+        val newAccessToken: String? = null,
+        /**
+         * Vencimiento (ISO-8601) de [newAccessToken] segun el servidor. El
+         * codigo guardado deja de servir al vencer (30 dias sin consultar),
+         * igual que uno invalido y sin ruta de recuperacion: la UI debe
+         * mostrar la fecha limite (P2 de Codex en PR #52). Null en DEMO_LOCAL.
+         */
+        val newAccessTokenExpiresAt: String? = null
     ) : FamilyPreApplicationLookupResult()
 
     data class Error(
@@ -676,12 +683,14 @@ class PreApplicationViewModel {
             // ventana de gracia de 10 minutos, sin aviso de que expira
             // (P1 de Codex en PR #52).
             var rotatedAccessToken: String? = null
+            var rotatedExpiresAt: String? = null
             var rotationAttempt = 0
             while (rotatedAccessToken == null && rotationAttempt < 3) {
                 rotationAttempt++
                 when (val rotation = preApplicationRepository.rotateFamilyAccessToken()) {
                     is PreApplicationTokenRotationResult.Rotated -> {
                         rotatedAccessToken = rotation.accessToken
+                        rotatedExpiresAt = rotation.expiresAt
                         _activeFamilySession.value = FamilySession(
                             folio = normalizedFolio,
                             accessToken = rotation.accessToken
@@ -719,7 +728,8 @@ class PreApplicationViewModel {
                 status = preApplication.status,
                 correctionReason = preApplication.motivoCorreccion,
                 secretariaObservations = preApplication.observacionesSecretaria,
-                newAccessToken = rotatedAccessToken
+                newAccessToken = rotatedAccessToken,
+                newAccessTokenExpiresAt = rotatedExpiresAt
             )
         }
 

@@ -574,7 +574,7 @@ class SupabasePreApplicationRepositoryImpl(
         return try {
             val rotated = Json { ignoreUnknownKeys = true }
                 .decodeFromJsonElement(RotatePreApplicationAccessTokenResponse.serializer(), element)
-            PreApplicationTokenRotationResult.Rotated(rotated.accessToken)
+            PreApplicationTokenRotationResult.Rotated(rotated.accessToken, rotated.accessTokenExpiresAt)
         } catch (e: Exception) {
             PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK)
         }
