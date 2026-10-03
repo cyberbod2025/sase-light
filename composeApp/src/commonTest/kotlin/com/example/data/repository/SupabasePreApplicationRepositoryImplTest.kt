@@ -320,6 +320,37 @@ class SupabasePreApplicationRepositoryImplTest {
     }
 
     @Test
+    fun rotationWithUndecodableSuccessBodyIsRetryableNotRejected() = runTest {
+        // El servidor pudo haber confirmado la rotacion aunque el cuerpo del
+        // 200 llegue truncado o sin el token: clasificarlo REJECTED borraba
+        // la sesion y dejaba a la familia fuera al vencer la ventana de
+        // gracia (P1 de Codex, PR #52). Debe ser reintentable (NETWORK).
+        val badBodies = listOf(
+            "{\"folio\":\"PRE-TEST-01\",\"access_to",
+            "{\"folio\":\"PRE-TEST-01\"}",
+            ""
+        )
+        for (body in badBodies) {
+            val engine = MockEngine {
+                respond(
+                    content = ByteReadChannel(body),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            }
+            val repo = SupabasePreApplicationRepositoryImpl(
+                baseUrl = BASE_URL,
+                apiKey = "anon-key",
+                staffSessionProvider = { null },
+                familySessionProvider = { familySession() },
+                httpClient = clientFor(engine)
+            )
+            val failed = assertIs<PreApplicationTokenRotationResult.Failed>(repo.rotateFamilyAccessToken())
+            assertEquals(PreApplicationPersistenceFailure.NETWORK, failed.reason, "cuerpo: '$body'")
+        }
+    }
+
+    @Test
     fun rotationRejectedByInvalidFamilyTokenReturnsNullBodyNotException() = runTest {
         val engine = MockEngine { request ->
             respond(

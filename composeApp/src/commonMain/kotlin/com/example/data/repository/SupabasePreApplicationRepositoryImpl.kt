@@ -552,11 +552,31 @@ class SupabasePreApplicationRepositoryImpl(
             )
         }
 
+        // Solo un cuerpo `null` es un rechazo definitivo (token invalido,
+        // 0018/0022). Un cuerpo truncado o ilegible tras un 200 es ambiguo:
+        // el servidor pudo haber confirmado ya la rotacion. Se reporta como
+        // NETWORK (reintentable, la rotacion es idempotente desde 0022) en
+        // vez de REJECTED, que borra la sesion y deja a la familia fuera
+        // cuando venza la ventana de gracia (P1 de Codex en PR #52).
+        val text = try {
+            response.bodyAsText()
+        } catch (e: Exception) {
+            return PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK)
+        }
+        val element = try {
+            Json.parseToJsonElement(text)
+        } catch (e: Exception) {
+            return PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK)
+        }
+        if (element is JsonNull) {
+            return PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+        }
         return try {
-            val rotated = response.body<RotatePreApplicationAccessTokenResponse>()
+            val rotated = Json { ignoreUnknownKeys = true }
+                .decodeFromJsonElement(RotatePreApplicationAccessTokenResponse.serializer(), element)
             PreApplicationTokenRotationResult.Rotated(rotated.accessToken)
         } catch (e: Exception) {
-            PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+            PreApplicationTokenRotationResult.Failed(PreApplicationPersistenceFailure.NETWORK)
         }
     }
 
