@@ -33,6 +33,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -769,8 +770,19 @@ class SupabasePreApplicationRepositoryImpl(
             )
         }
 
+        // Ktor excluye String de ContentNegotiation: body<String>() devuelve
+        // el texto crudo, comillas JSON incluidas ("PRE-X"), y un 200 con
+        // cuerpo `null` (rechazo desde 0018) llegaria como la cadena "null".
+        // Con el folio entre comillas, el refetch de confirmacion buscaba un
+        // folio inexistente y toda actualizacion exitosa se reportaba como
+        // REJECTED. Se decodifica el JSON de verdad.
         val folio = try {
-            response.body<String>()
+            val element = Json.parseToJsonElement(response.bodyAsText())
+            val primitive = element as? JsonPrimitive
+            if (primitive == null || primitive is JsonNull || !primitive.isString) {
+                return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+            }
+            primitive.content
         } catch (e: Exception) {
             return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
         }
@@ -780,10 +792,24 @@ class SupabasePreApplicationRepositoryImpl(
         }
 
         val updated = when (auth) {
-            is PreApplicationAuthContext.Staff -> fetchOne(auth, folio)
+            is PreApplicationAuthContext.Staff ->
+                fetchOne(auth, folio) ?: return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
             is PreApplicationAuthContext.Family ->
-                (fetchByToken(folio, auth.session.accessToken) as? FetchByTokenOutcome.Found)?.preApplication
-        } ?: return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+                when (val outcome = fetchByToken(folio, auth.session.accessToken)) {
+                    is FetchByTokenOutcome.Found -> outcome.preApplication
+                    // La RPC ya confirmo la mutacion (200 + folio, arriba).
+                    // Que el refetch de confirmacion se tope con el rate
+                    // limit compartido (0021) no deshace lo ya guardado --
+                    // reportarlo como REJECTED le decia a la familia que su
+                    // correccion habia fallado cuando en realidad ya estaba
+                    // en ENVIADA, y un reintento fallaba de verdad porque el
+                    // estado ya no era PENDIENTE_CORRECCION (P1 de Codex en
+                    // PR #52). Mismo fallback que usa submit() tras crear.
+                    FetchByTokenOutcome.RateLimited -> preApplication.copy(folio = folio)
+                    FetchByTokenOutcome.NotFound ->
+                        return PreApplicationUpdateResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+                }
+        }
         _preApplications.value = _preApplications.value.map { if (it.folio == updated.folio) updated else it }
         return PreApplicationUpdateResult.Updated(updated)
     }

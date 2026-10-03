@@ -208,6 +208,87 @@ class SupabasePreApplicationRepositoryImplTest {
     }
 
     @Test
+    fun successfulFamilyUpdateRefetchesWithUnquotedFolioAndReportsUpdated() = runTest {
+        // Ktor excluye String de ContentNegotiation: body<String>() devolvia
+        // el folio con comillas JSON ("PRE-TEST-01"), el refetch buscaba un
+        // folio inexistente y toda actualizacion exitosa terminaba en
+        // REJECTED. Este es el primer test del camino exitoso de update().
+        val getBodies = mutableListOf<String>()
+        val engine = MockEngine { request ->
+            when (request.url.encodedPath) {
+                UPDATE_RPC_PATH -> respond(
+                    content = ByteReadChannel("\"PRE-TEST-01\""),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+                GET_RPC_PATH -> {
+                    getBodies += (request.body as io.ktor.http.content.TextContent).text
+                    respond(
+                        withChildrenJson(parentRowJson("PRE-TEST-01")),
+                        HttpStatusCode.OK,
+                        headersOf(HttpHeaders.ContentType, "application/json")
+                    )
+                }
+                else -> respond("[]", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession(folio = "PRE-TEST-01") },
+            httpClient = clientFor(engine)
+        )
+
+        val result = repo.update(draftPreApplication(folio = "PRE-TEST-01"))
+
+        val updated = assertIs<PreApplicationUpdateResult.Updated>(result)
+        assertEquals("PRE-TEST-01", updated.preApplication.folio)
+        val sentFolio = getBodies.single()
+        assertTrue(
+            sentFolio.contains("\"p_folio\":\"PRE-TEST-01\""),
+            "El refetch debe enviar el folio sin comillas JSON extra: $sentFolio"
+        )
+    }
+
+    @Test
+    fun committedFamilyUpdateIsNotReportedAsRejectedWhenConfirmationGetIsRateLimited() = runTest {
+        // La RPC de UPDATE ya confirmo la mutacion (200 + folio). Si el GET
+        // de confirmacion posterior se topa con el rate limit compartido
+        // (0021), reportar REJECTED le decia a la familia que su correccion
+        // fallo cuando el registro ya estaba en ENVIADA -- y reintentar
+        // fallaba de verdad, porque ya no estaba en PENDIENTE_CORRECCION
+        // (P1 de Codex, PR #52).
+        val engine = MockEngine { request ->
+            when (request.url.encodedPath) {
+                UPDATE_RPC_PATH -> respond(
+                    content = ByteReadChannel("\"PRE-TEST-01\""),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+                GET_RPC_PATH -> respond(
+                    content = ByteReadChannel("{\"message\":\"SASE_PRE_APPLICATION_RATE_LIMITED\"}"),
+                    status = HttpStatusCode.BadRequest,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+                else -> respond("[]", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+        }
+        val repo = SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { familySession(folio = "PRE-TEST-01") },
+            httpClient = clientFor(engine)
+        )
+
+        val result = repo.update(draftPreApplication(folio = "PRE-TEST-01"))
+
+        val updated = assertIs<PreApplicationUpdateResult.Updated>(result)
+        assertEquals("PRE-TEST-01", updated.preApplication.folio)
+    }
+
+    @Test
     fun updateRejectedByInvalidFamilyTokenReturnsNullBodyNotException() = runTest {
         // Desde 0018: un token/folio de familia invalido para UPDATE ya no
         // lanza excepcion en el servidor (eso deshacia, dentro de la misma
