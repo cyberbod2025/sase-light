@@ -543,14 +543,8 @@ class SupabasePreApplicationRepositoryImpl(
         }
 
         if (response.status != HttpStatusCode.OK) {
-            val detail = runCatching { response.bodyAsText() }.getOrDefault("")
-            return PreApplicationTokenRotationResult.Failed(
-                if (detail.contains("SASE_PRE_APPLICATION_RATE_LIMITED")) {
-                    PreApplicationPersistenceFailure.RATE_LIMITED
-                } else {
-                    response.status.toPreApplicationFailure()
-                }
-            )
+            val (reason, detail) = classifyFailure(response.status, runCatching { response.bodyAsText() }.getOrDefault(""))
+            return PreApplicationTokenRotationResult.Failed(reason, detail)
         }
 
         // Solo un cuerpo `null` es un rechazo definitivo (token invalido,
@@ -731,23 +725,49 @@ class SupabasePreApplicationRepositoryImpl(
             val normalizedCurp = preApplication.alumnoCurp.trim().uppercase()
             val existing = staffSessionProvider()?.let { findByCurp(PreApplicationAuthContext.Staff(it), normalizedCurp) }
             return existing?.let { PreApplicationSubmitResult.DuplicateCurp(normalizedCurp, it) }
-                ?: PreApplicationSubmitResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+                ?: PreApplicationSubmitResult.Failed(
+                    PreApplicationPersistenceFailure.REJECTED,
+                    "Ya existe una pre-solicitud registrada con la CURP $normalizedCurp. " +
+                        "Si ya la enviaste, consúltala con tu folio y código de acceso; si no, acude a Secretaría."
+                )
         }
         if (response.status != HttpStatusCode.OK && response.status != HttpStatusCode.Created) {
-            val detail = runCatching { response.bodyAsText() }.getOrDefault("")
-            return PreApplicationSubmitResult.Failed(
-                if (detail.contains("SASE_PRE_APPLICATION_RATE_LIMITED")) {
-                    PreApplicationPersistenceFailure.RATE_LIMITED
-                } else {
-                    response.status.toPreApplicationFailure()
-                }
-            )
+            val (reason, detail) = classifyFailure(response.status, runCatching { response.bodyAsText() }.getOrDefault(""))
+            return PreApplicationSubmitResult.Failed(reason, detail)
         }
 
-        val createdRef = try {
-            response.body<CreatePreApplicationResponse>()
+        // Tras un 200 la fila pudo haberse creado aunque el cuerpo llegue
+        // ilegible: decirle "rechazado" a la familia seria falso. Se distingue
+        // (a) rechazo por dato invalido, que el servidor explica en el cuerpo
+        // (0027); (b) cuerpo ilegible, donde no se sabe si se guardo.
+        val incompleteResponse = PreApplicationSubmitResult.Failed(
+            PreApplicationPersistenceFailure.NETWORK,
+            "La respuesta del servidor llegó incompleta y no se pudo confirmar si tu pre-solicitud se guardó. " +
+                "Antes de volver a enviarla, consúltala con tu folio y código de acceso o acude a Secretaría."
+        )
+        val createdElement = try {
+            Json.parseToJsonElement(response.bodyAsText())
         } catch (e: Exception) {
-            return PreApplicationSubmitResult.Failed(PreApplicationPersistenceFailure.REJECTED)
+            return incompleteResponse
+        }
+        if (createdElement is JsonNull) {
+            return PreApplicationSubmitResult.Failed(
+                PreApplicationPersistenceFailure.REJECTED,
+                "El servidor rechazó los datos sin indicar el motivo."
+            )
+        }
+        if (createdElement is JsonObject && createdElement["error"] != null) {
+            val message = (createdElement["message"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content
+            return PreApplicationSubmitResult.Failed(
+                PreApplicationPersistenceFailure.REJECTED,
+                message ?: "El servidor rechazó un dato sin indicar cuál."
+            )
+        }
+        val createdRef = try {
+            Json { ignoreUnknownKeys = true }
+                .decodeFromJsonElement(CreatePreApplicationResponse.serializer(), createdElement)
+        } catch (e: Exception) {
+            return incompleteResponse
         }
 
         // La RPC ya confirmo el agregado. No se hace una segunda lectura que
@@ -781,14 +801,8 @@ class SupabasePreApplicationRepositoryImpl(
         }
 
         if (response.status != HttpStatusCode.OK) {
-            val detail = runCatching { response.bodyAsText() }.getOrDefault("")
-            return PreApplicationUpdateResult.Failed(
-                if (detail.contains("SASE_PRE_APPLICATION_RATE_LIMITED")) {
-                    PreApplicationPersistenceFailure.RATE_LIMITED
-                } else {
-                    response.status.toPreApplicationFailure()
-                }
-            )
+            val (reason, detail) = classifyFailure(response.status, runCatching { response.bodyAsText() }.getOrDefault(""))
+            return PreApplicationUpdateResult.Failed(reason, detail)
         }
 
         // Ktor excluye String de ContentNegotiation: body<String>() devuelve
@@ -919,3 +933,31 @@ class SupabasePreApplicationRepositoryImpl(
 internal fun HttpStatusCode.toPreApplicationFailure(): PreApplicationPersistenceFailure =
     if (value in 400..499) PreApplicationPersistenceFailure.REJECTED
     else PreApplicationPersistenceFailure.NETWORK
+
+/**
+ * Categoria de la falla + el motivo concreto que informo el servidor.
+ *
+ * Antes todo 4xx se colapsaba a REJECTED y el cuerpo del error se descartaba:
+ * a la familia solo le llegaba "no fue posible guardar", sin saber si faltaba un
+ * dato, si el dato era invalido o si el servidor lo rechazo por otra regla. El
+ * rate limit no lleva detalle (su "mensaje" es un codigo interno sin sentido
+ * para el usuario).
+ */
+internal fun classifyFailure(status: HttpStatusCode, body: String): Pair<PreApplicationPersistenceFailure, String?> {
+    if (body.contains("SASE_PRE_APPLICATION_RATE_LIMITED")) {
+        return PreApplicationPersistenceFailure.RATE_LIMITED to null
+    }
+    return status.toPreApplicationFailure() to extractServerDetail(body)
+}
+
+/** Mensaje (y detalle) que PostgREST/Postgres devuelven en el cuerpo de un error, o null si no hay uno legible. */
+internal fun extractServerDetail(body: String): String? {
+    val obj = try {
+        Json.parseToJsonElement(body) as? JsonObject
+    } catch (e: Exception) {
+        null
+    } ?: return null
+    fun text(key: String): String? =
+        (obj[key] as? JsonPrimitive)?.takeIf { it !is JsonNull && it.isString }?.content?.takeIf { it.isNotBlank() }
+    return listOfNotNull(text("message"), text("details")).joinToString(" — ").ifBlank { null }
+}

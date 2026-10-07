@@ -27,6 +27,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.data.presolicitud.FamilyFormCatalogs
+import com.example.data.presolicitud.FamilyFormErrorLabels
 import com.example.viewmodel.FamilyPreApplicationLookupResult
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.PreApplicationViewModel
@@ -199,7 +201,10 @@ fun PreApplicationFamilyPortalScreen(viewModel: LabViewModel, onNavigateBack: ()
                             Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text("Hay campos pendientes por corregir", color = Color(0xFFFCA5A5), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 errors.forEach { (field, msg) ->
-                                    Text("• $field: $msg", color = PortalText, fontSize = 10.sp)
+                                    // "submit" no es un campo: es el error de envio (red, servidor, etc.) y ya
+                                    // trae su propia explicacion completa.
+                                    val line = if (field == "submit") msg else "${FamilyFormErrorLabels.describe(field)}: $msg"
+                                    Text("• $line", color = PortalText, fontSize = 11.sp)
                                 }
                                 OutlinedButton(
                                     onClick = { coroutineScope.launch { scrollState.animateScrollTo(0) } },
@@ -1022,9 +1027,15 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
         )
     }
 
-    FormField("Servicio médico", servicioMedico, { vm.setServicioMedico(it) }, false, null)
+    DropdownField(
+        "Servicio médico", servicioMedico, FamilyFormCatalogs.servicioMedico, { vm.setServicioMedico(it) },
+        modifier = Modifier.fillMaxWidth(), clearLabel = FamilyFormCatalogs.SIN_ESPECIFICAR
+    )
     FormField("Número de afiliación/póliza", numeroAfiliacionPoliza, { vm.setNumeroAfiliacionPoliza(it) }, false, null)
-    FormField("Tipo de sangre si se conoce", tipoSangre, { vm.setTipoSangre(it) }, false, null)
+    DropdownField(
+        "Tipo de sangre si se conoce", tipoSangre, FamilyFormCatalogs.tipoSangre, { vm.setTipoSangre(it) },
+        modifier = Modifier.fillMaxWidth(), clearLabel = FamilyFormCatalogs.SIN_ESPECIFICAR
+    )
 
     DeclarativeCheckbox(
         label = "Alergias",
@@ -1092,7 +1103,10 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
         FormField("Detalle de dificultad auditiva", dificultadAuditivaDetalle, { vm.setDificultadAuditivaDetalle(it) }, false, null)
     }
 
-    FormField("Salud bucal referida", saludBucalReferida, { vm.setSaludBucalReferida(it) }, false, null)
+    DropdownField(
+        "Salud bucal referida", saludBucalReferida, FamilyFormCatalogs.saludBucal, { vm.setSaludBucalReferida(it) },
+        modifier = Modifier.fillMaxWidth(), clearLabel = FamilyFormCatalogs.SIN_ESPECIFICAR
+    )
 
     DeclarativeCheckbox(
         label = "Cartilla de vacunación actualizada",
@@ -1121,27 +1135,24 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
         Text(errors.getValue("viveConQuien"), color = SaseRed, fontSize = 11.sp)
     }
 
-    Text("Tipo de familia", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
-    DeclarativeCheckbox("Nuclear", tipoFamilia == "Nuclear", { vm.setTipoFamilia(if (it) "Nuclear" else "") })
-    DeclarativeCheckbox("Extensa", tipoFamilia == "Extensa", { vm.setTipoFamilia(if (it) "Extensa" else "") })
-    DeclarativeCheckbox("Monoparental", tipoFamilia == "Monoparental", { vm.setTipoFamilia(if (it) "Monoparental" else "") })
-    DeclarativeCheckbox("Reconstituida", tipoFamilia == "Reconstituida", { vm.setTipoFamilia(if (it) "Reconstituida" else "") })
-    DeclarativeCheckbox("Otra", tipoFamilia == "Otra", { vm.setTipoFamilia(if (it) "Otra" else "") })
-    if (errors.containsKey("tipoFamilia")) {
-        Text(errors.getValue("tipoFamilia"), color = SaseRed, fontSize = 11.sp)
-    }
+    DropdownField(
+        "Tipo de familia", tipoFamilia, FamilyFormCatalogs.tipoFamilia, { vm.setTipoFamilia(it) },
+        modifier = Modifier.fillMaxWidth(),
+        isError = errors.containsKey("tipoFamilia"), errorMessage = errors["tipoFamilia"]
+    )
 
     DeclarativeCheckbox("Hijo único", hijoUnico, { vm.setHijoUnico(it) })
     if (!hijoUnico) {
-        FormField("Lugar entre hermanos", lugarEntreHermanos, { vm.setLugarEntreHermanos(it) }, false, null)
+        DropdownField(
+            "Lugar entre hermanos", lugarEntreHermanos, FamilyFormCatalogs.lugarEntreHermanos, { vm.setLugarEntreHermanos(it) },
+            modifier = Modifier.fillMaxWidth(), clearLabel = FamilyFormCatalogs.SIN_ESPECIFICAR
+        )
     }
     DeclarativeCheckbox("Hermanos en la escuela", hermanosEnEscuela, { vm.setHermanosEnEscuela(it) })
-    FormField(
-        "Integrantes del hogar",
-        integrantesHogar,
-        { vm.setIntegrantesHogar(it) },
-        errors.containsKey("integrantesHogar"),
-        errors["integrantesHogar"]
+    DropdownField(
+        "Integrantes del hogar", integrantesHogar, FamilyFormCatalogs.integrantesHogar, { vm.setIntegrantesHogar(it) },
+        modifier = Modifier.fillMaxWidth(),
+        isError = errors.containsKey("integrantesHogar"), errorMessage = errors["integrantesHogar"]
     )
 
     Text("Principal sostén económico", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
@@ -1161,43 +1172,39 @@ private fun StepContextoFamiliar(vm: PreApplicationViewModel) {
         onSelect = { vm.setIngresoFamiliarRango(it) }
     )
 
-    Text("Tipo de vivienda", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
-    DeclarativeCheckbox("Propia", tipoVivienda == "Propia", { vm.setTipoVivienda(if (it) "Propia" else "") })
-    DeclarativeCheckbox("Rentada", tipoVivienda == "Rentada", { vm.setTipoVivienda(if (it) "Rentada" else "") })
-    DeclarativeCheckbox("Prestada", tipoVivienda == "Prestada", { vm.setTipoVivienda(if (it) "Prestada" else "") })
-    DeclarativeCheckbox("Compartida", tipoVivienda == "Compartida", { vm.setTipoVivienda(if (it) "Compartida" else "") })
-    DeclarativeCheckbox("Otra", tipoVivienda == "Otra", { vm.setTipoVivienda(if (it) "Otra" else "") })
+    DropdownField(
+        "Tipo de vivienda", tipoVivienda, FamilyFormCatalogs.tipoVivienda, { vm.setTipoVivienda(it) },
+        modifier = Modifier.fillMaxWidth(), clearLabel = FamilyFormCatalogs.SIN_ESPECIFICAR
+    )
 
     DeclarativeCheckbox("Servicios básicos en casa", serviciosBasicos, { vm.setServiciosBasicos(it) })
     DeclarativeCheckbox("Internet en casa", internetCasa, { vm.setInternetCasa(it) })
 
-    Text("Dispositivo para tareas", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
-    DeclarativeCheckbox("Computadora", dispositivoTareas == "Computadora", { vm.setDispositivoTareas(if (it) "Computadora" else "") })
-    DeclarativeCheckbox("Tableta", dispositivoTareas == "Tableta", { vm.setDispositivoTareas(if (it) "Tableta" else "") })
-    DeclarativeCheckbox("Teléfono", dispositivoTareas == "Teléfono", { vm.setDispositivoTareas(if (it) "Teléfono" else "") })
-    DeclarativeCheckbox("Compartido", dispositivoTareas == "Compartido", { vm.setDispositivoTareas(if (it) "Compartido" else "") })
-    DeclarativeCheckbox("No disponible", dispositivoTareas == "No disponible", { vm.setDispositivoTareas(if (it) "No disponible" else "") })
+    DropdownField(
+        "Dispositivo para tareas", dispositivoTareas, FamilyFormCatalogs.dispositivoTareas, { vm.setDispositivoTareas(it) },
+        modifier = Modifier.fillMaxWidth(), clearLabel = FamilyFormCatalogs.SIN_ESPECIFICAR
+    )
 
-    FormField("Beca o apoyo social", becaApoyoSocial, { vm.setBecaApoyoSocial(it) }, false, null)
+    DropdownField(
+        "Beca o apoyo social", becaApoyoSocial, FamilyFormCatalogs.becaApoyoSocial, { vm.setBecaApoyoSocial(it) },
+        modifier = Modifier.fillMaxWidth(), clearLabel = FamilyFormCatalogs.SIN_ESPECIFICAR
+    )
 
-    Text("Medio de transporte", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalText)
-    DeclarativeCheckbox("Camina", medioTransporte == "Camina", { vm.setMedioTransporte(if (it) "Camina" else "") })
-    DeclarativeCheckbox("Transporte público", medioTransporte == "Transporte público", { vm.setMedioTransporte(if (it) "Transporte público" else "") })
-    DeclarativeCheckbox("Auto familiar", medioTransporte == "Auto familiar", { vm.setMedioTransporte(if (it) "Auto familiar" else "") })
-    DeclarativeCheckbox("Transporte escolar", medioTransporte == "Transporte escolar", { vm.setMedioTransporte(if (it) "Transporte escolar" else "") })
-    DeclarativeCheckbox("Otro", medioTransporte == "Otro", { vm.setMedioTransporte(if (it) "Otro" else "") })
+    DropdownField(
+        "Medio de transporte", medioTransporte, FamilyFormCatalogs.medioTransporte, { vm.setMedioTransporte(it) },
+        modifier = Modifier.fillMaxWidth(), clearLabel = FamilyFormCatalogs.SIN_ESPECIFICAR
+    )
 
     DeclarativeCheckbox(
         "Dificultad para comprar materiales",
         dificultadComprarMateriales,
         { vm.setDificultadComprarMateriales(it) }
     )
-    FormField(
-        "Persona que atiende avisos escolares",
-        personaAtiendeAvisos,
+    DropdownField(
+        "Persona que atiende avisos escolares", personaAtiendeAvisos, FamilyFormCatalogs.personaAtiendeAvisos,
         { vm.setPersonaAtiendeAvisos(it) },
-        errors.containsKey("personaAtiendeAvisos"),
-        errors["personaAtiendeAvisos"]
+        modifier = Modifier.fillMaxWidth(),
+        isError = errors.containsKey("personaAtiendeAvisos"), errorMessage = errors["personaAtiendeAvisos"]
     )
     CompactOptionGroup(
         label = "Horario preferente de comunicación",
@@ -1512,38 +1519,56 @@ private fun DropdownField(
     selected: String,
     options: List<String>,
     onSelect: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    errorMessage: String? = null,
+    /** Si no es null, agrega al inicio una entrada con este texto que limpia el campo (solo para campos opcionales). */
+    clearLabel: String? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-        modifier = modifier
-    ) {
-        OutlinedTextField(
-            value = selected,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(label, fontSize = 11.sp) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor().fillMaxWidth(),
-            textStyle = TextStyle(fontSize = 12.sp, color = PortalText),
-            shape = RoundedCornerShape(14.dp),
-            colors = portalTextFieldColors()
-        )
-        ExposedDropdownMenu(
+    Column(modifier = modifier) {
+        ExposedDropdownMenuBox(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onExpandedChange = { expanded = !expanded }
         ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option, fontSize = 12.sp) },
-                    onClick = {
-                        onSelect(option)
-                        expanded = false
-                    }
-                )
+            OutlinedTextField(
+                value = selected,
+                onValueChange = {},
+                readOnly = true,
+                isError = isError,
+                label = { Text(label, fontSize = 11.sp) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                textStyle = TextStyle(fontSize = 12.sp, color = PortalText),
+                shape = RoundedCornerShape(14.dp),
+                colors = portalTextFieldColors()
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                if (clearLabel != null) {
+                    DropdownMenuItem(
+                        text = { Text(clearLabel, fontSize = 12.sp, color = PortalMuted) },
+                        onClick = {
+                            onSelect("")
+                            expanded = false
+                        }
+                    )
+                }
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option, fontSize = 12.sp) },
+                        onClick = {
+                            onSelect(option)
+                            expanded = false
+                        }
+                    )
+                }
             }
+        }
+        if (isError && errorMessage != null) {
+            Text(errorMessage, color = SaseRed, fontSize = 11.sp)
         }
     }
 }

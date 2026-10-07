@@ -56,7 +56,8 @@ sealed interface UpdatePreApplicationAdministrativeDataResult {
     ) : UpdatePreApplicationAdministrativeDataResult
 
     data class BackendFailure(
-        val reason: com.example.data.repository.PreApplicationPersistenceFailure
+        val reason: com.example.data.repository.PreApplicationPersistenceFailure,
+        val message: String = com.example.data.repository.PersistenceFailureMessages.describe(reason, null, "guardar los cambios")
     ) : UpdatePreApplicationAdministrativeDataResult
 }
 

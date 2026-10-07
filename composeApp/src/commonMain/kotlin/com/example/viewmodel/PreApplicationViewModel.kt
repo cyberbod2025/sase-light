@@ -17,6 +17,7 @@ import com.example.data.repository.AuditRepository
 import com.example.data.repository.MockAuditRepositoryImpl
 import com.example.data.repository.MockPreApplicationRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
+import com.example.data.repository.PersistenceFailureMessages
 import com.example.data.repository.PreApplicationPersistenceFailure
 import com.example.data.repository.PreApplicationRepository
 import com.example.data.repository.PreApplicationSubmitResult
@@ -125,7 +126,7 @@ sealed class FamilySubmissionResult {
 
     data class BackendFailure(
         val reason: PreApplicationPersistenceFailure,
-        override val message: String = "No fue posible guardar la pre-solicitud. Intenta de nuevo."
+        override val message: String = PersistenceFailureMessages.describe(reason, null, "guardar la pre-solicitud")
     ) : FamilySubmissionResult()
 }
 
@@ -148,7 +149,8 @@ sealed class FamilyResubmissionResult {
     ) : FamilyResubmissionResult()
 
     data class BackendFailure(
-        val reason: PreApplicationPersistenceFailure
+        val reason: PreApplicationPersistenceFailure,
+        val message: String = PersistenceFailureMessages.describe(reason, null, "reenviar la pre-solicitud corregida")
     ) : FamilyResubmissionResult()
 }
 
@@ -270,7 +272,7 @@ sealed class CorrectionRequestResult {
 
     data class BackendFailure(
         val reason: PreApplicationPersistenceFailure,
-        override val message: String = "No fue posible registrar la corrección. Intenta de nuevo."
+        override val message: String = PersistenceFailureMessages.describe(reason, null, "registrar la corrección")
     ) : CorrectionRequestResult()
 }
 
@@ -440,7 +442,10 @@ class PreApplicationViewModel {
             )
             return when (val result = preApplicationRepository.update(updated)) {
                 is PreApplicationUpdateResult.Updated -> CorrectionRequestResult.Success(result.preApplication)
-                is PreApplicationUpdateResult.Failed -> CorrectionRequestResult.BackendFailure(result.reason)
+                is PreApplicationUpdateResult.Failed -> CorrectionRequestResult.BackendFailure(
+                    result.reason,
+                    PersistenceFailureMessages.describe(result.reason, result.detail, "registrar la corrección")
+                )
             }
         }
 
@@ -835,7 +840,10 @@ class PreApplicationViewModel {
             )
             return when (val result = preApplicationRepository.update(updated)) {
                 is PreApplicationUpdateResult.Updated -> UpdatePreApplicationAdministrativeDataResult.Updated(changedFields)
-                is PreApplicationUpdateResult.Failed -> UpdatePreApplicationAdministrativeDataResult.BackendFailure(result.reason)
+                is PreApplicationUpdateResult.Failed -> UpdatePreApplicationAdministrativeDataResult.BackendFailure(
+                    result.reason,
+                    PersistenceFailureMessages.describe(result.reason, result.detail, "guardar los cambios")
+                )
             }
         }
 
@@ -949,7 +957,10 @@ class PreApplicationViewModel {
                 }
                 is PreApplicationSubmitResult.DuplicateCurp -> FamilySubmissionResult.DuplicateCurp(result.curp)
                 is PreApplicationSubmitResult.DuplicateFolio -> FamilySubmissionResult.DuplicateFolio(result.folio)
-                is PreApplicationSubmitResult.Failed -> FamilySubmissionResult.BackendFailure(result.reason)
+                is PreApplicationSubmitResult.Failed -> FamilySubmissionResult.BackendFailure(
+                    result.reason,
+                    PersistenceFailureMessages.describe(result.reason, result.detail, "guardar la pre-solicitud")
+                )
             }
         }
 
@@ -1016,7 +1027,10 @@ class PreApplicationViewModel {
 
             return when (val result = preApplicationRepository.update(resubmitted)) {
                 is PreApplicationUpdateResult.Updated -> FamilyResubmissionResult.Success(result.preApplication)
-                is PreApplicationUpdateResult.Failed -> FamilyResubmissionResult.BackendFailure(result.reason)
+                is PreApplicationUpdateResult.Failed -> FamilyResubmissionResult.BackendFailure(
+                    result.reason,
+                    PersistenceFailureMessages.describe(result.reason, result.detail, "reenviar la pre-solicitud corregida")
+                )
             }
         }
 
@@ -1097,9 +1111,11 @@ class PreApplicationViewModel {
                     readinessStatus = ReadinessStatus.BLOCKED,
                     readinessNotes = pendingItems.joinToString("; ")
                 )
-                return when (preApplicationRepository.update(blocked)) {
+                return when (val result = preApplicationRepository.update(blocked)) {
                     is PreApplicationUpdateResult.Updated -> ReadinessResult.NotReady(pendingItems)
-                    is PreApplicationUpdateResult.Failed -> ReadinessResult.Error("No fue posible registrar los pendientes de readiness.")
+                    is PreApplicationUpdateResult.Failed -> ReadinessResult.Error(
+                        PersistenceFailureMessages.describe(result.reason, result.detail, "registrar los pendientes de readiness")
+                    )
                 }
             }
 
@@ -1110,7 +1126,9 @@ class PreApplicationViewModel {
             )
             return when (val result = preApplicationRepository.update(ready)) {
                 is PreApplicationUpdateResult.Updated -> ReadinessResult.Success(result.preApplication)
-                is PreApplicationUpdateResult.Failed -> ReadinessResult.Error("No fue posible declarar la pre-solicitud lista.")
+                is PreApplicationUpdateResult.Failed -> ReadinessResult.Error(
+                    PersistenceFailureMessages.describe(result.reason, result.detail, "declarar la pre-solicitud lista")
+                )
             }
         }
 
