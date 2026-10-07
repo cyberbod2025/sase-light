@@ -864,7 +864,7 @@ private fun EditPreApplicationDialog(
                                         toast(message)
                                     }
                                     is UpdatePreApplicationAdministrativeDataResult.BackendFailure -> {
-                                        toast("No fue posible guardar los cambios. Intenta de nuevo.")
+                                        toast(result.message)
                                     }
                                 }
                             }

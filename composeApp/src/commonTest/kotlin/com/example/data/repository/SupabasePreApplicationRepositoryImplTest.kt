@@ -94,6 +94,78 @@ private fun clientFor(engine: MockEngine) = HttpClient(engine) {
 
 class SupabasePreApplicationRepositoryImplTest {
 
+    private fun anonymousRepoRespondingToCreateWith(status: HttpStatusCode, body: String) =
+        SupabasePreApplicationRepositoryImpl(
+            baseUrl = BASE_URL,
+            apiKey = "anon-key",
+            staffSessionProvider = { null },
+            familySessionProvider = { null },
+            httpClient = clientFor(
+                MockEngine { request ->
+                    if (request.url.encodedPath == CREATE_RPC_PATH) {
+                        respond(body, status, headersOf(HttpHeaders.ContentType, "application/json"))
+                    } else {
+                        respond("[]", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+                    }
+                }
+            )
+        )
+
+    @Test
+    fun submitInvalidDataReportsWhichDataTheServerRejected() = runTest {
+        // 0027: antes un dato invalido volvia como `null` y el cliente solo
+        // podia decir "rechazado", sin decir cual dato ni por que.
+        val repo = anonymousRepoRespondingToCreateWith(
+            HttpStatusCode.OK,
+            "{\"error\":\"INVALID_DATA\",\"column\":\"grado_solicitado\"," +
+                "\"message\":\"null value in column \\\"grado_solicitado\\\" violates not-null constraint\",\"constraint\":\"\"}"
+        )
+        val failed = assertIs<PreApplicationSubmitResult.Failed>(repo.submit(draftPreApplication()))
+        assertEquals(PreApplicationPersistenceFailure.REJECTED, failed.reason)
+        assertTrue(failed.detail!!.contains("grado_solicitado"), "El detalle debe nombrar el dato: ${failed.detail}")
+    }
+
+    @Test
+    fun submitRejectedByTheServerKeepsThePostgrestMessageAsDetail() = runTest {
+        val repo = anonymousRepoRespondingToCreateWith(
+            HttpStatusCode.BadRequest,
+            "{\"code\":\"22P02\",\"message\":\"invalid input syntax for type integer: \\\"abc\\\"\",\"details\":null,\"hint\":null}"
+        )
+        val failed = assertIs<PreApplicationSubmitResult.Failed>(repo.submit(draftPreApplication()))
+        assertEquals(PreApplicationPersistenceFailure.REJECTED, failed.reason)
+        assertTrue(failed.detail!!.contains("invalid input syntax"), "Se descartaba el cuerpo del error: ${failed.detail}")
+    }
+
+    @Test
+    fun anonymousDuplicateCurpExplainsTheCauseInsteadOfAMuteRejection() = runTest {
+        val repo = anonymousRepoRespondingToCreateWith(
+            HttpStatusCode.Conflict,
+            "{\"message\":\"duplicate key value violates unique constraint \\\"pre_applications_institution_curp_key\\\"\"}"
+        )
+        val failed = assertIs<PreApplicationSubmitResult.Failed>(repo.submit(draftPreApplication()))
+        assertTrue(failed.detail!!.contains("CURP"), "Debe decir que la CURP ya existe: ${failed.detail}")
+    }
+
+    @Test
+    fun submitWithUnreadableSuccessBodyAdmitsItCannotConfirmInsteadOfSayingRejected() = runTest {
+        // Tras un 200 la fila pudo haberse creado: "rechazado" seria falso.
+        val repo = anonymousRepoRespondingToCreateWith(HttpStatusCode.OK, "{\"folio\":\"PRE-TEST-01\",\"access_to")
+        val failed = assertIs<PreApplicationSubmitResult.Failed>(repo.submit(draftPreApplication()))
+        assertEquals(PreApplicationPersistenceFailure.NETWORK, failed.reason)
+        assertTrue(failed.detail!!.contains("no se pudo confirmar"), failed.detail)
+    }
+
+    @Test
+    fun rateLimitedSubmitCarriesNoInternalCodeAsDetail() = runTest {
+        val repo = anonymousRepoRespondingToCreateWith(
+            HttpStatusCode.BadRequest,
+            "{\"message\":\"SASE_PRE_APPLICATION_RATE_LIMITED\"}"
+        )
+        val failed = assertIs<PreApplicationSubmitResult.Failed>(repo.submit(draftPreApplication()))
+        assertEquals(PreApplicationPersistenceFailure.RATE_LIMITED, failed.reason)
+        assertEquals(null, failed.detail)
+    }
+
     @Test
     fun submitPropagatesTheInitialTokenExpirationFromTheServer() = runTest {
         // El token inicial tambien vence a los 30 dias (0017); sin propagar

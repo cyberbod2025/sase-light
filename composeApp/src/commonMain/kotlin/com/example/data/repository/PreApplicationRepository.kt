@@ -3,7 +3,12 @@ package com.example.data.repository
 import com.example.data.presolicitud.PreApplication
 import kotlinx.coroutines.flow.StateFlow
 
-/** Motivo por el que una operacion de pre-solicitud no se pudo completar. */
+/**
+ * Motivo por el que una operacion de pre-solicitud no se pudo completar. Es la
+ * categoria; el motivo concreto que informo el servidor (si lo hubo) viaja en el
+ * campo opcional [PreApplicationSubmitResult.Failed.detail] (y sus equivalentes)
+ * de cada resultado Failed.
+ */
 enum class PreApplicationPersistenceFailure {
     NO_SESSION,
     NETWORK,
@@ -13,7 +18,7 @@ enum class PreApplicationPersistenceFailure {
 
 sealed class PreApplicationSyncResult {
     data class Loaded(val preApplications: List<PreApplication>) : PreApplicationSyncResult()
-    data class Failed(val reason: PreApplicationPersistenceFailure) : PreApplicationSyncResult()
+    data class Failed(val reason: PreApplicationPersistenceFailure, val detail: String? = null) : PreApplicationSyncResult()
 }
 
 sealed class PreApplicationSubmitResult {
@@ -32,18 +37,18 @@ sealed class PreApplicationSubmitResult {
     ) : PreApplicationSubmitResult()
     data class DuplicateCurp(val curp: String, val existing: PreApplication) : PreApplicationSubmitResult()
     data class DuplicateFolio(val folio: String) : PreApplicationSubmitResult()
-    data class Failed(val reason: PreApplicationPersistenceFailure) : PreApplicationSubmitResult()
+    data class Failed(val reason: PreApplicationPersistenceFailure, val detail: String? = null) : PreApplicationSubmitResult()
 }
 
 sealed class PreApplicationUpdateResult {
     data class Updated(val preApplication: PreApplication) : PreApplicationUpdateResult()
-    data class Failed(val reason: PreApplicationPersistenceFailure) : PreApplicationUpdateResult()
+    data class Failed(val reason: PreApplicationPersistenceFailure, val detail: String? = null) : PreApplicationUpdateResult()
 }
 
 sealed class PreApplicationTokenRotationResult {
     /** [expiresAt]: instante ISO-8601 de vencimiento que informa el servidor (null en DEMO_LOCAL). */
     data class Rotated(val accessToken: String, val expiresAt: String? = null) : PreApplicationTokenRotationResult()
-    data class Failed(val reason: PreApplicationPersistenceFailure) : PreApplicationTokenRotationResult()
+    data class Failed(val reason: PreApplicationPersistenceFailure, val detail: String? = null) : PreApplicationTokenRotationResult()
 }
 
 /**
