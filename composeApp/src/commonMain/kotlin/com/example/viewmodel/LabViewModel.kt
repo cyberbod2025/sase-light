@@ -137,7 +137,7 @@ class LabViewModel(
     private val authRepository: AuthRepository,
     private val studentRepository: StudentRepository = MockStudentRepositoryImpl(),
     private val auditRepository: AuditRepository = MockAuditRepositoryImpl(),
-    val schoolMovementRepository: SchoolMovementRepository = MockSchoolMovementRepositoryImpl(),
+    val schoolMovementRepository: SchoolMovementRepository = MockSchoolMovementRepositoryImpl(studentRepository),
     coroutineScope: CoroutineScope? = null,
     private val nowMillis: () -> Long = ::currentEpochMillis
 ) {

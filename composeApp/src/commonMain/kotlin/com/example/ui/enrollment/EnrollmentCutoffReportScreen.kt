@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,7 +20,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.data.Student
+import com.example.data.auth.StaffAction
+import com.example.data.auth.StaffPermissions
+import com.example.data.auth.StaffRole
 import com.example.data.enrollment.*
 import com.example.ui.*
 import com.example.ui.components.buttons.SasePrimaryButton
@@ -34,51 +37,54 @@ fun EnrollmentCutoffReportScreen(
 ) {
     val session by viewModel.session.collectAsState()
     val allStudents by viewModel.saseStudents.collectAsState()
-    val movements by viewModel.schoolMovementRepository.movements.collectAsState()
 
-    var cutoffDate by remember { mutableStateOf("2026-10-18") }
+    var cutoffDate by remember { mutableStateOf("2026-10-31") }
     var selectedFilterGroup by remember { mutableStateOf("TODOS") }
     var selectedFilterStatus by remember { mutableStateOf("TODOS") }
     var exportedCsvContent by remember { mutableStateOf<String?>(null) }
+    var exportedCsvTitle by remember { mutableStateOf("Reporte Exportado") }
     var statusMessage by remember { mutableStateOf<String?>(null) }
+    var snapshot by remember { mutableStateOf<EnrollmentCutoffSnapshot?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
 
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
-    // Cálculo reactivo del snapshot de corte
-    val snapshot = remember(cutoffDate, allStudents, movements) {
-        if (cutoffDate.matches(Regex("^\\d{4}-\\d{2}-\\d{2}$"))) {
-            SchoolMovementEvaluator.calculateCutoff(
+    val activeRole = session?.activeRole ?: StaffRole.DOCENTE
+    val canViewNominal = StaffPermissions.canPerform(activeRole, StaffAction.RECORD_SCHOOL_MOVEMENT)
+
+    LaunchedEffect(cutoffDate, allStudents) {
+        isLoading = true
+        try {
+            snapshot = viewModel.schoolMovementRepository.calculateCutoff(
                 cutoffDate = cutoffDate,
-                students = allStudents,
-                movements = movements
+                cohortStartDate = "2026-08-28"
             )
-        } else {
-            EnrollmentCutoffSnapshot(
-                cutoffDate = cutoffDate,
-                activeEnrollmentCount = 0,
-                transfersOutCount = 0,
-                dropoutsCount = 0,
-                unenteredCount = 0,
-                totalHistoricalUniverse = allStudents.size,
-                groupBreakdown = emptyMap(),
-                records = emptyList()
-            )
+        } catch (e: Exception) {
+            statusMessage = "Error al calcular el corte: ${e.message}"
+        } finally {
+            isLoading = false
         }
     }
 
-    val filteredRecords = remember(snapshot, selectedFilterGroup, selectedFilterStatus) {
-        snapshot.records.filter { record ->
-            val matchGroup = selectedFilterGroup == "TODOS" || record.assignedGroup == selectedFilterGroup
-            val matchStatus = when (selectedFilterStatus) {
-                "TODOS" -> true
-                "ACTIVO" -> record.statusType == StudentCutoffStatusType.ACTIVO
-                "TRASLADO" -> record.statusType == StudentCutoffStatusType.TRASLADO
-                "BAJA" -> record.statusType == StudentCutoffStatusType.BAJA
-                "NO_INGRESADO" -> record.statusType == StudentCutoffStatusType.NO_INGRESADO
-                else -> true
+    val currentSnapshot = snapshot
+    val filteredRecords = remember(currentSnapshot, selectedFilterGroup, selectedFilterStatus) {
+        if (currentSnapshot == null) emptyList()
+        else {
+            currentSnapshot.studentDetails.filter { record ->
+                val matchGroup = selectedFilterGroup == "TODOS" || record.assignedGroup == selectedFilterGroup
+                val matchStatus = when (selectedFilterStatus) {
+                    "TODOS" -> true
+                    "ACTIVO" -> record.status == StudentCutoffStatus.ACTIVO
+                    "TRASLADADO" -> record.status == StudentCutoffStatus.TRASLADADO
+                    "BAJA_ADMINISTRATIVA" -> record.status == StudentCutoffStatus.BAJA_ADMINISTRATIVA
+                    "ABANDONO_CONFIRMADO" -> record.status == StudentCutoffStatus.ABANDONO_CONFIRMADO
+                    "PENDIENTE_ACLARACION" -> record.status == StudentCutoffStatus.PENDIENTE_ACLARACION
+                    "NO_INGRESADO" -> record.status == StudentCutoffStatus.NO_INGRESADO
+                    else -> true
+                }
+                matchGroup && matchStatus
             }
-            matchGroup && matchStatus
         }
     }
 
@@ -93,7 +99,7 @@ fun EnrollmentCutoffReportScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(if (isMobile) 16.dp else 24.dp)
             ) {
-                // Header
+                // Encabezado
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -114,7 +120,7 @@ fun EnrollmentCutoffReportScreen(
                                 color = SaseNavy
                             )
                             Text(
-                                text = "Trazabilidad de movimientos fechados para el PMC (Secundaria 310)",
+                                text = "Evidencias objetivas y trazables para el PMC (Ciclo Escolar 2026-2027)",
                                 fontSize = if (isMobile) 11.sp else 12.sp,
                                 color = SaseMuted
                             )
@@ -124,7 +130,7 @@ fun EnrollmentCutoffReportScreen(
                         onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = SaseNavy)
                     ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Volver")
                     }
@@ -132,7 +138,7 @@ fun EnrollmentCutoffReportScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Selector de Fecha de Corte y Presets
+                // Selector de Fecha y Parámetros
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -141,224 +147,323 @@ fun EnrollmentCutoffReportScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Parámetros del Corte Institucional",
+                            text = "Fecha de Corte y Presets de Calendario",
                             fontWeight = FontWeight.Bold,
                             color = SaseNavy,
                             fontSize = 14.sp
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Cortes de seguimiento sujetos a validación colegiada del CTE según su calendario escolar.",
+                            fontSize = 11.sp,
+                            color = SaseMuted
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             OutlinedTextField(
                                 value = cutoffDate,
                                 onValueChange = { cutoffDate = it.trim() },
                                 label = { Text("Fecha de corte (YYYY-MM-DD)") },
                                 modifier = Modifier.width(220.dp),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = SaseBlue,
-                                    focusedLabelColor = SaseBlue
-                                )
+                                singleLine = true
                             )
 
-                            // Botones de presets comunes
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                FilterChip(
-                                    selected = cutoffDate == "2026-08-31",
-                                    onClick = { cutoffDate = "2026-08-31" },
-                                    label = { Text("31 Ago (Inicio)") }
-                                )
-                                FilterChip(
-                                    selected = cutoffDate == "2026-09-30",
-                                    onClick = { cutoffDate = "2026-09-30" },
-                                    label = { Text("30 Sep") }
-                                )
-                                FilterChip(
-                                    selected = cutoffDate == "2026-10-18",
-                                    onClick = { cutoffDate = "2026-10-18" },
-                                    label = { Text("18 Oct") }
-                                )
-                                FilterChip(
-                                    selected = cutoffDate == "2026-10-31",
-                                    onClick = { cutoffDate = "2026-10-31" },
-                                    label = { Text("31 Oct") }
-                                )
-                            }
+                            FilterChip(
+                                selected = cutoffDate == "2026-08-28",
+                                onClick = { cutoffDate = "2026-08-28" },
+                                label = { Text("Inicio Ciclo (28 Ago)") }
+                            )
+                            FilterChip(
+                                selected = cutoffDate == "2026-09-30",
+                                onClick = { cutoffDate = "2026-09-30" },
+                                label = { Text("Fin Sep (30 Sep)") }
+                            )
+                            FilterChip(
+                                selected = cutoffDate == "2026-10-31",
+                                onClick = { cutoffDate = "2026-10-31" },
+                                label = { Text("Fin Oct (31 Oct)") }
+                            )
 
                             Spacer(modifier = Modifier.weight(1f))
 
-                            SasePrimaryButton(
-                                text = "Exportar Reporte CSV",
+                            // Botón de exportación agregada PMC
+                            OutlinedButton(
                                 onClick = {
-                                    val staffName = session?.profile?.fullName ?: "Personal Autorizado"
-                                    val csv = SchoolMovementExportHelper.generateCutoffCsv(snapshot, staffName)
-                                    exportedCsvContent = csv
-                                    statusMessage = "Reporte exportado exitosamente."
+                                    if (currentSnapshot != null) {
+                                        val csv = SchoolMovementExportHelper.generatePmcAggregatedCsv(currentSnapshot)
+                                        exportedCsvContent = csv
+                                        exportedCsvTitle = "Reporte Agregado PMC (Sin datos personales)"
+                                        statusMessage = "Reporte agregado PMC generado."
+                                    }
                                 }
-                            )
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Exportar Agregado PMC")
+                            }
+
+                            // Botón de exportación nominal restringida
+                            if (canViewNominal) {
+                                SasePrimaryButton(
+                                    text = "Exportar Padrón Nominal",
+                                    onClick = {
+                                        if (currentSnapshot != null) {
+                                            try {
+                                                val csv = SchoolMovementExportHelper.generateRestrictedNominalCsv(
+                                                    snapshot = currentSnapshot,
+                                                    requesterRole = activeRole
+                                                )
+                                                exportedCsvContent = csv
+                                                exportedCsvTitle = "Padrón Nominal Detallado (Confidencial)"
+                                                statusMessage = "Padrón nominal generado bajo perfil de Control Escolar."
+                                            } catch (e: Exception) {
+                                                statusMessage = e.message
+                                            }
+                                        }
+                                    }
+                                )
+                            }
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Métricas Agregadas
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    MetricSummaryCard(
-                        title = "Matrícula Activa al Corte",
-                        value = "${snapshot.activeEnrollmentCount}",
-                        subtitle = "Cobertura: ${"%.1f".format(snapshot.activeCoveragePercent)}%",
-                        color = SaseGreen,
-                        modifier = Modifier.weight(1f)
-                    )
-                    MetricSummaryCard(
-                        title = "Traslados a Otro Plantel",
-                        value = "${snapshot.transfersOutCount}",
-                        subtitle = "Con oficio (NO es deserción)",
-                        color = SaseBlue,
-                        modifier = Modifier.weight(1f)
-                    )
-                    MetricSummaryCard(
-                        title = "Bajas Definitivas",
-                        value = "${snapshot.dropoutsCount}",
-                        subtitle = "Deserción documentada",
-                        color = SaseRed,
-                        modifier = Modifier.weight(1f)
-                    )
-                    MetricSummaryCard(
-                        title = "Universo Histórico",
-                        value = "${snapshot.totalHistoricalUniverse}",
-                        subtitle = "${snapshot.unenteredCount} pendientes de ingreso",
-                        color = SaseNavy,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Desglose por grupo
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Matrícula Activa Vigente por Grupo al $cutoffDate",
-                            fontWeight = FontWeight.Bold,
-                            color = SaseNavy,
-                            fontSize = 13.sp
+                // Métricas Institucionales Agregadas
+                if (currentSnapshot != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        MetricSummaryCard(
+                            title = "Matrícula Activa",
+                            value = "${currentSnapshot.totalActiveStudents}",
+                            subtitle = "Variación neta: ${if (currentSnapshot.netEnrollmentVariation >= 0) "+${currentSnapshot.netEnrollmentVariation}" else "${currentSnapshot.netEnrollmentVariation}"}",
+                            color = SaseGreen,
+                            modifier = Modifier.weight(1f)
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            if (snapshot.groupBreakdown.isEmpty()) {
-                                Text("Sin estudiantes activos registrados a esta fecha.", color = SaseMuted, fontSize = 12.sp)
-                            } else {
-                                for ((groupName, count) in snapshot.groupBreakdown) {
-                                    Surface(
-                                        color = SaseBgSoft,
-                                        shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier.border(1.dp, SaseBorder, RoundedCornerShape(8.dp))
-                                    ) {
+                        MetricSummaryCard(
+                            title = "Retención de Cohorte",
+                            value = "${currentSnapshot.cohortRetentionRate}%",
+                            subtitle = "${currentSnapshot.cohortRetainedTotal} de ${currentSnapshot.initialCohortTotal - currentSnapshot.transfersOutTotal} base",
+                            color = SaseNavy,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MetricSummaryCard(
+                            title = "Traslados a Otra Escuela",
+                            value = "${currentSnapshot.transfersOutTotal}",
+                            subtitle = "Con destino comprobable (No es abandono)",
+                            color = SaseBlue,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MetricSummaryCard(
+                            title = "Bajas Administrativas",
+                            value = "${currentSnapshot.administrativeDropoutsTotal}",
+                            subtitle = "Trámites formales documentados",
+                            color = SaseCyan,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MetricSummaryCard(
+                            title = "Abandono Confirmado",
+                            value = "${currentSnapshot.confirmedDropoutsTotal}",
+                            subtitle = "Deserción tras protocolo oficial",
+                            color = SaseRed,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MetricSummaryCard(
+                            title = "Por Aclarar",
+                            value = "${currentSnapshot.pendingClarificationTotal}",
+                            subtitle = "Investigación en curso",
+                            color = SaseMuted,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Desglose por grupo escolar (Reporte Agregado de Colectivo)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "Desglose por Grupo Escolar (Evidencia para Sesión de CTE)",
+                                fontWeight = FontWeight.Bold,
+                                color = SaseNavy,
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(SaseBgSoft, RoundedCornerShape(6.dp))
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Grupo", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.2f))
+                                Text("Matrícula Activa", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.5f))
+                                Text("Cohorte Inicial", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.5f))
+                                Text("Retención Cohorte", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.5f))
+                                Text("Traslados Salientes", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.5f))
+                                Text("Bajas Admin.", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.5f))
+                                Text("Abandono Conf.", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.5f))
+                                Text("Pendientes", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.2f))
+                            }
+                            HorizontalDivider(color = SaseBorder)
+                            for (g in currentSnapshot.groupSummaries) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(g.groupName, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SaseNavy, modifier = Modifier.weight(1.2f))
+                                    Text("${g.activeCount}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = SaseGreen, modifier = Modifier.weight(1.5f))
+                                    Text("${g.initialCohortCount}", fontSize = 12.sp, color = SaseText, modifier = Modifier.weight(1.5f))
+                                    Text("${g.cohortRetentionRate}%", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SaseNavy, modifier = Modifier.weight(1.5f))
+                                    Text("${g.transfersCount}", fontSize = 12.sp, color = SaseBlue, modifier = Modifier.weight(1.5f))
+                                    Text("${g.administrativeDropoutsCount}", fontSize = 12.sp, color = SaseCyan, modifier = Modifier.weight(1.5f))
+                                    Text("${g.confirmedDropoutsCount}", fontSize = 12.sp, color = if (g.confirmedDropoutsCount > 0) SaseRed else SaseText, modifier = Modifier.weight(1.5f))
+                                    Text("${g.pendingClarificationCount}", fontSize = 12.sp, color = SaseMuted, modifier = Modifier.weight(1.2f))
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Padrón Nominal (Solo si el rol cuenta con autorización explícita)
+                    if (canViewNominal) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "Padrón Nominal al Corte (Uso Exclusivo Control Escolar)",
+                                            fontWeight = FontWeight.Bold,
+                                            color = SaseNavy,
+                                            fontSize = 14.sp
+                                        )
+                                        Text(
+                                            text = "Información nominal restringida. No compartir en reuniones públicas de CTE.",
+                                            fontSize = 11.sp,
+                                            color = SaseRed
+                                        )
+                                    }
+
+                                    // Filtro de estado
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("TODOS", "ACTIVO", "TRASLADADO", "BAJA_ADMINISTRATIVA", "ABANDONO_CONFIRMADO", "PENDIENTE_ACLARACION").forEach { st ->
+                                            FilterChip(
+                                                selected = selectedFilterStatus == st,
+                                                onClick = { selectedFilterStatus = st },
+                                                label = { Text(st, fontSize = 10.sp) }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(SaseBgSoft, RoundedCornerShape(6.dp))
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Estudiante / CURP", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(2.5f))
+                                    Text("Folio / Matrícula", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.4f))
+                                    Text("Grupo Vigente", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.2f))
+                                    Text("Estatus Formal", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.8f))
+                                    Text("Fecha Efec.", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.1f))
+                                    Text("Fuente / Criterio Documentado", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(3f))
+                                }
+
+                                HorizontalDivider(color = SaseBorder)
+
+                                if (filteredRecords.isEmpty()) {
+                                    Box(modifier = Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+                                        Text("No hay alumnos con el filtro seleccionado.", color = SaseMuted)
+                                    }
+                                } else {
+                                    filteredRecords.forEach { r ->
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(groupName, fontWeight = FontWeight.Bold, color = SaseNavy, fontSize = 12.sp)
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text("$count alumnos", color = SaseGreen, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                            Column(modifier = Modifier.weight(2.5f)) {
+                                                Text(r.fullName, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SaseNavy)
+                                                Text(r.curp, fontSize = 10.sp, color = SaseMuted)
+                                            }
+                                            Text(r.officialId, fontSize = 11.sp, color = SaseText, modifier = Modifier.weight(1.4f))
+                                            Text(r.assignedGroup, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = SaseNavy, modifier = Modifier.weight(1.2f))
+                                            Text(
+                                                r.status.label,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                color = when (r.status) {
+                                                    StudentCutoffStatus.ACTIVO -> SaseGreen
+                                                    StudentCutoffStatus.TRASLADADO -> SaseBlue
+                                                    StudentCutoffStatus.BAJA_ADMINISTRATIVA -> SaseCyan
+                                                    StudentCutoffStatus.ABANDONO_CONFIRMADO -> SaseRed
+                                                    StudentCutoffStatus.PENDIENTE_ACLARACION -> SaseMuted
+                                                    StudentCutoffStatus.NO_INGRESADO -> SaseMuted
+                                                },
+                                                modifier = Modifier.weight(1.8f)
+                                            )
+                                            Text(r.effectiveMovementDate, fontSize = 11.sp, color = SaseText, modifier = Modifier.weight(1.1f))
+                                            Column(modifier = Modifier.weight(3f)) {
+                                                if (!r.destinationSchool.isNullOrBlank()) {
+                                                    Text("Destino: ${r.destinationSchool}", fontSize = 11.sp, color = SaseBlue)
+                                                }
+                                                if (!r.documentationSource.isNullOrBlank()) {
+                                                    Text("Doc: ${r.documentationSource}", fontSize = 10.sp, color = SaseMuted)
+                                                }
+                                                if (!r.classificationCriteria.isNullOrBlank()) {
+                                                    Text("Criterio: ${r.classificationCriteria}", fontSize = 10.sp, color = SaseText)
+                                                }
+                                                if (r.destinationSchool.isNullOrBlank() && r.documentationSource.isNullOrBlank()) {
+                                                    Text("Registro regular", fontSize = 10.sp, color = SaseMuted)
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Filtros de tabla
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Filtrar estado:", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = SaseNavy)
-                    listOf("TODOS", "ACTIVO", "TRASLADO", "BAJA", "NO_INGRESADO").forEach { st ->
-                        FilterChip(
-                            selected = selectedFilterStatus == st,
-                            onClick = { selectedFilterStatus = st },
-                            label = { Text(st) }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Tabla Detallada
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Padrón Individual Evaluado al Corte (${filteredRecords.size} registros)",
-                            fontWeight = FontWeight.Bold,
-                            color = SaseNavy,
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Encabezados
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(SaseBgSoft, RoundedCornerShape(6.dp))
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    } else {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = SaseBgSoft),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Alumno / CURP", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(2.5f))
-                            Text("Matrícula", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.5f))
-                            Text("Grupo al Corte", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.2f))
-                            Text("Estado al Corte", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.8f))
-                            Text("Fecha Mov.", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.2f))
-                            Text("Motivo / Destino Oficial", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(3f))
-                        }
-
-                        HorizontalDivider(color = SaseBorder)
-
-                        if (filteredRecords.isEmpty()) {
-                            Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                                Text("No se encontraron alumnos con los filtros seleccionados.", color = SaseMuted)
-                            }
-                        } else {
-                            filteredRecords.forEach { record ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 8.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(2.5f)) {
-                                        Text(record.fullName, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SaseText)
-                                        Text(record.curp, fontSize = 10.sp, color = SaseMuted)
-                                    }
-                                    Text(record.enrollmentId, fontSize = 11.sp, color = SaseText, modifier = Modifier.weight(1.5f))
-                                    Text(record.assignedGroup, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = SaseNavy, modifier = Modifier.weight(1.2f))
-                                    Box(modifier = Modifier.weight(1.8f)) {
-                                        StatusBadge(record.statusType)
-                                    }
-                                    Text(record.effectiveDate, fontSize = 11.sp, color = SaseText, modifier = Modifier.weight(1.2f))
-                                    Text(record.destinationOrReason, fontSize = 11.sp, color = SaseMuted, modifier = Modifier.weight(3f))
-                                }
-                                HorizontalDivider(color = SaseBorder.copy(alpha = 0.5f))
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Lock, contentDescription = null, tint = SaseMuted)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "El Padrón Nominal detallado está reservado al personal de Control Escolar y Dirección para salvaguarda de datos personales.",
+                                    fontSize = 12.sp,
+                                    color = SaseMuted
+                                )
                             }
                         }
                     }
@@ -366,15 +471,14 @@ fun EnrollmentCutoffReportScreen(
             }
         }
 
-        // Layout con Sidebar
         if (isMobile) {
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
                     ModalDrawerSheet {
                         SaseSidebar(
-                            activeItem = "Corte de Matrícula",
                             visibleItems = sidebarItems,
+                            activeItem = "Inscripciones",
                             onItemClick = { item ->
                                 scope.launch { drawerState.close() }
                                 viewModel.navigateFromSecretarySidebar(item)
@@ -388,57 +492,51 @@ fun EnrollmentCutoffReportScreen(
         } else {
             Row(modifier = Modifier.fillMaxSize()) {
                 SaseSidebar(
-                    activeItem = "Corte de Matrícula",
                     visibleItems = sidebarItems,
+                    activeItem = "Inscripciones",
                     onItemClick = { item -> viewModel.navigateFromSecretarySidebar(item) }
                 )
-                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    screenContent()
-                }
+                screenContent()
             }
         }
 
-        // Modal para visualizar la exportación CSV
+        // Modal de Previsualización de Exportación
         if (exportedCsvContent != null) {
             Dialog(onDismissRequest = { exportedCsvContent = null }) {
                 Card(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                    modifier = Modifier.fillMaxWidth(0.9f).fillMaxHeight(0.85f),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(20.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Exportación CSV Generada", fontWeight = FontWeight.Bold, color = SaseNavy)
+                            Text(
+                                exportedCsvTitle,
+                                fontWeight = FontWeight.Bold,
+                                color = SaseNavy,
+                                fontSize = 16.sp
+                            )
                             IconButton(onClick = { exportedCsvContent = null }) {
                                 Icon(Icons.Default.Close, contentDescription = "Cerrar")
                             }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .background(SaseBgSoft, RoundedCornerShape(6.dp))
-                                .padding(8.dp)
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            Text(
-                                text = exportedCsvContent ?: "",
-                                fontSize = 10.sp,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                color = SaseNavy
-                            )
-                        }
                         Spacer(modifier = Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                            SasePrimaryButton(
-                                text = "Aceptar",
-                                onClick = { exportedCsvContent = null }
-                            )
+                        OutlinedTextField(
+                            value = exportedCsvContent.orEmpty(),
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            Button(onClick = { exportedCsvContent = null }) {
+                                Text("Aceptar")
+                            }
                         }
                     }
                 }
@@ -459,37 +557,14 @@ private fun MetricSummaryCard(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(10.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text(title, fontSize = 11.sp, color = SaseMuted, fontWeight = FontWeight.SemiBold)
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(title, fontSize = 11.sp, color = SaseMuted, fontWeight = FontWeight.Medium)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(value, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = color)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(subtitle, fontSize = 10.sp, color = SaseMuted)
+            Text(value, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = color)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(subtitle, fontSize = 10.sp, color = SaseText)
         }
-    }
-}
-
-@Composable
-private fun StatusBadge(status: StudentCutoffStatusType) {
-    val (bgColor, textColor) = when (status) {
-        StudentCutoffStatusType.ACTIVO -> Color(0xFFD1FAE5) to Color(0xFF065F46)
-        StudentCutoffStatusType.TRASLADO -> Color(0xFFDBEAFE) to Color(0xFF1E40AF)
-        StudentCutoffStatusType.BAJA -> Color(0xFFFEE2E2) to Color(0xFF991B1B)
-        StudentCutoffStatusType.NO_INGRESADO -> Color(0xFFF3F4F6) to Color(0xFF4B5563)
-    }
-    Surface(
-        color = bgColor,
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.padding(2.dp)
-    ) {
-        Text(
-            text = status.label,
-            color = textColor,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
     }
 }

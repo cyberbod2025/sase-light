@@ -9,6 +9,8 @@ import com.example.data.repository.MockStudentRepositoryImpl
 import com.example.data.repository.SupabaseAuditRepositoryImpl
 import com.example.data.repository.SupabasePreApplicationRepositoryImpl
 import com.example.data.repository.SupabaseStudentRepositoryImpl
+import com.example.data.enrollment.MockSchoolMovementRepositoryImpl
+import com.example.data.enrollment.SupabaseSchoolMovementRepositoryImpl
 import com.example.environment.AppEnvironment
 import com.example.environment.AppEnvironmentMode
 import com.example.environment.platformAppEnvironmentValues
@@ -65,13 +67,15 @@ object SaseCompositionRoot {
             PreApplicationViewModel.configureAuthSessionProvider { authRepository.session.value }
             PreApplicationViewModel.configureAuditRepository(auditRepository)
             PreApplicationViewModel.configurePreApplicationRepository(preApplicationRepository)
+            val schoolMovementRepository = MockSchoolMovementRepositoryImpl(studentRepository)
             SaseBootstrap.Ready(
                 environment = environment,
                 viewModel = LabViewModel(
                     appEnvironment = environment,
                     authRepository = authRepository,
                     studentRepository = studentRepository,
-                    auditRepository = auditRepository
+                    auditRepository = auditRepository,
+                    schoolMovementRepository = schoolMovementRepository
                 )
             )
         }
@@ -117,13 +121,20 @@ object SaseCompositionRoot {
             PreApplicationViewModel.configureAuthSessionProvider(sessionProvider)
             PreApplicationViewModel.configureAuditRepository(auditRepository)
             PreApplicationViewModel.configurePreApplicationRepository(preApplicationRepository)
+            val schoolMovementRepository = SupabaseSchoolMovementRepositoryImpl(
+                baseUrl = supabase.url,
+                apiKey = supabase.publishableKey,
+                sessionProvider = sessionProvider,
+                studentRepository = studentRepository
+            )
             SaseBootstrap.Ready(
                 environment = environment,
                 viewModel = LabViewModel(
                     appEnvironment = environment,
                     authRepository = authRepository,
                     studentRepository = studentRepository,
-                    auditRepository = auditRepository
+                    auditRepository = auditRepository,
+                    schoolMovementRepository = schoolMovementRepository
                 )
             )
         }

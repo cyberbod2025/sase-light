@@ -4,288 +4,346 @@ import com.example.data.Student
 import com.example.data.auth.StaffAction
 import com.example.data.auth.StaffPermissions
 import com.example.data.auth.StaffRole
+import com.example.data.repository.MockStudentRepositoryImpl
 import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 
 class SchoolMovementCutoffTest {
 
-    private val student1 = Student(
-        id = "STUDENT-001",
-        fullName = "JUAN PEREZ LOPEZ",
-        group = "1°A",
-        enrollmentId = "S310-JUAP100101-26",
-        curp = "JUAP100101HDFRRN01"
+    private fun createTestStudent(
+        id: String,
+        matricula: String,
+        nombre: String,
+        primerApellido: String,
+        segundoApellido: String,
+        grupo: String,
+        curp: String
+    ): Student = Student(
+        id = id,
+        fullName = "$nombre $primerApellido $segundoApellido",
+        group = grupo,
+        enrollmentId = matricula,
+        curp = curp
     )
-
-    private val student2 = Student(
-        id = "STUDENT-002",
-        fullName = "MARIA RUIZ DIAZ",
-        group = "1°A",
-        enrollmentId = "S310-MARD100202-26",
-        curp = "MARD100202MDFRRN02"
-    )
-
-    private val student3 = Student(
-        id = "STUDENT-003",
-        fullName = "CARLOS SOLANO VELA",
-        group = "1°B",
-        enrollmentId = "S310-CASV100303-26",
-        curp = "CASV100303HDFRRN03"
-    )
-
-    private val student4 = Student(
-        id = "STUDENT-004",
-        fullName = "ANA TORRES MORA",
-        group = "1°B",
-        enrollmentId = "S310-ANTM100404-26",
-        curp = "ANTM100404MDFRRN04"
-    )
-
-    private val testStudents = listOf(student1, student2, student3, student4)
 
     @Test
-    fun testAltaYTrasladoDuranteElPeriodoNoComputaComoAbandono() = runBlocking {
-        val movements = listOf(
+    fun testFlujoCompletoPersistenciaReinicioYCoincidenciaCsv() = runBlocking {
+        val studentRepo = MockStudentRepositoryImpl()
+        val stu1 = createTestStudent("STU-101", "MAT-101", "Ana", "López", "Gómez", "1-A", "LOGA120515HMCRNA01")
+        val stu2 = createTestStudent("STU-102", "MAT-102", "Carlos", "Pérez", "Ruiz", "1-A", "PERC120515HMCRNC02")
+        val testStudents = listOf(stu1, stu2)
+
+        // 1. Capturar movimientos iniciales
+        val initialStore = mutableListOf<SchoolMovementRecord>()
+        val repo1 = MockSchoolMovementRepositoryImpl(studentRepo, initialStore, testStudents)
+
+        val alta1 = SchoolMovementRecord(
+            id = "MOV-101",
+            studentId = "STU-101",
+            movementType = SchoolMovementType.INSCRIPCION_INICIAL,
+            effectiveDate = "2026-08-28",
+            recordedAt = "2026-08-28T08:00:00Z",
+            recordedBy = "SECRETARIA_01",
+            toGroup = "1-A",
+            documentationSource = "Cédula de Inscripción 2026-2027"
+        )
+        val alta2 = SchoolMovementRecord(
+            id = "MOV-102",
+            studentId = "STU-102",
+            movementType = SchoolMovementType.INSCRIPCION_INICIAL,
+            effectiveDate = "2026-08-28",
+            recordedAt = "2026-08-28T08:05:00Z",
+            recordedBy = "SECRETARIA_01",
+            toGroup = "1-A",
+            documentationSource = "Cédula de Inscripción 2026-2027"
+        )
+
+        repo1.recordMovement(alta1)
+        repo1.recordMovement(alta2)
+
+        // Registrar traslado de Carlos
+        val trasladoCarlos = SchoolMovementRecord(
+            id = "MOV-103",
+            studentId = "STU-102",
+            movementType = SchoolMovementType.TRASLADO_SALIENTE,
+            effectiveDate = "2026-09-25",
+            recordedAt = "2026-09-25T10:00:00Z",
+            recordedBy = "SECRETARIA_01",
+            fromGroup = "1-A",
+            destinationSchool = "Secundaria Técnica 15, CCT 09DST0015W",
+            departureCategory = DepartureCategory.TRASLADO,
+            documentationSource = "Oficio de Traslado SEP-2026-88"
+        )
+        repo1.recordMovement(trasladoCarlos)
+
+        // 2. Simular "Cerrar y Reabrir / Reiniciar" instanciando un nuevo repositorio sobre el mismo almacén
+        val repoReiniciado = MockSchoolMovementRepositoryImpl(studentRepo, initialStore, testStudents)
+
+        // 3. Consultar historial
+        val movesCarlos = repoReiniciado.getMovementsForStudent("STU-102")
+        assertEquals(2, movesCarlos.size, "El historial de Carlos debe conservar sus 2 movimientos tras reiniciar")
+        assertEquals(SchoolMovementType.TRASLADO_SALIENTE, movesCarlos.last().movementType)
+
+        // 4. Generar corte al 30 de septiembre
+        val snapshot = repoReiniciado.calculateCutoff("2026-09-30", "2026-08-28")
+        assertEquals(1, snapshot.totalActiveStudents, "Solo Ana debe estar activa al corte")
+        assertEquals(1, snapshot.transfersOutTotal, "Carlos debe computar como traslado saliente acreditado")
+        assertEquals(0, snapshot.confirmedDropoutsTotal, "Carlos NO debe computar como abandono escolar")
+
+        // 5. Descargar CSV y comprobar concordancia
+        val csvAgregado = SchoolMovementExportHelper.generatePmcAggregatedCsv(snapshot)
+        assertTrue(csvAgregado.contains("Matricula Activa al Corte,1,"), "El CSV agregado debe reportar exactamente 1 activo")
+        assertTrue(csvAgregado.contains("Traslados Salientes Acreditados,1,"), "El CSV agregado debe reportar exactamente 1 traslado")
+        assertTrue(csvAgregado.contains("Abandonos Escolares Confirmados,0,"), "El CSV agregado debe reportar 0 abandonos")
+        assertFalse(csvAgregado.contains("Ana"), "El CSV agregado para PMC jamás debe contener nombres de alumnos")
+
+        // 6. CSV Nominal para personal autorizado
+        val csvNominal = SchoolMovementExportHelper.generateRestrictedNominalCsv(snapshot, requesterRole = StaffRole.SECRETARIA)
+        assertTrue(csvNominal.contains("Ana"), "El padrón nominal reservado debe incluir el nombre de Ana")
+        assertTrue(csvNominal.contains("Secundaria Técnica 15"), "El padrón nominal reservado debe documentar la escuela destino de Carlos")
+    }
+
+    @Test
+    fun testSeparacionDeBajaAdministrativaVsAbandonoConfirmadoVsPendiente() = runBlocking {
+        val studentRepo = MockStudentRepositoryImpl()
+        val s1 = createTestStudent("STU-B1", "M-B1", "Luis", "Hernández", "Cruz", "2-A", "HECL120515HMCRN01")
+        val s2 = createTestStudent("STU-B2", "M-B2", "María", "Torres", "Vela", "2-A", "TOVM120515MMCRN02")
+        val s3 = createTestStudent("STU-B3", "M-B3", "Jorge", "Reyes", "Mora", "2-A", "REMJ120515HMCRN03")
+        val testStudents = listOf(s1, s2, s3)
+
+        val repo = MockSchoolMovementRepositoryImpl(studentRepo, mutableListOf(), testStudents)
+
+        // s1: Baja administrativa por revocación de padres para sistema abierto
+        repo.recordMovement(
             SchoolMovementRecord(
-                id = "MOV-01",
-                studentId = student1.id,
-                curp = student1.curp,
-                studentFullName = student1.fullName,
-                movementType = SchoolMovementType.ALTA_INICIAL,
-                effectiveDate = "2026-08-25",
-                targetGroup = "1°A",
-                registeredByStaffId = "STAFF-01",
-                registeredByName = "Secretaría",
-                timestamp = 1000L
-            ),
+                id = "M-1",
+                studentId = "STU-B1",
+                movementType = SchoolMovementType.BAJA_ADMINISTRATIVA,
+                effectiveDate = "2026-09-15",
+                departureCategory = DepartureCategory.BAJA_ADMINISTRATIVA,
+                documentationSource = "Solicitud firmada de baja administrativa",
+                classificationCriteria = "Inscripción en modalidad no escolarizada"
+            )
+        )
+
+        // s2: Abandono escolar confirmado tras agotar protocolo de visita domiciliaria
+        repo.recordMovement(
             SchoolMovementRecord(
-                id = "MOV-02",
-                studentId = student2.id,
-                curp = student2.curp,
-                studentFullName = student2.fullName,
-                movementType = SchoolMovementType.ALTA_INICIAL,
-                effectiveDate = "2026-08-25",
-                targetGroup = "1°A",
-                registeredByStaffId = "STAFF-01",
-                registeredByName = "Secretaría",
-                timestamp = 1001L
-            ),
+                id = "M-2",
+                studentId = "STU-B2",
+                movementType = SchoolMovementType.ABANDONO_CONFIRMADO,
+                effectiveDate = "2026-09-20",
+                departureCategory = DepartureCategory.ABANDONO_CONFIRMADO,
+                documentationSource = "Acta de Visita Domiciliaria de Trabajo Social No. 12",
+                classificationCriteria = "Deserción confirmada por cambio de residencia sin escolarización"
+            )
+        )
+
+        // s3: Caso pendiente de aclaración (estudiante con inasistencias prolongadas en proceso de localización)
+        repo.recordMovement(
             SchoolMovementRecord(
-                id = "MOV-03",
-                studentId = student2.id,
-                curp = student2.curp,
-                studentFullName = student2.fullName,
+                id = "M-3",
+                studentId = "STU-B3",
+                movementType = SchoolMovementType.PENDIENTE_ACLARACION,
+                effectiveDate = "2026-09-22",
+                departureCategory = DepartureCategory.PENDIENTE_ACLARACION,
+                documentationSource = "Reporte de alerta de prefectura",
+                classificationCriteria = "En investigación por inasistencia recurrente"
+            )
+        )
+
+        val snapshot = repo.calculateCutoff("2026-09-30", "2026-08-28")
+
+        assertEquals(0, snapshot.totalActiveStudents)
+        assertEquals(1, snapshot.administrativeDropoutsTotal, "Debe registrarse exactamente 1 baja administrativa")
+        assertEquals(1, snapshot.confirmedDropoutsTotal, "Debe registrarse exactamente 1 abandono escolar confirmado")
+        assertEquals(1, snapshot.pendingClarificationTotal, "Debe registrarse exactamente 1 caso pendiente de aclaración")
+    }
+
+    @Test
+    fun testRetencionDeCohorteConAltasYReincorporaciones() = runBlocking {
+        val studentRepo = MockStudentRepositoryImpl()
+        val s1 = createTestStudent("STU-C1", "M-C1", "Diana", "Castro", "Luna", "1-A", "CALD120515MMCRN01")
+        val s2 = createTestStudent("STU-C2", "M-C2", "Mateo", "Bravo", "Soto", "1-A", "BRSM120515HMCRN02")
+        val s3 = createTestStudent("STU-C3", "M-C3", "Elena", "Vega", "Paz", "1-A", "VEPE120515MMCRN03")
+        val testStudents = listOf(s1, s2, s3)
+
+        val repo = MockSchoolMovementRepositoryImpl(studentRepo, mutableListOf(), testStudents)
+
+        // Inicio ciclo: s1 y s2 activos
+        repo.recordMovement(SchoolMovementRecord("M-01", "INST-001", "STU-C1", SchoolMovementType.INSCRIPCION_INICIAL, "2026-08-28"))
+        repo.recordMovement(SchoolMovementRecord("M-02", "INST-001", "STU-C2", SchoolMovementType.INSCRIPCION_INICIAL, "2026-08-28"))
+
+        // s2 se traslada formalmente el 10 de septiembre
+        repo.recordMovement(
+            SchoolMovementRecord(
+                id = "M-03",
+                studentId = "STU-C2",
                 movementType = SchoolMovementType.TRASLADO_SALIENTE,
-                effectiveDate = "2026-10-15",
-                sourceGroup = "1°A",
-                destinationSchool = "Escuela Secundaria Técnica 45",
-                folioOficio = "OF-2026-089",
-                reason = "Cambio de domicilio familiar a otra alcaldía",
-                registeredByStaffId = "STAFF-01",
-                registeredByName = "Secretaría",
-                timestamp = 2000L
+                effectiveDate = "2026-09-10",
+                destinationSchool = "Escuela Secundaria 44",
+                departureCategory = DepartureCategory.TRASLADO
             )
         )
 
-        val repo = MockSchoolMovementRepositoryImpl(movements)
-
-        // 1. Corte al 2026-10-01 (previo al traslado)
-        val cutoffOct01 = repo.calculateCutoff("2026-10-01", listOf(student1, student2))
-        assertEquals(2, cutoffOct01.activeEnrollmentCount, "Ambos deben estar activos al 1 de octubre")
-        assertEquals(0, cutoffOct01.transfersOutCount, "No debe haber traslados antes del 15 de octubre")
-        assertEquals(0, cutoffOct01.dropoutsCount, "No debe haber bajas")
-        assertEquals(2, cutoffOct01.groupBreakdown["1°A"])
-
-        // 2. Corte al 2026-10-18 (posterior al traslado)
-        val cutoffOct18 = repo.calculateCutoff("2026-10-18", listOf(student1, student2))
-        assertEquals(1, cutoffOct18.activeEnrollmentCount, "Solo el estudiante 1 debe continuar activo")
-        assertEquals(1, cutoffOct18.transfersOutCount, "El estudiante 2 debe computar como traslado documentado")
-        assertEquals(0, cutoffOct18.dropoutsCount, "Un traslado a otra escuela NO debe computar como deserción/baja")
-        assertEquals(1, cutoffOct18.groupBreakdown["1°A"])
-
-        val student2Status = cutoffOct18.records.first { it.studentId == student2.id }
-        assertEquals(StudentCutoffStatusType.TRASLADO, student2Status.statusType)
-        assertTrue(student2Status.destinationOrReason.contains("Técnica 45"))
-    }
-
-    @Test
-    fun testCambioDeGrupoRespetaVigenciaTemporal() = runBlocking {
-        val movements = listOf(
+        // s3 es un alta extemporánea el 15 de septiembre
+        repo.recordMovement(
             SchoolMovementRecord(
-                id = "MOV-10",
-                studentId = student3.id,
-                curp = student3.curp,
-                studentFullName = student3.fullName,
-                movementType = SchoolMovementType.ALTA_INICIAL,
-                effectiveDate = "2026-08-25",
-                targetGroup = "1°A",
-                registeredByStaffId = "STAFF-01",
-                registeredByName = "Secretaría",
-                timestamp = 1000L
-            ),
-            SchoolMovementRecord(
-                id = "MOV-11",
-                studentId = student3.id,
-                curp = student3.curp,
-                studentFullName = student3.fullName,
-                movementType = SchoolMovementType.CAMBIO_GRUPO,
-                effectiveDate = "2026-10-10",
-                sourceGroup = "1°A",
-                targetGroup = "1°B",
-                reason = "Ajuste de cupo y balance de turno",
-                registeredByStaffId = "STAFF-01",
-                registeredByName = "Secretaría",
-                timestamp = 1500L
-            )
-        )
-
-        val repo = MockSchoolMovementRepositoryImpl(movements)
-
-        // Corte antes del cambio (2026-10-05)
-        val snapshotBefore = repo.calculateCutoff("2026-10-05", listOf(student3))
-        assertEquals(1, snapshotBefore.activeEnrollmentCount)
-        assertEquals("1°A", snapshotBefore.records.first().assignedGroup, "Debe pertenecer a 1°A antes del 10 de octubre")
-        assertEquals(1, snapshotBefore.groupBreakdown["1°A"])
-        assertEquals(null, snapshotBefore.groupBreakdown["1°B"])
-
-        // Corte después del cambio (2026-10-15)
-        val snapshotAfter = repo.calculateCutoff("2026-10-15", listOf(student3))
-        assertEquals(1, snapshotAfter.activeEnrollmentCount)
-        assertEquals("1°B", snapshotAfter.records.first().assignedGroup, "Debe pertenecer a 1°B a partir del 10 de octubre")
-        assertEquals(null, snapshotAfter.groupBreakdown["1°A"])
-        assertEquals(1, snapshotAfter.groupBreakdown["1°B"])
-    }
-
-    @Test
-    fun testFechaAnteriorAlAltaNoCuentaEnCorteNiEnDenominador() = runBlocking {
-        val movements = listOf(
-            SchoolMovementRecord(
-                id = "MOV-20",
-                studentId = student4.id,
-                curp = student4.curp,
-                studentFullName = student4.fullName,
+                id = "M-04",
+                studentId = "STU-C3",
                 movementType = SchoolMovementType.ALTA_EXTEMPORANEA,
-                effectiveDate = "2026-10-01",
-                targetGroup = "1°B",
-                reason = "Inscripción extemporánea por cambio de residencia",
-                registeredByStaffId = "STAFF-01",
-                registeredByName = "Secretaría",
-                timestamp = 1000L
+                effectiveDate = "2026-09-15"
             )
         )
 
-        val repo = MockSchoolMovementRepositoryImpl(movements)
+        val snapshot = repo.calculateCutoff("2026-09-30", "2026-08-28")
 
-        // Corte previo al ingreso (2026-09-15)
-        val snapshotPrev = repo.calculateCutoff("2026-09-15", listOf(student4))
-        assertEquals(0, snapshotPrev.activeEnrollmentCount, "No debe sumar a matrícula activa antes del 1 de octubre")
-        assertEquals(1, snapshotPrev.unenteredCount, "Debe registrarse como pendiente de ingreso")
-        assertEquals(0, snapshotPrev.dropoutsCount, "No debe considerarse baja")
-        assertEquals(StudentCutoffStatusType.NO_INGRESADO, snapshotPrev.records.first().statusType)
+        // Matrícula activa al 30 de septiembre: s1 (activo) + s3 (activo) = 2
+        assertEquals(2, snapshot.totalActiveStudents, "Matrícula activa al corte debe ser 2")
 
-        // Corte posterior al ingreso (2026-10-05)
-        val snapshotPost = repo.calculateCutoff("2026-10-05", listOf(student4))
-        assertEquals(1, snapshotPost.activeEnrollmentCount)
-        assertEquals(StudentCutoffStatusType.ACTIVO, snapshotPost.records.first().statusType)
+        // Cohorte base inicial (al 28 de agosto): s1 y s2 = 2
+        assertEquals(2, snapshot.initialCohortTotal, "Cohorte base inicial fue de 2 alumnos")
+
+        // Alumnos de la cohorte base que continúan activos: solo s1 = 1
+        assertEquals(1, snapshot.cohortRetainedTotal, "Retenidos de la cohorte base debe ser 1")
+
+        // Retención de Cohorte: 1 / (2 - 1) * 100 = 100.0%
+        assertEquals(100.0, snapshot.cohortRetentionRate, "La retención de la cohorte descontando el traslado acreditado debe ser 100%")
+
+        // Variación neta de matrícula: 2 - 2 = 0
+        assertEquals(0, snapshot.netEnrollmentVariation, "La variación neta debe ser 0 a pesar de haber retención del 100%")
     }
 
     @Test
-    fun testBajaDefinitivaComputaComoDesercionPeroNoComoTraslado() = runBlocking {
-        val movements = listOf(
+    fun testOrdenDeterministaYCorreccionesHistoricasConSupersedes() = runBlocking {
+        val studentRepo = MockStudentRepositoryImpl()
+        val s1 = createTestStudent("STU-ORD", "M-ORD", "Gabriel", "Molina", "Sanz", "1-A", "MOSG120515HMCRN01")
+        val testStudents = listOf(s1)
+
+        val repo = MockSchoolMovementRepositoryImpl(studentRepo, mutableListOf(), testStudents)
+
+        val movOriginal = SchoolMovementRecord(
+            id = "MOV-ERR-01",
+            studentId = "STU-ORD",
+            movementType = SchoolMovementType.CAMBIO_DE_GRUPO,
+            effectiveDate = "2026-10-01",
+            recordedAt = "2026-10-01T09:00:00Z",
+            fromGroup = "1-A",
+            toGroup = "1-C"
+        )
+        repo.recordMovement(movOriginal)
+
+        val movCorreccion = SchoolMovementRecord(
+            id = "MOV-CORR-02",
+            studentId = "STU-ORD",
+            movementType = SchoolMovementType.CAMBIO_DE_GRUPO,
+            effectiveDate = "2026-10-01",
+            recordedAt = "2026-10-01T15:30:00Z",
+            fromGroup = "1-A",
+            toGroup = "1-B",
+            isCorrection = true,
+            supersedesMovementId = "MOV-ERR-01",
+            correctionReason = "Error tipográfico en captura de cédula; correspondía 1-B y no 1-C"
+        )
+        repo.recordMovement(movCorreccion)
+
+        val snapshot = repo.calculateCutoff("2026-10-15", "2026-08-28")
+        val detalleGabriel = snapshot.studentDetails.first { it.studentId == "STU-ORD" }
+
+        assertEquals("1-B", detalleGabriel.assignedGroup, "La corrección formal debe prevalecer sobre el movimiento sustituido")
+    }
+
+    @Test
+    fun testCalculoDeOportunidadesDeAsistenciaSegunVigenciaReal() {
+        val diasLectivos = listOf(
+            "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04",
+            "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10"
+        )
+
+        val movimientos = listOf(
             SchoolMovementRecord(
-                id = "MOV-30",
-                studentId = student1.id,
-                curp = student1.curp,
-                studentFullName = student1.fullName,
-                movementType = SchoolMovementType.ALTA_INICIAL,
-                effectiveDate = "2026-08-25",
-                targetGroup = "1°A",
-                registeredByStaffId = "STAFF-01",
-                registeredByName = "Secretaría",
-                timestamp = 1000L
-            ),
-            SchoolMovementRecord(
-                id = "MOV-31",
-                studentId = student1.id,
-                curp = student1.curp,
-                studentFullName = student1.fullName,
-                movementType = SchoolMovementType.BAJA_DEFINITIVA,
-                effectiveDate = "2026-10-12",
-                sourceGroup = "1°A",
-                reason = "Abandono escolar documentado",
-                registeredByStaffId = "STAFF-01",
-                registeredByName = "Secretaría",
-                timestamp = 2000L
+                id = "MOV-ING-04",
+                studentId = "STU-VIG-1",
+                movementType = SchoolMovementType.ALTA_EXTEMPORANEA,
+                effectiveDate = "2026-09-04"
             )
         )
 
-        val repo = MockSchoolMovementRepositoryImpl(movements)
-        val snapshot = repo.calculateCutoff("2026-10-18", listOf(student1))
-
-        assertEquals(0, snapshot.activeEnrollmentCount)
-        assertEquals(1, snapshot.dropoutsCount, "Debe registrarse en dropoutsCount")
-        assertEquals(0, snapshot.transfersOutCount, "No debe computar en transfersOutCount")
-        assertEquals(StudentCutoffStatusType.BAJA, snapshot.records.first().statusType)
-    }
-
-    @Test
-    fun testExportacionCsvCoincideConSnapshot() = runBlocking {
-        val movements = listOf(
-            SchoolMovementRecord(
-                id = "MOV-40",
-                studentId = student1.id,
-                curp = student1.curp,
-                studentFullName = student1.fullName,
-                movementType = SchoolMovementType.ALTA_INICIAL,
-                effectiveDate = "2026-08-25",
-                targetGroup = "1°A",
-                registeredByStaffId = "STAFF-01",
-                registeredByName = "Secretaría",
-                timestamp = 1000L
-            ),
-            SchoolMovementRecord(
-                id = "MOV-41",
-                studentId = student2.id,
-                curp = student2.curp,
-                studentFullName = student2.fullName,
-                movementType = SchoolMovementType.ALTA_INICIAL,
-                effectiveDate = "2026-08-25",
-                targetGroup = "1°A",
-                registeredByStaffId = "STAFF-01",
-                registeredByName = "Secretaría",
-                timestamp = 1001L
-            ),
-            SchoolMovementRecord(
-                id = "MOV-42",
-                studentId = student2.id,
-                curp = student2.curp,
-                studentFullName = student2.fullName,
-                movementType = SchoolMovementType.TRASLADO_SALIENTE,
-                effectiveDate = "2026-10-15",
-                sourceGroup = "1°A",
-                destinationSchool = "Secundaria 15",
-                reason = "Traslado",
-                registeredByStaffId = "STAFF-01",
-                registeredByName = "Secretaría",
-                timestamp = 2000L
-            )
+        val diasAplicables = SchoolMovementEvaluator.calculateApplicableAttendanceDays(
+            studentId = "STU-VIG-1",
+            movements = movimientos,
+            periodStart = "2026-09-01",
+            periodEnd = "2026-09-10",
+            schoolDays = diasLectivos
         )
 
-        val repo = MockSchoolMovementRepositoryImpl(movements)
-        val snapshot = repo.calculateCutoff("2026-10-18", listOf(student1, student2))
-        val csv = SchoolMovementExportHelper.generateCutoffCsv(snapshot, "Secretaría de Prueba")
-
-        assertTrue(csv.contains("Fecha de corte: 2026-10-18"))
-        assertTrue(csv.contains("Matricula activa al corte: 1"))
-        assertTrue(csv.contains("Traslados a otro plantel (no abandono): 1"))
-        assertTrue(csv.contains("Bajas definitivas (abandono documentado): 0"))
-        assertTrue(csv.contains("JUAN PEREZ LOPEZ"))
-        assertTrue(csv.contains("MARIA RUIZ DIAZ"))
-        assertTrue(csv.contains("Secundaria 15"))
+        assertEquals(5, diasAplicables.size, "Solo debe tener 5 oportunidades de asistencia en sus días vigentes")
+        assertFalse(diasAplicables.contains("2026-09-01"))
+        assertTrue(diasAplicables.contains("2026-09-04"))
+        assertTrue(diasAplicables.contains("2026-09-10"))
     }
 
     @Test
-    fun testPermisosDeMovimientosRestringidosPorRol() {
+    fun testControlesNegativosDeIntegridad() {
+        // 1. Rechazo de traslado sin escuela destino
+        assertFailsWith<IllegalArgumentException> {
+            SchoolMovementEvaluator.validateMovement(
+                SchoolMovementRecord(
+                    id = "NEG-1",
+                    studentId = "STU-1",
+                    movementType = SchoolMovementType.TRASLADO_SALIENTE,
+                    effectiveDate = "2026-09-10",
+                    destinationSchool = ""
+                )
+            )
+        }
+
+        // 2. Rechazo de abandono confirmado sin documentación probatoria o criterio
+        assertFailsWith<IllegalArgumentException> {
+            SchoolMovementEvaluator.validateMovement(
+                SchoolMovementRecord(
+                    id = "NEG-2",
+                    studentId = "STU-1",
+                    movementType = SchoolMovementType.ABANDONO_CONFIRMADO,
+                    effectiveDate = "2026-09-10",
+                    documentationSource = "",
+                    classificationCriteria = "Motivo sin soporte"
+                )
+            )
+        }
+
+        // 3. Rechazo de cambio de grupo con mismo origen y destino
+        assertFailsWith<IllegalArgumentException> {
+            SchoolMovementEvaluator.validateMovement(
+                SchoolMovementRecord(
+                    id = "NEG-3",
+                    studentId = "STU-1",
+                    movementType = SchoolMovementType.CAMBIO_DE_GRUPO,
+                    effectiveDate = "2026-09-10",
+                    fromGroup = "1-A",
+                    toGroup = "1-A"
+                )
+            )
+        }
+
+        // 4. Rechazo de corrección sin id superado
+        assertFailsWith<IllegalArgumentException> {
+            SchoolMovementEvaluator.validateMovement(
+                SchoolMovementRecord(
+                    id = "NEG-4",
+                    studentId = "STU-1",
+                    movementType = SchoolMovementType.ALTA_EXTEMPORANEA,
+                    effectiveDate = "2026-09-10",
+                    isCorrection = true,
+                    supersedesMovementId = null,
+                    correctionReason = "Motivo"
+                )
+            )
+        }
+    }
+
+    @Test
+    fun testPermisosDeAccesoAlPadronNominalRestringido() {
         assertTrue(StaffPermissions.canPerform(StaffRole.SECRETARIA, StaffAction.RECORD_SCHOOL_MOVEMENT))
         assertTrue(StaffPermissions.canPerform(StaffRole.DIRECCION, StaffAction.RECORD_SCHOOL_MOVEMENT))
 
@@ -293,47 +351,5 @@ class SchoolMovementCutoffTest {
         assertFalse(StaffPermissions.canPerform(StaffRole.TRABAJO_SOCIAL, StaffAction.RECORD_SCHOOL_MOVEMENT))
         assertFalse(StaffPermissions.canPerform(StaffRole.MEDICO_ESCOLAR, StaffAction.RECORD_SCHOOL_MOVEMENT))
         assertFalse(StaffPermissions.canPerform(StaffRole.UDEII, StaffAction.RECORD_SCHOOL_MOVEMENT))
-    }
-
-    @Test
-    fun testControlNegativoTrasladoSinEscuelaDestinoEsRechazado() {
-        val error = assertFailsWith<IllegalArgumentException> {
-            SchoolMovementRecord(
-                id = "INV-01",
-                studentId = "ST-01",
-                curp = "CURP123456HDFRRN01",
-                studentFullName = "Estudiante Inválido",
-                movementType = SchoolMovementType.TRASLADO_SALIENTE,
-                effectiveDate = "2026-10-15",
-                sourceGroup = "1°A",
-                destinationSchool = null, // Inválido: omite escuela destino
-                registeredByStaffId = "STAFF-01",
-                registeredByName = "Secretaría",
-                timestamp = 1000L
-            )
-        }
-        assertTrue(error.message!!.contains("exige documentar la escuela de destino"))
-    }
-
-    @Test
-    fun testControlNegativoCambioDeGrupoConMismoOrigenYDestino() = runBlocking {
-        val repo = MockSchoolMovementRepositoryImpl()
-        val record = SchoolMovementRecord(
-            id = "INV-02",
-            studentId = "ST-02",
-            curp = "CURP123456HDFRRN02",
-            studentFullName = "Estudiante Repetido",
-            movementType = SchoolMovementType.CAMBIO_GRUPO,
-            effectiveDate = "2026-10-15",
-            sourceGroup = "1°A",
-            targetGroup = "1°A", // Inválido: mismo grupo
-            registeredByStaffId = "STAFF-01",
-            registeredByName = "Secretaría",
-            timestamp = 1000L
-        )
-
-        val result = repo.recordMovement(record)
-        assertTrue(result is SchoolMovementResult.InvalidMovement)
-        assertTrue((result as SchoolMovementResult.InvalidMovement).message.contains("no puede ser igual"))
     }
 }
