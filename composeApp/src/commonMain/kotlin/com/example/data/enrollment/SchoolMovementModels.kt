@@ -92,6 +92,7 @@ data class GroupCutoffSummary(
     val administrativeDropoutsCount: Int,
     val confirmedDropoutsCount: Int,
     val pendingClarificationCount: Int,
+    val reincorporationsCount: Int = 0,
     val cohortRetentionRate: Double
 )
 
@@ -107,6 +108,7 @@ data class EnrollmentCutoffSnapshot(
     val cohortRetentionRate: Double,
     val netEnrollmentVariation: Int,
     val newEnrollmentsInPeriod: Int,
+    val reincorporationsTotal: Int = 0,
     val transfersOutTotal: Int,
     val administrativeDropoutsTotal: Int,
     val confirmedDropoutsTotal: Int,
@@ -207,7 +209,7 @@ object SchoolMovementEvaluator {
                     initialCohortStudents.add(student.id)
                     initialCohortGroupByStudent[student.id] = lastMove.toGroup ?: student.group
                 }
-            } else if (allStudentMoves.isEmpty() && cohortStartDate >= "2026-08-28") {
+            } else if (allStudentMoves.isEmpty()) {
                 initialCohortStudents.add(student.id)
                 initialCohortGroupByStudent[student.id] = student.group
             }
@@ -215,6 +217,7 @@ object SchoolMovementEvaluator {
 
         val studentDetails = mutableListOf<StudentCutoffDetail>()
         var newEnrollmentsCount = 0
+        var reincorporationsCount = 0
         var transfersOutCount = 0
         var adminDropoutsCount = 0
         var confirmedDropoutsCount = 0
@@ -257,8 +260,8 @@ object SchoolMovementEvaluator {
 
                 if (lastEvent.effectiveDate in cohortStartDate..cutoffDate) {
                     when (lastEvent.movementType) {
-                        SchoolMovementType.ALTA_EXTEMPORANEA,
-                        SchoolMovementType.REINCORPORACION -> if (lastEvent.effectiveDate > cohortStartDate) newEnrollmentsCount++
+                        SchoolMovementType.ALTA_EXTEMPORANEA -> if (lastEvent.effectiveDate > cohortStartDate) newEnrollmentsCount++
+                        SchoolMovementType.REINCORPORACION -> if (lastEvent.effectiveDate > cohortStartDate) reincorporationsCount++
                         SchoolMovementType.TRASLADO_SALIENTE -> transfersOutCount++
                         SchoolMovementType.BAJA_ADMINISTRATIVA -> adminDropoutsCount++
                         SchoolMovementType.ABANDONO_CONFIRMADO -> confirmedDropoutsCount++
@@ -300,6 +303,9 @@ object SchoolMovementEvaluator {
             val adminDropInGrp = inGroup.count { it.status == StudentCutoffStatus.BAJA_ADMINISTRATIVA }
             val confirmedDropInGrp = inGroup.count { it.status == StudentCutoffStatus.ABANDONO_CONFIRMADO }
             val pendingInGrp = inGroup.count { it.status == StudentCutoffStatus.PENDIENTE_ACLARACION }
+            val reincorporationsInGrp = inGroup.count {
+                it.status == StudentCutoffStatus.ACTIVO && it.movementType == SchoolMovementType.REINCORPORACION
+            }
 
             val cohortBase = cohortInGrp - transfersInGrp
             val retentionRate = if (cohortBase > 0) {
@@ -319,6 +325,7 @@ object SchoolMovementEvaluator {
                 administrativeDropoutsCount = adminDropInGrp,
                 confirmedDropoutsCount = confirmedDropInGrp,
                 pendingClarificationCount = pendingInGrp,
+                reincorporationsCount = reincorporationsInGrp,
                 cohortRetentionRate = (retentionRate * 10.0).toInt() / 10.0
             )
         }
@@ -348,6 +355,7 @@ object SchoolMovementEvaluator {
             cohortRetentionRate = (overallRetentionRate * 10.0).toInt() / 10.0,
             netEnrollmentVariation = netVariation,
             newEnrollmentsInPeriod = newEnrollmentsCount,
+            reincorporationsTotal = reincorporationsCount,
             transfersOutTotal = transfersOutCount,
             administrativeDropoutsTotal = adminDropoutsCount,
             confirmedDropoutsTotal = confirmedDropoutsCount,

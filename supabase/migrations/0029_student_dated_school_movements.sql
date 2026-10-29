@@ -1,9 +1,10 @@
--- Migración 0018: Movimientos Fechados de Matrícula Escolar y Trazabilidad PMC
+-- Migración 0029: Movimientos Fechados de Matrícula Escolar y Trazabilidad PMC
 --
--- Coordinación de correlativo:
---   0016: pre_application_privilege_hardening.sql (última aplicada en main)
---   0017: RESERVADA para feat/attendance-class-slice (PR #50 rebase de asistencia por clase)
---   0018: student_dated_school_movements.sql (esta migración)
+-- Coordinación de correlativo y orden de dependencias:
+--   0016: pre_application_privilege_hardening.sql (última migración en rama main)
+--   0017-0027: Ciclo de vida de tokens familiares y endurecimiento de presolicitudes (PR #52 y PR #53, aplicadas en staging)
+--   0028: RESERVADA para feat/attendance-class-slice (PR #50 rebase de asistencia por clase)
+--   0029: student_dated_school_movements.sql (esta migración para PR #54)
 --
 -- Estado en Supabase Staging: PENDIENTE DE APLICACIÓN AUTORIZADA
 -- Propósito:
@@ -11,7 +12,7 @@
 --   reincorporaciones, traslados salientes, bajas administrativas, abandonos confirmados
 --   y cambios de grupo con fecha efectiva de vigencia).
 --   Permite snapshots deterministas al corte para el Programa de Mejora Continua (PMC).
---   Evita clasificar traslados o bajas administrativas como abandono escolar.
+--   Separa formalmente traslados y bajas administrativas del abandono confirmado.
 
 CREATE TABLE IF NOT EXISTS public.student_movement_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -125,6 +126,10 @@ CREATE POLICY "movement_events_modify_staff" ON public.student_movement_events
               AND role IN ('SECRETARIA', 'DIRECCION')
         )
     );
+
+-- Restricción de privilegios: anon no tiene acceso; authenticated opera bajo RLS
+REVOKE ALL ON public.student_movement_events FROM public, anon;
+GRANT SELECT, INSERT ON public.student_movement_events TO authenticated;
 
 -- Procedimiento de reversión (Rollback documentado)
 -- Para revertir esta migración en base de datos:

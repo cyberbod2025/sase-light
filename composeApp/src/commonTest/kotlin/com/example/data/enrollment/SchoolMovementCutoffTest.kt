@@ -93,6 +93,8 @@ class SchoolMovementCutoffTest {
         // 5. Descargar CSV y comprobar concordancia
         val csvAgregado = SchoolMovementExportHelper.generatePmcAggregatedCsv(snapshot)
         assertTrue(csvAgregado.contains("Matricula Activa al Corte,1,"), "El CSV agregado debe reportar exactamente 1 activo")
+        assertTrue(csvAgregado.contains("Nuevas Altas Extemporaneas,0,"), "El CSV agregado debe reportar 0 altas extemporáneas")
+        assertTrue(csvAgregado.contains("Reincorporaciones al Plantel,0,"), "El CSV agregado debe reportar 0 reincorporaciones")
         assertTrue(csvAgregado.contains("Traslados Salientes Acreditados,1,"), "El CSV agregado debe reportar exactamente 1 traslado")
         assertTrue(csvAgregado.contains("Abandonos Escolares Confirmados,0,"), "El CSV agregado debe reportar 0 abandonos")
         assertFalse(csvAgregado.contains("Ana"), "El CSV agregado para PMC jamás debe contener nombres de alumnos")
@@ -166,13 +168,15 @@ class SchoolMovementCutoffTest {
         val s1 = createTestStudent("STU-C1", "M-C1", "Diana", "Castro", "Luna", "1-A", "CALD120515MMCRN01")
         val s2 = createTestStudent("STU-C2", "M-C2", "Mateo", "Bravo", "Soto", "1-A", "BRSM120515HMCRN02")
         val s3 = createTestStudent("STU-C3", "M-C3", "Elena", "Vega", "Paz", "1-A", "VEPE120515MMCRN03")
-        val testStudents = listOf(s1, s2, s3)
+        val s4 = createTestStudent("STU-C4", "M-C4", "Rodrigo", "Navarro", "Gil", "1-A", "NAGR120515HMCRN04")
+        val testStudents = listOf(s1, s2, s3, s4)
 
         val repo = MockSchoolMovementRepositoryImpl(studentRepo, mutableListOf(), testStudents)
 
-        // Inicio ciclo: s1 y s2 activos
+        // Inicio ciclo: s1, s2 y s4 activos en la cohorte base
         repo.recordMovement(SchoolMovementRecord("M-01", "INST-001", "STU-C1", SchoolMovementType.INSCRIPCION_INICIAL, "2026-08-28"))
         repo.recordMovement(SchoolMovementRecord("M-02", "INST-001", "STU-C2", SchoolMovementType.INSCRIPCION_INICIAL, "2026-08-28"))
+        repo.recordMovement(SchoolMovementRecord("M-03-INIT", "INST-001", "STU-C4", SchoolMovementType.INSCRIPCION_INICIAL, "2026-08-28"))
 
         // s2 se traslada formalmente el 10 de septiembre
         repo.recordMovement(
@@ -186,7 +190,7 @@ class SchoolMovementCutoffTest {
             )
         )
 
-        // s3 es un alta extemporánea el 15 de septiembre
+        // s3 es un alta extemporánea el 15 de septiembre (fuera de cohorte inicial)
         repo.recordMovement(
             SchoolMovementRecord(
                 id = "M-04",
@@ -196,22 +200,50 @@ class SchoolMovementCutoffTest {
             )
         )
 
+        // s4 sufre baja administrativa el 5 de septiembre y reincorporación formal el 20 de septiembre
+        repo.recordMovement(
+            SchoolMovementRecord(
+                id = "M-05",
+                studentId = "STU-C4",
+                movementType = SchoolMovementType.BAJA_ADMINISTRATIVA,
+                effectiveDate = "2026-09-05",
+                departureCategory = DepartureCategory.BAJA_ADMINISTRATIVA,
+                documentationSource = "Suspensión administrativa temporal",
+                classificationCriteria = "Revisión documental"
+            )
+        )
+        repo.recordMovement(
+            SchoolMovementRecord(
+                id = "M-06",
+                studentId = "STU-C4",
+                movementType = SchoolMovementType.REINCORPORACION,
+                effectiveDate = "2026-09-20",
+                documentationSource = "Oficio de regularización de matrícula",
+                classificationCriteria = "Reincorporación al mismo plantel"
+            )
+        )
+
         val snapshot = repo.calculateCutoff("2026-09-30", "2026-08-28")
 
-        // Matrícula activa al 30 de septiembre: s1 (activo) + s3 (activo) = 2
-        assertEquals(2, snapshot.totalActiveStudents, "Matrícula activa al corte debe ser 2")
+        // Matrícula activa al 30 de septiembre: s1 (activo) + s3 (alta) + s4 (reincorporado) = 3
+        assertEquals(3, snapshot.totalActiveStudents, "Matrícula activa al corte debe ser 3")
 
-        // Cohorte base inicial (al 28 de agosto): s1 y s2 = 2
-        assertEquals(2, snapshot.initialCohortTotal, "Cohorte base inicial fue de 2 alumnos")
+        // Cohorte base inicial (al 28 de agosto): s1, s2 y s4 = 3
+        assertEquals(3, snapshot.initialCohortTotal, "Cohorte base inicial fue de 3 alumnos")
 
-        // Alumnos de la cohorte base que continúan activos: solo s1 = 1
-        assertEquals(1, snapshot.cohortRetainedTotal, "Retenidos de la cohorte base debe ser 1")
+        // Alumnos de la cohorte base que continúan activos: s1 y s4 = 2
+        assertEquals(2, snapshot.cohortRetainedTotal, "Retenidos de la cohorte base debe ser 2 (incluye al reincorporado s4)")
 
-        // Retención de Cohorte: 1 / (2 - 1) * 100 = 100.0%
+        // Base efectiva: 3 (cohorte) - 1 (traslado s2) = 2
+        // Tasa de Retención de Cohorte: (2 / 2) * 100 = 100.0%
         assertEquals(100.0, snapshot.cohortRetentionRate, "La retención de la cohorte descontando el traslado acreditado debe ser 100%")
 
-        // Variación neta de matrícula: 2 - 2 = 0
+        // Variación neta de matrícula: 3 (activos) - 3 (cohorte) = 0
         assertEquals(0, snapshot.netEnrollmentVariation, "La variación neta debe ser 0 a pesar de haber retención del 100%")
+
+        // Altas extemporáneas y reincorporaciones deben estar distinguidas
+        assertEquals(1, snapshot.newEnrollmentsInPeriod, "Debe registrarse exactamente 1 alta extemporánea (s3)")
+        assertEquals(1, snapshot.reincorporationsTotal, "Debe registrarse exactamente 1 reincorporación (s4)")
     }
 
     @Test
@@ -260,7 +292,8 @@ class SchoolMovementCutoffTest {
             "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10"
         )
 
-        val movimientos = listOf(
+        // Caso 1: Estudiante con alta extemporánea el 4 de septiembre
+        val movimientosAlta = listOf(
             SchoolMovementRecord(
                 id = "MOV-ING-04",
                 studentId = "STU-VIG-1",
@@ -269,18 +302,73 @@ class SchoolMovementCutoffTest {
             )
         )
 
-        val diasAplicables = SchoolMovementEvaluator.calculateApplicableAttendanceDays(
+        val diasAplicablesAlta = SchoolMovementEvaluator.calculateApplicableAttendanceDays(
             studentId = "STU-VIG-1",
-            movements = movimientos,
+            movements = movimientosAlta,
             periodStart = "2026-09-01",
             periodEnd = "2026-09-10",
             schoolDays = diasLectivos
         )
 
-        assertEquals(5, diasAplicables.size, "Solo debe tener 5 oportunidades de asistencia en sus días vigentes")
-        assertFalse(diasAplicables.contains("2026-09-01"))
-        assertTrue(diasAplicables.contains("2026-09-04"))
-        assertTrue(diasAplicables.contains("2026-09-10"))
+        assertEquals(5, diasAplicablesAlta.size, "Solo debe tener 5 oportunidades de asistencia en sus días vigentes")
+        assertFalse(diasAplicablesAlta.contains("2026-09-01"))
+        assertTrue(diasAplicablesAlta.contains("2026-09-04"))
+        assertTrue(diasAplicablesAlta.contains("2026-09-10"))
+
+        // Caso 2: Estudiante con baja y posterior reincorporación
+        val movimientosReincorporacion = listOf(
+            SchoolMovementRecord("M-A1", "INST-001", "STU-VIG-2", SchoolMovementType.INSCRIPCION_INICIAL, "2026-09-01"),
+            SchoolMovementRecord("M-A2", "INST-001", "STU-VIG-2", SchoolMovementType.BAJA_ADMINISTRATIVA, "2026-09-04", departureCategory = DepartureCategory.BAJA_ADMINISTRATIVA),
+            SchoolMovementRecord("M-A3", "INST-001", "STU-VIG-2", SchoolMovementType.REINCORPORACION, "2026-09-08")
+        )
+
+        val diasAplicablesReinc = SchoolMovementEvaluator.calculateApplicableAttendanceDays(
+            studentId = "STU-VIG-2",
+            movements = movimientosReincorporacion,
+            periodStart = "2026-09-01",
+            periodEnd = "2026-09-10",
+            schoolDays = diasLectivos
+        )
+
+        // Días 09-01, 09-02, 09-03 (activo) -> 3 días
+        // Días 09-04, 09-07 (en baja administrativa) -> 0 días
+        // Días 09-08, 09-09, 09-10 (reincorporado) -> 3 días
+        // Total: 6 días aplicables
+        assertEquals(6, diasAplicablesReinc.size, "Debe tener 6 oportunidades de asistencia sumando periodos activos")
+        assertTrue(diasAplicablesReinc.contains("2026-09-01"))
+        assertTrue(diasAplicablesReinc.contains("2026-09-03"))
+        assertFalse(diasAplicablesReinc.contains("2026-09-04"), "El día de la baja administrativa no es oportunidad aplicable")
+        assertFalse(diasAplicablesReinc.contains("2026-09-07"), "El periodo entre baja y reincorporación no debe computar")
+        assertTrue(diasAplicablesReinc.contains("2026-09-08"), "El día de reincorporación vuelve a computar")
+        assertTrue(diasAplicablesReinc.contains("2026-09-10"))
+    }
+
+    @Test
+    fun testSupabaseAdapterExigeSesionYNoSilenciaErrores() {
+        runBlocking {
+            val studentRepo = MockStudentRepositoryImpl()
+            // Adaptador sin sesión activa
+            val repoSinSesion = SupabaseSchoolMovementRepositoryImpl(
+                baseUrl = "https://example.supabase.co",
+                apiKey = "anon-key",
+                sessionProvider = { null },
+                studentRepository = studentRepo
+            )
+
+            // No debe retornar listas vacías silenciosamente simulando éxito
+            assertFailsWith<IllegalStateException> {
+                repoSinSesion.getAllMovements()
+            }
+
+            assertFailsWith<IllegalStateException> {
+                repoSinSesion.getMovementsForStudent("STU-001")
+            }
+
+            // clear() debe lanzar UnsupportedOperationException en persistencia remota
+            assertFailsWith<UnsupportedOperationException> {
+                repoSinSesion.clear()
+            }
+        }
     }
 
     @Test

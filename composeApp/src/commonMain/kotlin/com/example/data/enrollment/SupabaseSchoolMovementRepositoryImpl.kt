@@ -121,7 +121,7 @@ class SupabaseSchoolMovementRepositoryImpl(
     }
 
     override suspend fun getMovementsForStudent(studentId: String): List<SchoolMovementRecord> {
-        val session = sessionProvider() ?: return emptyList()
+        val session = sessionProvider() ?: error("No hay sesión activa para consultar movimientos escolares.")
 
         val response = try {
             httpClient.get("$baseUrl/rest/v1/student_movement_events") {
@@ -130,24 +130,26 @@ class SupabaseSchoolMovementRepositoryImpl(
                 url {
                     parameters.append("institution_id", "eq.${session.institutionId}")
                     parameters.append("student_id", "eq.$studentId")
-                    parameters.append("order", "effective_date.asc,recorded_at.asc")
+                    parameters.append("order", "effective_date.asc,recorded_at.asc,id.asc")
                 }
             }
         } catch (e: Exception) {
-            return emptyList()
+            throw IllegalStateException("Error de conexión al consultar movimientos del estudiante en Supabase: ${e.message}", e)
         }
 
-        if (response.status != HttpStatusCode.OK) return emptyList()
+        if (response.status != HttpStatusCode.OK) {
+            throw IllegalStateException("Error al consultar movimientos del estudiante en Supabase: HTTP ${response.status.value}")
+        }
 
         return try {
             response.body<List<MovementEventRow>>().mapNotNull { it.toDomain() }
         } catch (e: Exception) {
-            emptyList()
+            throw IllegalStateException("Error al deserializar movimientos del estudiante desde Supabase: ${e.message}", e)
         }
     }
 
     override suspend fun getAllMovements(): List<SchoolMovementRecord> {
-        val session = sessionProvider() ?: return emptyList()
+        val session = sessionProvider() ?: error("No hay sesión activa para consultar movimientos escolares.")
 
         val response = try {
             httpClient.get("$baseUrl/rest/v1/student_movement_events") {
@@ -155,19 +157,21 @@ class SupabaseSchoolMovementRepositoryImpl(
                 header("Authorization", "Bearer ${session.accessToken}")
                 url {
                     parameters.append("institution_id", "eq.${session.institutionId}")
-                    parameters.append("order", "effective_date.asc,recorded_at.asc")
+                    parameters.append("order", "effective_date.asc,recorded_at.asc,id.asc")
                 }
             }
         } catch (e: Exception) {
-            return emptyList()
+            throw IllegalStateException("Error de conexión al consultar movimientos institucionales en Supabase: ${e.message}", e)
         }
 
-        if (response.status != HttpStatusCode.OK) return emptyList()
+        if (response.status != HttpStatusCode.OK) {
+            throw IllegalStateException("Error al consultar movimientos institucionales en Supabase: HTTP ${response.status.value}")
+        }
 
         return try {
             response.body<List<MovementEventRow>>().mapNotNull { it.toDomain() }
         } catch (e: Exception) {
-            emptyList()
+            throw IllegalStateException("Error al deserializar movimientos institucionales desde Supabase: ${e.message}", e)
         }
     }
 
@@ -186,6 +190,6 @@ class SupabaseSchoolMovementRepositoryImpl(
     }
 
     override fun clear() {
-        // En persistencia remota no se borra la base de datos desde el cliente
+        throw UnsupportedOperationException("La operación de limpieza de almacén no está permitida en persistencia remota conectada a Supabase.")
     }
 }

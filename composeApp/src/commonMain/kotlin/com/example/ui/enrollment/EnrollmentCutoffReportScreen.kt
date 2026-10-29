@@ -38,6 +38,7 @@ fun EnrollmentCutoffReportScreen(
     val session by viewModel.session.collectAsState()
     val allStudents by viewModel.saseStudents.collectAsState()
 
+    var cohortStartDate by remember { mutableStateOf("2026-08-28") }
     var cutoffDate by remember { mutableStateOf("2026-10-31") }
     var selectedFilterGroup by remember { mutableStateOf("TODOS") }
     var selectedFilterStatus by remember { mutableStateOf("TODOS") }
@@ -53,12 +54,12 @@ fun EnrollmentCutoffReportScreen(
     val activeRole = session?.activeRole ?: StaffRole.DOCENTE
     val canViewNominal = StaffPermissions.canPerform(activeRole, StaffAction.RECORD_SCHOOL_MOVEMENT)
 
-    LaunchedEffect(cutoffDate, allStudents) {
+    LaunchedEffect(cutoffDate, cohortStartDate, allStudents) {
         isLoading = true
         try {
             snapshot = viewModel.schoolMovementRepository.calculateCutoff(
                 cutoffDate = cutoffDate,
-                cohortStartDate = "2026-08-28"
+                cohortStartDate = cohortStartDate
             )
         } catch (e: Exception) {
             statusMessage = "Error al calcular el corte: ${e.message}"
@@ -147,13 +148,13 @@ fun EnrollmentCutoffReportScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Fecha de Corte y Presets de Calendario",
+                            text = "Parámetros Temporales de Corte (Configurables)",
                             fontWeight = FontWeight.Bold,
                             color = SaseNavy,
                             fontSize = 14.sp
                         )
                         Text(
-                            text = "Cortes de seguimiento sujetos a validación colegiada del CTE según su calendario escolar.",
+                            text = "Fechas sujetas a validación del calendario escolar en el Consejo Técnico Escolar (CTE). Los botones representan referencias temporales sugeridas, no acuerdos rígidos.",
                             fontSize = 11.sp,
                             color = SaseMuted
                         )
@@ -164,27 +165,35 @@ fun EnrollmentCutoffReportScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             OutlinedTextField(
+                                value = cohortStartDate,
+                                onValueChange = { cohortStartDate = it.trim() },
+                                label = { Text("Base cohorte (YYYY-MM-DD)") },
+                                modifier = Modifier.width(180.dp),
+                                singleLine = true
+                            )
+
+                            OutlinedTextField(
                                 value = cutoffDate,
                                 onValueChange = { cutoffDate = it.trim() },
-                                label = { Text("Fecha de corte (YYYY-MM-DD)") },
-                                modifier = Modifier.width(220.dp),
+                                label = { Text("Fecha corte (YYYY-MM-DD)") },
+                                modifier = Modifier.width(180.dp),
                                 singleLine = true
                             )
 
                             FilterChip(
                                 selected = cutoffDate == "2026-08-28",
                                 onClick = { cutoffDate = "2026-08-28" },
-                                label = { Text("Inicio Ciclo (28 Ago)") }
+                                label = { Text("28 Ago (Ref. Apertura)") }
                             )
                             FilterChip(
                                 selected = cutoffDate == "2026-09-30",
                                 onClick = { cutoffDate = "2026-09-30" },
-                                label = { Text("Fin Sep (30 Sep)") }
+                                label = { Text("30 Sep (Ref. 1er Mes)") }
                             )
                             FilterChip(
                                 selected = cutoffDate == "2026-10-31",
                                 onClick = { cutoffDate = "2026-10-31" },
-                                label = { Text("Fin Oct (31 Oct)") }
+                                label = { Text("31 Oct (Ref. 1er Bimestre)") }
                             )
 
                             Spacer(modifier = Modifier.weight(1f))
@@ -241,7 +250,7 @@ fun EnrollmentCutoffReportScreen(
                         MetricSummaryCard(
                             title = "Matrícula Activa",
                             value = "${currentSnapshot.totalActiveStudents}",
-                            subtitle = "Variación neta: ${if (currentSnapshot.netEnrollmentVariation >= 0) "+${currentSnapshot.netEnrollmentVariation}" else "${currentSnapshot.netEnrollmentVariation}"}",
+                            subtitle = "Altas: +${currentSnapshot.newEnrollmentsInPeriod} | Reincorp: +${currentSnapshot.reincorporationsTotal}",
                             color = SaseGreen,
                             modifier = Modifier.weight(1f)
                         )
@@ -312,6 +321,7 @@ fun EnrollmentCutoffReportScreen(
                                 Text("Traslados Salientes", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.5f))
                                 Text("Bajas Admin.", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.5f))
                                 Text("Abandono Conf.", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.5f))
+                                Text("Reincorp.", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.2f))
                                 Text("Pendientes", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaseNavy, modifier = Modifier.weight(1.2f))
                             }
                             HorizontalDivider(color = SaseBorder)
@@ -329,6 +339,7 @@ fun EnrollmentCutoffReportScreen(
                                     Text("${g.transfersCount}", fontSize = 12.sp, color = SaseBlue, modifier = Modifier.weight(1.5f))
                                     Text("${g.administrativeDropoutsCount}", fontSize = 12.sp, color = SaseCyan, modifier = Modifier.weight(1.5f))
                                     Text("${g.confirmedDropoutsCount}", fontSize = 12.sp, color = if (g.confirmedDropoutsCount > 0) SaseRed else SaseText, modifier = Modifier.weight(1.5f))
+                                    Text("${g.reincorporationsCount}", fontSize = 12.sp, color = SaseText, modifier = Modifier.weight(1.2f))
                                     Text("${g.pendingClarificationCount}", fontSize = 12.sp, color = SaseMuted, modifier = Modifier.weight(1.2f))
                                 }
                             }

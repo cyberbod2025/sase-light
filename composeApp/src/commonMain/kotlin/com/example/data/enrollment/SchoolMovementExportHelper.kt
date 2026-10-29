@@ -31,7 +31,8 @@ object SchoolMovementExportHelper {
         sb.appendLine("Alumnos Retenidos de la Cohorte,${snapshot.cohortRetainedTotal},Alumnos de la cohorte base que continuan activos al corte")
         sb.appendLine("Tasa de Retencion de Cohorte,${snapshot.cohortRetentionRate}%,(Retenidos Cohorte / (Cohorte Base - Traslados Acreditados)) * 100")
         sb.appendLine("Variacion Neta de Matricula,${snapshot.netEnrollmentVariation},Matricula Activa al Corte - Cohorte Base")
-        sb.appendLine("Nuevas Altas en Periodo,${snapshot.newEnrollmentsInPeriod},Altas extemporaneas y reincorporaciones posteriores al inicio")
+        sb.appendLine("Nuevas Altas Extemporaneas,${snapshot.newEnrollmentsInPeriod},Incorporaciones formales autorizadas con fecha posterior al inicio")
+        sb.appendLine("Reincorporaciones al Plantel,${snapshot.reincorporationsTotal},Alumnos reincorporados formalmente tras baja previa o regularizacion")
         sb.appendLine("Traslados Salientes Acreditados,${snapshot.transfersOutTotal},Alumnos con cambio formal a otra escuela con destino comprobable")
         sb.appendLine("Bajas Administrativas,${snapshot.administrativeDropoutsTotal},Tramites administrativos formales (no clasificables como abandono)")
         sb.appendLine("Abandonos Escolares Confirmados,${snapshot.confirmedDropoutsTotal},Desercion corroborada tras agotar protocolos institucionales")
@@ -39,16 +40,17 @@ object SchoolMovementExportHelper {
         sb.appendLine()
 
         sb.appendLine("DESGLOSE POR GRADO Y GRUPO ESCOLAR")
-        sb.appendLine("Grupo,Matricula Activa,Cohorte Base,Retenidos Cohorte,Retencion Cohorte (%),Traslados Salientes,Bajas Administrativas,Abandonos Confirmados,Pendientes Aclaracion")
+        sb.appendLine("Grupo,Matricula Activa,Cohorte Base,Retenidos Cohorte,Retencion Cohorte (%),Traslados Salientes,Bajas Administrativas,Abandonos Confirmados,Reincorporaciones,Pendientes Aclaracion")
         for (g in snapshot.groupSummaries) {
-            sb.appendLine("${g.groupName},${g.activeCount},${g.initialCohortCount},${g.cohortRetainedCount},${g.cohortRetentionRate}%,${g.transfersCount},${g.administrativeDropoutsCount},${g.confirmedDropoutsCount},${g.pendingClarificationCount}")
+            sb.appendLine("${g.groupName},${g.activeCount},${g.initialCohortCount},${g.cohortRetainedCount},${g.cohortRetentionRate}%,${g.transfersCount},${g.administrativeDropoutsCount},${g.confirmedDropoutsCount},${g.reincorporationsCount},${g.pendingClarificationCount}")
         }
         sb.appendLine()
 
         sb.appendLine("NOTAS METODOLOGICAS")
         sb.appendLine("1. Los traslados salientes acreditados no se computan como abandono escolar ni afectan negativamente la tasa de retencion de cohorte.")
         sb.appendLine("2. Las bajas administrativas se mantienen diferenciadas del abandono escolar confirmado para evitar atribuciones sin respaldo.")
-        sb.appendLine("3. La retencion de cohorte mide la permanencia de los alumnos originales, a diferencia de la variacion de matricula que suma nuevas altas.")
+        sb.appendLine("3. La retencion de cohorte mide la permanencia de los alumnos originales sobre la base efectiva (Cohorte Base - Traslados Acreditados).")
+        sb.appendLine("4. La variacion neta de matricula mide el balance global de activos al corte contra el inicio, reflejando altas extemporaneas y reincorporaciones.")
 
         return sb.toString()
     }
