@@ -99,12 +99,12 @@ class EnrollmentCutoffUiStateHolder(
         }
     }
 
-    fun openCaptureModal(defaultStudentId: String = "STU-002") {
+    fun openCaptureModal(defaultStudentId: String = "4") {
         captureId = "MOV-UI-${(movementsHistory.size + 1).toString().padStart(3, '0')}"
         captureStudentId = defaultStudentId
         captureMovementType = SchoolMovementType.TRASLADO_SALIENTE
         captureEffectiveDate = cutoffDate
-        captureFromGroup = "1-A"
+        captureFromGroup = "1°A"
         captureToGroup = ""
         captureDestinationSchool = ""
         captureDocumentationSource = ""
@@ -366,19 +366,46 @@ fun EnrollmentCutoffReportScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Parámetros Temporales de Corte (Configurables)",
-                            fontWeight = FontWeight.Bold,
-                            color = SaseNavy,
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            text = "Fechas sujetas a validación del calendario escolar en el Consejo Técnico Escolar (CTE). Los botones representan referencias temporales sugeridas, no acuerdos rígidos.",
-                            fontSize = 11.sp,
-                            color = SaseMuted
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Parámetros Temporales de Corte (Configurables)",
+                                    fontWeight = FontWeight.Bold,
+                                    color = SaseNavy,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = "Fechas sujetas a validación del calendario escolar en el CTE (referencias sugeridas, no acuerdos rígidos).",
+                                    fontSize = 11.sp,
+                                    color = SaseMuted
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = { stateHolder.downloadAggregatedPmcCsv() },
+                                    enabled = stateHolder.isAvailableInEnvironment && currentSnapshot != null,
+                                    modifier = Modifier.testTag("btn_download_pmc_csv")
+                                ) {
+                                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Descargar Agregado PMC (.CSV)", fontSize = 11.sp)
+                                }
+
+                                if (canViewNominal) {
+                                    SasePrimaryButton(
+                                        text = "Descargar Padrón Nominal (.CSV)",
+                                        onClick = { stateHolder.downloadRestrictedNominalCsv() },
+                                        modifier = Modifier.testTag("btn_download_nominal_csv")
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -388,18 +415,20 @@ fun EnrollmentCutoffReportScreen(
                                 value = stateHolder.cohortStartDate,
                                 onValueChange = { stateHolder.cohortStartDate = it.trim() },
                                 label = { Text("Base cohorte (YYYY-MM-DD)") },
-                                modifier = Modifier.width(180.dp).testTag("input_cohort_start_date"),
+                                modifier = Modifier.width(190.dp).testTag("input_cohort_start_date"),
                                 singleLine = true,
-                                enabled = stateHolder.isAvailableInEnvironment
+                                enabled = stateHolder.isAvailableInEnvironment,
+                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = SaseNavy)
                             )
 
                             OutlinedTextField(
                                 value = stateHolder.cutoffDate,
                                 onValueChange = { stateHolder.cutoffDate = it.trim() },
                                 label = { Text("Fecha corte (YYYY-MM-DD)") },
-                                modifier = Modifier.width(180.dp).testTag("input_cutoff_date"),
+                                modifier = Modifier.width(190.dp).testTag("input_cutoff_date"),
                                 singleLine = true,
-                                enabled = stateHolder.isAvailableInEnvironment
+                                enabled = stateHolder.isAvailableInEnvironment,
+                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = SaseNavy)
                             )
 
                             FilterChip(
@@ -420,28 +449,6 @@ fun EnrollmentCutoffReportScreen(
                                 label = { Text("31 Oct (Ref. 1er Bimestre)") },
                                 enabled = stateHolder.isAvailableInEnvironment
                             )
-
-                            Spacer(modifier = Modifier.weight(1f))
-
-                            // Botón de descarga agregada PMC (.CSV)
-                            OutlinedButton(
-                                onClick = { stateHolder.downloadAggregatedPmcCsv() },
-                                enabled = stateHolder.isAvailableInEnvironment && currentSnapshot != null,
-                                modifier = Modifier.testTag("btn_download_pmc_csv")
-                            ) {
-                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Descargar Agregado PMC (.CSV)")
-                            }
-
-                            // Botón de descarga nominal restringida (.CSV)
-                            if (canViewNominal) {
-                                SasePrimaryButton(
-                                    text = "Descargar Padrón Nominal (.CSV)",
-                                    onClick = { stateHolder.downloadRestrictedNominalCsv() },
-                                    modifier = Modifier.testTag("btn_download_nominal_csv")
-                                )
-                            }
                         }
                     }
                 }
@@ -501,28 +508,32 @@ fun EnrollmentCutoffReportScreen(
                                     onValueChange = { stateHolder.captureStudentId = it },
                                     label = { Text("ID Alumno (ej. STU-002)") },
                                     modifier = Modifier.weight(1f).testTag("input_movement_student_id"),
-                                    singleLine = true
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = SaseNavy)
                                 )
                                 OutlinedTextField(
                                     value = stateHolder.captureEffectiveDate,
                                     onValueChange = { stateHolder.captureEffectiveDate = it },
                                     label = { Text("Fecha Efectiva (YYYY-MM-DD)") },
                                     modifier = Modifier.weight(1f).testTag("input_movement_effective_date"),
-                                    singleLine = true
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = SaseNavy)
                                 )
                                 OutlinedTextField(
                                     value = stateHolder.captureFromGroup,
                                     onValueChange = { stateHolder.captureFromGroup = it },
                                     label = { Text("Grupo Origen") },
                                     modifier = Modifier.weight(0.7f).testTag("input_movement_from_group"),
-                                    singleLine = true
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = SaseNavy)
                                 )
                                 OutlinedTextField(
                                     value = stateHolder.captureToGroup,
                                     onValueChange = { stateHolder.captureToGroup = it },
                                     label = { Text("Grupo Destino") },
                                     modifier = Modifier.weight(0.7f).testTag("input_movement_to_group"),
-                                    singleLine = true
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = SaseNavy)
                                 )
                             }
 
@@ -536,21 +547,24 @@ fun EnrollmentCutoffReportScreen(
                                     onValueChange = { stateHolder.captureDestinationSchool = it },
                                     label = { Text("Escuela Destino (obligatorio en Traslado)") },
                                     modifier = Modifier.weight(1f).testTag("input_movement_destination_school"),
-                                    singleLine = true
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = SaseNavy)
                                 )
                                 OutlinedTextField(
                                     value = stateHolder.captureDocumentationSource,
                                     onValueChange = { stateHolder.captureDocumentationSource = it },
                                     label = { Text("Fuente Documental Probatoria") },
                                     modifier = Modifier.weight(1f).testTag("input_movement_doc_source"),
-                                    singleLine = true
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = SaseNavy)
                                 )
                                 OutlinedTextField(
                                     value = stateHolder.captureClassificationCriteria,
                                     onValueChange = { stateHolder.captureClassificationCriteria = it },
                                     label = { Text("Criterio / Motivo Institucional") },
                                     modifier = Modifier.weight(1f).testTag("input_movement_criteria"),
-                                    singleLine = true
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = SaseNavy)
                                 )
                             }
 
@@ -986,7 +1000,7 @@ fun EnrollmentCutoffReportScreen(
                             onValueChange = {},
                             readOnly = true,
                             modifier = Modifier.fillMaxWidth().weight(1f),
-                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp)
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = SaseNavy)
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

@@ -26,14 +26,22 @@ class SchoolMovementCutoffTest {
         curp = curp
     )
 
+    /**
+     * Prueba unitaria de dominio sobre doble de prueba en memoria ([MockSchoolMovementRepositoryImpl]
+     * respaldado por un `MutableList<SchoolMovementRecord>` en RAM).
+     * NOTA DE ALCANCE: Esta prueba valida la re-instanciación del adaptador en memoria y la
+     * concordancia entre el cálculo de corte y el CSV generado; NO constituye persistencia remota
+     * ni reinicio real de proceso. La persistencia real en PostgreSQL/PostgREST tras reconexión
+     * se verifica por separado en `SupabaseSchoolMovementLiveLocalIntegrationTest`.
+     */
     @Test
-    fun testFlujoCompletoPersistenciaReinicioYCoincidenciaCsv() = runBlocking {
+    fun testFlujoEnMemoriaDobleDePruebaCorteYCoincidenciaCsv() = runBlocking {
         val studentRepo = MockStudentRepositoryImpl()
         val stu1 = createTestStudent("STU-101", "MAT-101", "Ana", "López", "Gómez", "1-A", "LOGA120515HMCRNA01")
         val stu2 = createTestStudent("STU-102", "MAT-102", "Carlos", "Pérez", "Ruiz", "1-A", "PERC120515HMCRNC02")
         val testStudents = listOf(stu1, stu2)
 
-        // 1. Capturar movimientos iniciales
+        // 1. Capturar movimientos iniciales en lista en memoria (doble de prueba)
         val initialStore = mutableListOf<SchoolMovementRecord>()
         val repo1 = MockSchoolMovementRepositoryImpl(studentRepo, initialStore, testStudents)
 
@@ -344,16 +352,34 @@ class SchoolMovementCutoffTest {
     }
 
     @Test
-    fun testSupabaseAdapterExigeSesionYNoSilenciaErrores() {
+    fun testSupabaseAdapterExigeMigracionVerificadaYSesionSinSilenciarErrores() {
         runBlocking {
             val studentRepo = MockStudentRepositoryImpl()
-            // Adaptador sin sesión activa
+            // 1. Adaptador con migración remota NO verificada (por defecto en entornos conectados pendientes)
+            val repoMigracionNoVerificada = SupabaseSchoolMovementRepositoryImpl(
+                baseUrl = "https://example.supabase.co",
+                apiKey = "anon-key",
+                sessionProvider = { null },
+                studentRepository = studentRepo,
+                remoteMigrationVerified = false
+            )
+            assertFalse(repoMigracionNoVerificada.isAvailableInCurrentEnvironment)
+            assertFailsWith<IllegalStateException> {
+                repoMigracionNoVerificada.getAllMovements()
+            }
+            assertFailsWith<IllegalStateException> {
+                repoMigracionNoVerificada.calculateCutoff("2026-10-31")
+            }
+
+            // 2. Adaptador con migración verificada pero sin sesión activa
             val repoSinSesion = SupabaseSchoolMovementRepositoryImpl(
                 baseUrl = "https://example.supabase.co",
                 apiKey = "anon-key",
                 sessionProvider = { null },
-                studentRepository = studentRepo
+                studentRepository = studentRepo,
+                remoteMigrationVerified = true
             )
+            assertTrue(repoSinSesion.isAvailableInCurrentEnvironment)
 
             // No debe retornar listas vacías silenciosamente simulando éxito
             assertFailsWith<IllegalStateException> {
@@ -427,6 +453,39 @@ class SchoolMovementCutoffTest {
                     correctionReason = "Motivo"
                 )
             )
+        }
+
+        // 5. Rechazo de baja administrativa clasificada como abandono confirmado
+        assertFailsWith<IllegalArgumentException> {
+            SchoolMovementEvaluator.validateMovement(
+                SchoolMovementRecord(
+                    id = "NEG-5",
+                    studentId = "STU-1",
+                    movementType = SchoolMovementType.BAJA_ADMINISTRATIVA,
+                    effectiveDate = "2026-09-10",
+                    departureCategory = DepartureCategory.ABANDONO_CONFIRMADO,
+                    documentationSource = "Solicitud de baja",
+                    classificationCriteria = "Trámite administrativo"
+                )
+            )
+        }
+
+        // 6. Rechazo de duplicados y doble corrección en repositorio
+        runBlocking {
+            val studentRepo = MockStudentRepositoryImpl()
+            val repo = MockSchoolMovementRepositoryImpl(studentRepo, mutableListOf(), emptyList())
+            val m1 = SchoolMovementRecord(
+                id = "DUP-1",
+                studentId = "STU-DUP",
+                movementType = SchoolMovementType.ALTA_EXTEMPORANEA,
+                effectiveDate = "2026-09-15",
+                toGroup = "1-A"
+            )
+            assertTrue(repo.recordMovement(m1).isSuccess)
+
+            // Mismo alumno, mismo tipo y misma fecha sin ser corrección -> debe fallar
+            val m1Dup = m1.copy(id = "DUP-2")
+            assertTrue(repo.recordMovement(m1Dup).isFailure)
         }
     }
 

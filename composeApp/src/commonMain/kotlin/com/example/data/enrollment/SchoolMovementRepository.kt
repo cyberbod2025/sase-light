@@ -45,55 +45,55 @@ class MockSchoolMovementRepositoryImpl(
     private fun seedSyntheticMovements() {
         movementsStore.addAll(
             listOf(
-                // Alumno trasladado con destino acreditado (no es abandono)
+                // Alumno 3 trasladado con destino acreditado (no es abandono)
                 SchoolMovementRecord(
                     id = "MOV-001",
-                    studentId = "STU-003",
+                    studentId = "3",
                     movementType = SchoolMovementType.TRASLADO_SALIENTE,
                     effectiveDate = "2026-09-30",
                     recordedAt = "2026-09-30T10:00:00Z",
                     recordedBy = "SECRETARIA_ESCOLAR",
-                    fromGroup = "1-A",
+                    fromGroup = "2°B",
                     destinationSchool = "Escuela Secundaria Técnica No. 14, CCT 09DST0014Z",
                     departureCategory = DepartureCategory.TRASLADO,
                     documentationSource = "Oficio de Traslado No. SE/09/2026-441",
                     classificationCriteria = "Cambio de domicilio familiar acreditado"
                 ),
-                // Alumno con cambio de grupo con vigencia formal
+                // Alumno 1 con cambio de grupo con vigencia formal
                 SchoolMovementRecord(
                     id = "MOV-002",
-                    studentId = "STU-001",
+                    studentId = "1",
                     movementType = SchoolMovementType.CAMBIO_DE_GRUPO,
                     effectiveDate = "2026-10-01",
                     recordedAt = "2026-10-01T12:00:00Z",
                     recordedBy = "DIRECCION_ESCOLAR",
-                    fromGroup = "1-A",
-                    toGroup = "1-B",
+                    fromGroup = "1°A",
+                    toGroup = "1°B",
                     documentationSource = "Acuerdo de Dirección por balance de cupo",
                     classificationCriteria = "Reubicación para nivelación de grupos"
                 ),
-                // Alumno con baja administrativa (no es abandono)
+                // Alumno 5 con baja administrativa (no es abandono)
                 SchoolMovementRecord(
                     id = "MOV-003",
-                    studentId = "STU-006",
+                    studentId = "5",
                     movementType = SchoolMovementType.BAJA_ADMINISTRATIVA,
                     effectiveDate = "2026-10-10",
                     recordedAt = "2026-10-10T09:30:00Z",
                     recordedBy = "SECRETARIA_ESCOLAR",
-                    fromGroup = "2-A",
+                    fromGroup = "1°B",
                     departureCategory = DepartureCategory.BAJA_ADMINISTRATIVA,
                     documentationSource = "Solicitud formal de revocación de matrícula por tutor",
                     classificationCriteria = "Trámite de cambio a sistema abierto"
                 ),
-                // Alumno con alta extemporánea posterior al inicio de ciclo
+                // Alumno 2 con alta extemporánea posterior al inicio de ciclo
                 SchoolMovementRecord(
                     id = "MOV-004",
-                    studentId = "STU-010",
+                    studentId = "2",
                     movementType = SchoolMovementType.ALTA_EXTEMPORANEA,
                     effectiveDate = "2026-10-15",
                     recordedAt = "2026-10-15T11:00:00Z",
                     recordedBy = "SECRETARIA_ESCOLAR",
-                    toGroup = "3-A",
+                    toGroup = "1°A",
                     documentationSource = "Dictamen de Revalidación de Estudios SEP-2026",
                     classificationCriteria = "Incorporación por ingreso extemporáneo autorizado"
                 )

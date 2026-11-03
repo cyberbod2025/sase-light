@@ -157,6 +157,31 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_student_movement_unique_supersedes
     ON public.student_movement_events(supersedes_movement_id)
     WHERE supersedes_movement_id IS NOT NULL;
 
+-- Función evaluadora de autorización RLS (SECURITY DEFINER, mismo patrón que public.has_permission en 0002):
+-- Verifica que el actor autenticado tenga membresía activa en la institución y posea el rol SECRETARIA o DIRECCION,
+-- sin requerir que el rol authenticated tenga permiso SELECT directo sobre la tabla interna public.membership_roles.
+CREATE OR REPLACE FUNCTION public.sase_can_manage_school_movements(p_institution_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.institutional_memberships m
+        JOIN public.membership_roles mr ON mr.membership_id = m.id
+        JOIN public.roles r ON r.id = mr.role_id
+        WHERE m.profile_id = (SELECT auth.uid())
+          AND m.institution_id = p_institution_id
+          AND m.active
+          AND r.code IN ('SECRETARIA', 'DIRECCION')
+    );
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.sase_can_manage_school_movements(UUID) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.sase_can_manage_school_movements(UUID) TO authenticated;
+
 -- Trigger de integridad cruzada: valida que el alumno pertenezca a la institución del evento
 -- y que cualquier corrección apunte a un movimiento del mismo alumno e institución.
 CREATE OR REPLACE FUNCTION public.sase_validate_student_movement_event()
@@ -170,6 +195,11 @@ DECLARE
     v_superseded_student_id UUID;
     v_superseded_institution_id UUID;
 BEGIN
+    IF (SELECT auth.uid()) IS NOT NULL AND NOT public.sase_can_manage_school_movements(NEW.institution_id) THEN
+        RAISE EXCEPTION 'new row violates row-level security policy for table "student_movement_events"'
+            USING ERRCODE = '42501';
+    END IF;
+
     SELECT s.institution_id
       INTO v_student_institution_id
       FROM public.students s
@@ -214,41 +244,18 @@ CREATE TRIGGER trg_validate_student_movement_event
     FOR EACH ROW
     EXECUTE FUNCTION public.sase_validate_student_movement_event();
 
--- Función evaluadora de autorización RLS (SECURITY DEFINER, mismo patrón que public.has_permission en 0002):
--- Verifica que el actor autenticado tenga membresía activa en la institución y posea el rol SECRETARIA o DIRECCION,
--- sin requerir que el rol authenticated tenga permiso SELECT directo sobre la tabla interna public.membership_roles.
-CREATE OR REPLACE FUNCTION public.sase_can_manage_school_movements(p_institution_id UUID)
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-    SELECT EXISTS (
-        SELECT 1
-        FROM public.institutional_memberships m
-        JOIN public.membership_roles mr ON mr.membership_id = m.id
-        JOIN public.roles r ON r.id = mr.role_id
-        WHERE m.profile_id = (SELECT auth.uid())
-          AND m.institution_id = p_institution_id
-          AND m.active
-          AND r.code IN ('SECRETARIA', 'DIRECCION')
-    );
-$$;
-
-REVOKE EXECUTE ON FUNCTION public.sase_can_manage_school_movements(UUID) FROM public, anon;
-GRANT EXECUTE ON FUNCTION public.sase_can_manage_school_movements(UUID) TO authenticated;
-
 -- Seguridad RLS (Row Level Security)
 ALTER TABLE public.student_movement_events ENABLE ROW LEVEL SECURITY;
 
 -- Lectura del detalle nominal de movimientos: restringida a Secretaría y Dirección con membresía activa en la institución
+DROP POLICY IF EXISTS "movement_events_read_staff" ON public.student_movement_events;
 CREATE POLICY "movement_events_read_staff" ON public.student_movement_events
     FOR SELECT
     TO authenticated
     USING (public.sase_can_manage_school_movements(institution_id));
 
 -- Inserción de movimientos: restringida a Secretaría y Dirección con membresía activa en la institución
+DROP POLICY IF EXISTS "movement_events_modify_staff" ON public.student_movement_events;
 CREATE POLICY "movement_events_modify_staff" ON public.student_movement_events
     FOR INSERT
     TO authenticated

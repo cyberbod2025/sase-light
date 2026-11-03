@@ -227,7 +227,13 @@ object SchoolMovementEvaluator {
         for (student in students) {
             val allStudentMoves = movementsByStudent[student.id].orEmpty()
             val firstMove = allStudentMoves.firstOrNull()
-            if (firstMove != null && firstMove.effectiveDate > cohortStartDate) {
+            if (firstMove != null &&
+                firstMove.effectiveDate > cohortStartDate &&
+                firstMove.movementType in setOf(
+                    SchoolMovementType.INSCRIPCION_INICIAL,
+                    SchoolMovementType.ALTA_EXTEMPORANEA
+                )
+            ) {
                 // Llegó formalmente después de la fecha de cohorte base
                 continue
             }
@@ -246,9 +252,9 @@ object SchoolMovementEvaluator {
                     initialCohortStudents.add(student.id)
                     initialCohortGroupByStudent[student.id] = lastMove.toGroup ?: student.group
                 }
-            } else if (allStudentMoves.isEmpty()) {
+            } else {
                 initialCohortStudents.add(student.id)
-                initialCohortGroupByStudent[student.id] = student.group
+                initialCohortGroupByStudent[student.id] = firstMove?.fromGroup ?: student.group
             }
         }
 
