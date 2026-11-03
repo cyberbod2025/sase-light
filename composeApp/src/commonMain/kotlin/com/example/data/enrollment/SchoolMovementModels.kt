@@ -131,14 +131,47 @@ object SchoolMovementEvaluator {
      * Valida reglas de integridad y consistencia antes de persistir un movimiento.
      */
     fun validateMovement(movement: SchoolMovementRecord) {
+        require(movement.recordedBy.isNotBlank()) {
+            "El autor del movimiento escolar es obligatorio."
+        }
         if (movement.movementType == SchoolMovementType.TRASLADO_SALIENTE) {
             require(!movement.destinationSchool.isNullOrBlank()) {
                 "El traslado saliente requiere especificar la escuela de destino."
+            }
+            require(movement.departureCategory == null || movement.departureCategory == DepartureCategory.TRASLADO) {
+                "Un traslado saliente no puede clasificarse como baja administrativa ni como abandono escolar."
+            }
+        }
+        if (movement.movementType == SchoolMovementType.BAJA_ADMINISTRATIVA) {
+            require(!movement.documentationSource.isNullOrBlank() && !movement.classificationCriteria.isNullOrBlank()) {
+                "La baja administrativa requiere documentar la fuente probatoria y el criterio administrativo."
+            }
+            require(movement.departureCategory == null || movement.departureCategory == DepartureCategory.BAJA_ADMINISTRATIVA) {
+                "Una baja administrativa no puede derivarse ni clasificarse como abandono escolar confirmado."
             }
         }
         if (movement.movementType == SchoolMovementType.ABANDONO_CONFIRMADO) {
             require(!movement.documentationSource.isNullOrBlank() && !movement.classificationCriteria.isNullOrBlank()) {
                 "El abandono confirmado requiere documentar la fuente probatoria y el criterio fáctico institucional."
+            }
+            require(movement.departureCategory == null || movement.departureCategory == DepartureCategory.ABANDONO_CONFIRMADO) {
+                "La categoría de desvinculación debe corresponder a abandono escolar confirmado."
+            }
+        }
+        if (movement.movementType == SchoolMovementType.PENDIENTE_ACLARACION) {
+            require(movement.departureCategory == null || movement.departureCategory == DepartureCategory.PENDIENTE_ACLARACION) {
+                "La categoría de desvinculación debe corresponder a pendiente de aclaración."
+            }
+        }
+        if (movement.movementType in setOf(
+                SchoolMovementType.INSCRIPCION_INICIAL,
+                SchoolMovementType.ALTA_EXTEMPORANEA,
+                SchoolMovementType.REINCORPORACION,
+                SchoolMovementType.CAMBIO_DE_GRUPO
+            )
+        ) {
+            require(movement.departureCategory == null) {
+                "Un movimiento de incorporación o cambio de grupo no puede tener categoría de desvinculación."
             }
         }
         if (movement.movementType == SchoolMovementType.CAMBIO_DE_GRUPO) {
@@ -152,6 +185,10 @@ object SchoolMovementEvaluator {
         if (movement.isCorrection) {
             require(!movement.supersedesMovementId.isNullOrBlank() && !movement.correctionReason.isNullOrBlank()) {
                 "Una corrección formal requiere indicar el movimiento reemplazado y el motivo."
+            }
+        } else {
+            require(movement.supersedesMovementId == null) {
+                "Un movimiento regular no puede declarar un movimiento sustituido sin marcarse como corrección."
             }
         }
     }
@@ -375,8 +412,13 @@ object SchoolMovementEvaluator {
         periodEnd: String,
         schoolDays: List<String>
     ): List<String> {
+        val supersededIds = movements
+            .filter { it.isCorrection && !it.supersedesMovementId.isNullOrBlank() }
+            .mapNotNull { it.supersedesMovementId }
+            .toSet()
+
         val studentMoves = movements
-            .filter { it.studentId == studentId }
+            .filter { it.studentId == studentId && it.id !in supersededIds }
             .sortedWith(DETERMINISTIC_ORDER)
 
         if (studentMoves.isEmpty()) return schoolDays.filter { it in periodStart..periodEnd }

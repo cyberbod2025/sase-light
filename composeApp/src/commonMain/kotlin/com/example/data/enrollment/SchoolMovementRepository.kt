@@ -7,6 +7,12 @@ import com.example.data.repository.StudentRepository
  * Contrato de repositorio para el registro y consulta de movimientos fechados de matrícula.
  */
 interface SchoolMovementRepository {
+    val isAvailableInCurrentEnvironment: Boolean
+        get() = true
+
+    val unavailabilityReason: String?
+        get() = null
+
     suspend fun recordMovement(movement: SchoolMovementRecord): Result<SchoolMovementRecord>
     suspend fun getMovementsForStudent(studentId: String): List<SchoolMovementRecord>
     suspend fun getAllMovements(): List<SchoolMovementRecord>
@@ -97,6 +103,30 @@ class MockSchoolMovementRepositoryImpl(
 
     override suspend fun recordMovement(movement: SchoolMovementRecord): Result<SchoolMovementRecord> = runCatching {
         SchoolMovementEvaluator.validateMovement(movement)
+        if (!movement.isCorrection) {
+            val duplicateExists = movementsStore.any {
+                it.id != movement.id &&
+                    !it.isCorrection &&
+                    it.studentId == movement.studentId &&
+                    it.movementType == movement.movementType &&
+                    it.effectiveDate == movement.effectiveDate
+            }
+            require(!duplicateExists) {
+                "Movimiento duplicado: ya existe un registro de ${movement.movementType.displayName} para el estudiante ${movement.studentId} en la fecha ${movement.effectiveDate}."
+            }
+        } else {
+            val target = movementsStore.firstOrNull { it.id == movement.supersedesMovementId }
+                ?: throw IllegalArgumentException("El movimiento a corregir (${movement.supersedesMovementId}) no existe.")
+            require(target.studentId == movement.studentId && target.institutionId == movement.institutionId) {
+                "La corrección debe corresponder al mismo estudiante e institución del movimiento original."
+            }
+            val alreadySuperseded = movementsStore.any {
+                it.id != movement.id && it.supersedesMovementId == movement.supersedesMovementId
+            }
+            require(!alreadySuperseded) {
+                "El movimiento ${movement.supersedesMovementId} ya fue sustituido por otra corrección previa."
+            }
+        }
         movementsStore.removeAll { it.id == movement.id }
         movementsStore.add(movement)
         movement

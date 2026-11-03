@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,34 +30,64 @@ import com.example.ui.components.buttons.SasePrimaryButton
 import com.example.viewmodel.LabViewModel
 import com.example.viewmodel.Screen
 import com.example.viewmodel.visibleSidebarItems
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-@Composable
-fun EnrollmentCutoffReportScreen(
-    viewModel: LabViewModel
+/**
+ * Controlador de estado de interfaz para la pantalla de Corte Institucional y Movimientos Fechados.
+ * Permite interacción directa en la UI y verificación determinista en pruebas de interfaz.
+ */
+class EnrollmentCutoffUiStateHolder(
+    private val viewModel: LabViewModel
 ) {
-    val session by viewModel.session.collectAsState()
-    val allStudents by viewModel.saseStudents.collectAsState()
+    var cohortStartDate by mutableStateOf("2026-08-28")
+    var cutoffDate by mutableStateOf("2026-10-31")
+    var selectedFilterGroup by mutableStateOf("TODOS")
+    var selectedFilterStatus by mutableStateOf("TODOS")
 
-    var cohortStartDate by remember { mutableStateOf("2026-08-28") }
-    var cutoffDate by remember { mutableStateOf("2026-10-31") }
-    var selectedFilterGroup by remember { mutableStateOf("TODOS") }
-    var selectedFilterStatus by remember { mutableStateOf("TODOS") }
-    var exportedCsvContent by remember { mutableStateOf<String?>(null) }
-    var exportedCsvTitle by remember { mutableStateOf("Reporte Exportado") }
-    var statusMessage by remember { mutableStateOf<String?>(null) }
-    var snapshot by remember { mutableStateOf<EnrollmentCutoffSnapshot?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
+    var snapshot by mutableStateOf<EnrollmentCutoffSnapshot?>(null)
+    var movementsHistory by mutableStateOf<List<SchoolMovementRecord>>(emptyList())
+    var isLoading by mutableStateOf(false)
+    var statusMessage by mutableStateOf<String?>(null)
 
-    val scope = rememberCoroutineScope()
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    // Estado del formulario de captura de movimiento
+    var showCaptureForm by mutableStateOf(false)
+    var captureId by mutableStateOf("")
+    var captureStudentId by mutableStateOf("")
+    var captureMovementType by mutableStateOf(SchoolMovementType.TRASLADO_SALIENTE)
+    var captureEffectiveDate by mutableStateOf("2026-10-20")
+    var captureFromGroup by mutableStateOf("1-A")
+    var captureToGroup by mutableStateOf("")
+    var captureDestinationSchool by mutableStateOf("")
+    var captureDocumentationSource by mutableStateOf("")
+    var captureClassificationCriteria by mutableStateOf("")
+    var captureIsCorrection by mutableStateOf(false)
+    var captureSupersedesId by mutableStateOf("")
+    var captureCorrectionReason by mutableStateOf("")
+    var captureNotes by mutableStateOf("")
 
-    val activeRole = session?.activeRole ?: StaffRole.DOCENTE
-    val canViewNominal = StaffPermissions.canPerform(activeRole, StaffAction.RECORD_SCHOOL_MOVEMENT)
+    // Estado de visualización de historial y descarga CSV
+    var showHistorySection by mutableStateOf(true)
+    var exportedCsvContent by mutableStateOf<String?>(null)
+    var exportedCsvFilePath by mutableStateOf<String?>(null)
+    var exportedCsvTitle by mutableStateOf("Reporte Exportado")
 
-    LaunchedEffect(cutoffDate, cohortStartDate, allStudents) {
+    val isAvailableInEnvironment: Boolean
+        get() = viewModel.schoolMovementRepository.isAvailableInCurrentEnvironment
+
+    val unavailabilityReason: String?
+        get() = viewModel.schoolMovementRepository.unavailabilityReason
+
+    suspend fun refreshCutoffAndHistory() {
+        if (!isAvailableInEnvironment) {
+            snapshot = null
+            movementsHistory = emptyList()
+            statusMessage = unavailabilityReason
+            return
+        }
         isLoading = true
         try {
+            movementsHistory = viewModel.schoolMovementRepository.getAllMovements()
             snapshot = viewModel.schoolMovementRepository.calculateCutoff(
                 cutoffDate = cutoffDate,
                 cohortStartDate = cohortStartDate
@@ -68,13 +99,140 @@ fun EnrollmentCutoffReportScreen(
         }
     }
 
-    val currentSnapshot = snapshot
-    val filteredRecords = remember(currentSnapshot, selectedFilterGroup, selectedFilterStatus) {
+    fun openCaptureModal(defaultStudentId: String = "STU-002") {
+        captureId = "MOV-UI-${(movementsHistory.size + 1).toString().padStart(3, '0')}"
+        captureStudentId = defaultStudentId
+        captureMovementType = SchoolMovementType.TRASLADO_SALIENTE
+        captureEffectiveDate = cutoffDate
+        captureFromGroup = "1-A"
+        captureToGroup = ""
+        captureDestinationSchool = ""
+        captureDocumentationSource = ""
+        captureClassificationCriteria = ""
+        captureIsCorrection = false
+        captureSupersedesId = ""
+        captureCorrectionReason = ""
+        captureNotes = ""
+        showCaptureForm = true
+    }
+
+    suspend fun submitCapturedMovement(): Result<SchoolMovementRecord> {
+        val activeSession = viewModel.session.value
+        val activeRole = activeSession?.activeRole ?: StaffRole.DOCENTE
+        if (!StaffPermissions.canPerform(activeRole, StaffAction.RECORD_SCHOOL_MOVEMENT)) {
+            val err = IllegalStateException("Rol no autorizado ($activeRole) para registrar movimientos escolares.")
+            statusMessage = err.message
+            return Result.failure(err)
+        }
+
+        val depCategory = when (captureMovementType) {
+            SchoolMovementType.TRASLADO_SALIENTE -> DepartureCategory.TRASLADO
+            SchoolMovementType.BAJA_ADMINISTRATIVA -> DepartureCategory.BAJA_ADMINISTRATIVA
+            SchoolMovementType.ABANDONO_CONFIRMADO -> DepartureCategory.ABANDONO_CONFIRMADO
+            SchoolMovementType.PENDIENTE_ACLARACION -> DepartureCategory.PENDIENTE_ACLARACION
+            else -> null
+        }
+
+        val record = SchoolMovementRecord(
+            id = captureId.ifBlank { "MOV-UI-${movementsHistory.size + 1}" },
+            institutionId = activeSession?.institutionId ?: "INST-001",
+            studentId = captureStudentId.trim(),
+            movementType = captureMovementType,
+            effectiveDate = captureEffectiveDate.trim(),
+            recordedAt = "${captureEffectiveDate.trim()}T10:00:00Z",
+            recordedBy = activeSession?.profile?.email ?: activeRole.name,
+            fromGroup = captureFromGroup.trim().ifBlank { null },
+            toGroup = captureToGroup.trim().ifBlank { null },
+            destinationSchool = captureDestinationSchool.trim().ifBlank { null },
+            departureCategory = depCategory,
+            documentationSource = captureDocumentationSource.trim().ifBlank { null },
+            classificationCriteria = captureClassificationCriteria.trim().ifBlank { null },
+            isCorrection = captureIsCorrection,
+            supersedesMovementId = if (captureIsCorrection) captureSupersedesId.trim().ifBlank { null } else null,
+            correctionReason = if (captureIsCorrection) captureCorrectionReason.trim().ifBlank { null } else null,
+            notes = captureNotes.trim().ifBlank { null }
+        )
+
+        val result = viewModel.schoolMovementRepository.recordMovement(record)
+        result.fold(
+            onSuccess = { saved ->
+                showCaptureForm = false
+                refreshCutoffAndHistory()
+                statusMessage = "Movimiento ${saved.id} (${saved.movementType.displayName}) guardado exitosamente."
+            },
+            onFailure = { error ->
+                statusMessage = "Error al guardar movimiento: ${error.message}"
+            }
+        )
+        return result
+    }
+
+    fun downloadAggregatedPmcCsv(): CsvExportArtifact? {
+        val current = snapshot ?: return null
+        val artifact = SchoolMovementExportHelper.downloadPmcAggregatedCsv(current)
+        exportedCsvTitle = "Reporte Agregado PMC (Sin datos personales)"
+        exportedCsvFilePath = artifact.filePath
+        exportedCsvContent = artifact.content
+        statusMessage = "Archivo CSV agregado descargado en: ${artifact.filePath}"
+        return artifact
+    }
+
+    fun downloadRestrictedNominalCsv(): CsvExportArtifact? {
+        val current = snapshot ?: return null
+        val activeRole = viewModel.session.value?.activeRole ?: StaffRole.DOCENTE
+        return try {
+            val artifact = SchoolMovementExportHelper.downloadRestrictedNominalCsv(
+                snapshot = current,
+                requesterRole = activeRole
+            )
+            exportedCsvTitle = "Padrón Nominal Detallado (Confidencial)"
+            exportedCsvFilePath = artifact.filePath
+            exportedCsvContent = artifact.content
+            statusMessage = "Archivo CSV nominal descargado en: ${artifact.filePath}"
+            artifact
+        } catch (e: Exception) {
+            statusMessage = e.message
+            null
+        }
+    }
+}
+
+@Composable
+fun EnrollmentCutoffReportScreen(
+    viewModel: LabViewModel,
+    externalStateHolder: EnrollmentCutoffUiStateHolder? = null
+) {
+    val session by viewModel.session.collectAsState()
+    val allStudents by viewModel.saseStudents.collectAsState()
+
+    val stateHolder = remember(viewModel, externalStateHolder) {
+        externalStateHolder ?: EnrollmentCutoffUiStateHolder(viewModel)
+    }
+
+    val scope = rememberCoroutineScope()
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
+    val activeRole = session?.activeRole ?: StaffRole.DOCENTE
+    val canViewNominal = StaffPermissions.canPerform(activeRole, StaffAction.RECORD_SCHOOL_MOVEMENT)
+
+    LaunchedEffect(stateHolder.cutoffDate, stateHolder.cohortStartDate, allStudents) {
+        stateHolder.refreshCutoffAndHistory()
+    }
+
+    val currentSnapshot = stateHolder.snapshot
+    val supersededIds = remember(stateHolder.movementsHistory) {
+        stateHolder.movementsHistory
+            .filter { it.isCorrection && !it.supersedesMovementId.isNullOrBlank() }
+            .mapNotNull { it.supersedesMovementId }
+            .toSet()
+    }
+
+    val filteredRecords = remember(currentSnapshot, stateHolder.selectedFilterGroup, stateHolder.selectedFilterStatus) {
         if (currentSnapshot == null) emptyList()
         else {
             currentSnapshot.studentDetails.filter { record ->
-                val matchGroup = selectedFilterGroup == "TODOS" || record.assignedGroup == selectedFilterGroup
-                val matchStatus = when (selectedFilterStatus) {
+                val matchGroup = stateHolder.selectedFilterGroup == "TODOS" || record.assignedGroup == stateHolder.selectedFilterGroup
+                val matchStatus = when (stateHolder.selectedFilterStatus) {
                     "TODOS" -> true
                     "ACTIVO" -> record.status == StudentCutoffStatus.ACTIVO
                     "TRASLADADO" -> record.status == StudentCutoffStatus.TRASLADADO
@@ -127,17 +285,79 @@ fun EnrollmentCutoffReportScreen(
                             )
                         }
                     }
-                    OutlinedButton(
-                        onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SaseNavy)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Volver")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (canViewNominal && stateHolder.isAvailableInEnvironment) {
+                            SasePrimaryButton(
+                                text = "Registrar Movimiento",
+                                onClick = { stateHolder.openCaptureModal() },
+                                modifier = Modifier.testTag("btn_open_capture_movement")
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SaseNavy),
+                            modifier = Modifier.testTag("btn_back_secretary_dashboard")
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Volver")
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Mensaje de estado / confirmación de guardado o descarga
+                if (!stateHolder.statusMessage.isNullOrBlank()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().testTag("card_status_message"),
+                        colors = CardDefaults.cardColors(containerColor = SaseBgSoft),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = stateHolder.statusMessage.orEmpty(),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SaseNavy,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = { stateHolder.statusMessage = null }) {
+                                Icon(Icons.Default.Close, contentDescription = "Cerrar aviso", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                // Bloqueo explícito si la migración remota no está verificada en este entorno conectado
+                if (!stateHolder.isAvailableInEnvironment) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().testTag("card_environment_blocked"),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3F3)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "Función deshabilitada en este entorno conectado",
+                                fontWeight = FontWeight.Bold,
+                                color = SaseRed,
+                                fontSize = 15.sp
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = stateHolder.unavailabilityReason.orEmpty(),
+                                fontSize = 12.sp,
+                                color = SaseText
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
 
                 // Selector de Fecha y Parámetros
                 Card(
@@ -165,74 +385,61 @@ fun EnrollmentCutoffReportScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             OutlinedTextField(
-                                value = cohortStartDate,
-                                onValueChange = { cohortStartDate = it.trim() },
+                                value = stateHolder.cohortStartDate,
+                                onValueChange = { stateHolder.cohortStartDate = it.trim() },
                                 label = { Text("Base cohorte (YYYY-MM-DD)") },
-                                modifier = Modifier.width(180.dp),
-                                singleLine = true
+                                modifier = Modifier.width(180.dp).testTag("input_cohort_start_date"),
+                                singleLine = true,
+                                enabled = stateHolder.isAvailableInEnvironment
                             )
 
                             OutlinedTextField(
-                                value = cutoffDate,
-                                onValueChange = { cutoffDate = it.trim() },
+                                value = stateHolder.cutoffDate,
+                                onValueChange = { stateHolder.cutoffDate = it.trim() },
                                 label = { Text("Fecha corte (YYYY-MM-DD)") },
-                                modifier = Modifier.width(180.dp),
-                                singleLine = true
+                                modifier = Modifier.width(180.dp).testTag("input_cutoff_date"),
+                                singleLine = true,
+                                enabled = stateHolder.isAvailableInEnvironment
                             )
 
                             FilterChip(
-                                selected = cutoffDate == "2026-08-28",
-                                onClick = { cutoffDate = "2026-08-28" },
-                                label = { Text("28 Ago (Ref. Apertura)") }
+                                selected = stateHolder.cutoffDate == "2026-08-28",
+                                onClick = { stateHolder.cutoffDate = "2026-08-28" },
+                                label = { Text("28 Ago (Ref. Apertura)") },
+                                enabled = stateHolder.isAvailableInEnvironment
                             )
                             FilterChip(
-                                selected = cutoffDate == "2026-09-30",
-                                onClick = { cutoffDate = "2026-09-30" },
-                                label = { Text("30 Sep (Ref. 1er Mes)") }
+                                selected = stateHolder.cutoffDate == "2026-09-30",
+                                onClick = { stateHolder.cutoffDate = "2026-09-30" },
+                                label = { Text("30 Sep (Ref. 1er Mes)") },
+                                enabled = stateHolder.isAvailableInEnvironment
                             )
                             FilterChip(
-                                selected = cutoffDate == "2026-10-31",
-                                onClick = { cutoffDate = "2026-10-31" },
-                                label = { Text("31 Oct (Ref. 1er Bimestre)") }
+                                selected = stateHolder.cutoffDate == "2026-10-31",
+                                onClick = { stateHolder.cutoffDate = "2026-10-31" },
+                                label = { Text("31 Oct (Ref. 1er Bimestre)") },
+                                enabled = stateHolder.isAvailableInEnvironment
                             )
 
                             Spacer(modifier = Modifier.weight(1f))
 
-                            // Botón de exportación agregada PMC
+                            // Botón de descarga agregada PMC (.CSV)
                             OutlinedButton(
-                                onClick = {
-                                    if (currentSnapshot != null) {
-                                        val csv = SchoolMovementExportHelper.generatePmcAggregatedCsv(currentSnapshot)
-                                        exportedCsvContent = csv
-                                        exportedCsvTitle = "Reporte Agregado PMC (Sin datos personales)"
-                                        statusMessage = "Reporte agregado PMC generado."
-                                    }
-                                }
+                                onClick = { stateHolder.downloadAggregatedPmcCsv() },
+                                enabled = stateHolder.isAvailableInEnvironment && currentSnapshot != null,
+                                modifier = Modifier.testTag("btn_download_pmc_csv")
                             ) {
                                 Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Exportar Agregado PMC")
+                                Text("Descargar Agregado PMC (.CSV)")
                             }
 
-                            // Botón de exportación nominal restringida
+                            // Botón de descarga nominal restringida (.CSV)
                             if (canViewNominal) {
                                 SasePrimaryButton(
-                                    text = "Exportar Padrón Nominal",
-                                    onClick = {
-                                        if (currentSnapshot != null) {
-                                            try {
-                                                val csv = SchoolMovementExportHelper.generateRestrictedNominalCsv(
-                                                    snapshot = currentSnapshot,
-                                                    requesterRole = activeRole
-                                                )
-                                                exportedCsvContent = csv
-                                                exportedCsvTitle = "Padrón Nominal Detallado (Confidencial)"
-                                                statusMessage = "Padrón nominal generado bajo perfil de Control Escolar."
-                                            } catch (e: Exception) {
-                                                statusMessage = e.message
-                                            }
-                                        }
-                                    }
+                                    text = "Descargar Padrón Nominal (.CSV)",
+                                    onClick = { stateHolder.downloadRestrictedNominalCsv() },
+                                    modifier = Modifier.testTag("btn_download_nominal_csv")
                                 )
                             }
                         }
@@ -240,6 +447,133 @@ fun EnrollmentCutoffReportScreen(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                // Formulario de Captura de Movimiento Escolar Fechado (cuando está activo)
+                if (stateHolder.showCaptureForm && canViewNominal) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().testTag("card_capture_movement_form"),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Captura de Movimiento Escolar con Vigencia Fechada",
+                                    fontWeight = FontWeight.Bold,
+                                    color = SaseNavy,
+                                    fontSize = 15.sp
+                                )
+                                IconButton(onClick = { stateHolder.showCaptureForm = false }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Cerrar captura")
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Selección de Tipo de Movimiento
+                            Text("Tipo de movimiento:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SaseNavy)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                SchoolMovementType.entries.forEach { mType ->
+                                    FilterChip(
+                                        selected = stateHolder.captureMovementType == mType,
+                                        onClick = { stateHolder.captureMovementType = mType },
+                                        label = { Text(mType.displayName, fontSize = 10.sp) },
+                                        modifier = Modifier.testTag("chip_movement_type_${mType.name}")
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = stateHolder.captureStudentId,
+                                    onValueChange = { stateHolder.captureStudentId = it },
+                                    label = { Text("ID Alumno (ej. STU-002)") },
+                                    modifier = Modifier.weight(1f).testTag("input_movement_student_id"),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = stateHolder.captureEffectiveDate,
+                                    onValueChange = { stateHolder.captureEffectiveDate = it },
+                                    label = { Text("Fecha Efectiva (YYYY-MM-DD)") },
+                                    modifier = Modifier.weight(1f).testTag("input_movement_effective_date"),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = stateHolder.captureFromGroup,
+                                    onValueChange = { stateHolder.captureFromGroup = it },
+                                    label = { Text("Grupo Origen") },
+                                    modifier = Modifier.weight(0.7f).testTag("input_movement_from_group"),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = stateHolder.captureToGroup,
+                                    onValueChange = { stateHolder.captureToGroup = it },
+                                    label = { Text("Grupo Destino") },
+                                    modifier = Modifier.weight(0.7f).testTag("input_movement_to_group"),
+                                    singleLine = true
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = stateHolder.captureDestinationSchool,
+                                    onValueChange = { stateHolder.captureDestinationSchool = it },
+                                    label = { Text("Escuela Destino (obligatorio en Traslado)") },
+                                    modifier = Modifier.weight(1f).testTag("input_movement_destination_school"),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = stateHolder.captureDocumentationSource,
+                                    onValueChange = { stateHolder.captureDocumentationSource = it },
+                                    label = { Text("Fuente Documental Probatoria") },
+                                    modifier = Modifier.weight(1f).testTag("input_movement_doc_source"),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = stateHolder.captureClassificationCriteria,
+                                    onValueChange = { stateHolder.captureClassificationCriteria = it },
+                                    label = { Text("Criterio / Motivo Institucional") },
+                                    modifier = Modifier.weight(1f).testTag("input_movement_criteria"),
+                                    singleLine = true
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedButton(onClick = { stateHolder.showCaptureForm = false }) {
+                                    Text("Cancelar")
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                SasePrimaryButton(
+                                    text = "Guardar Movimiento",
+                                    onClick = { scope.launch { stateHolder.submitCapturedMovement() } },
+                                    modifier = Modifier.testTag("btn_save_movement")
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
 
                 // Métricas Institucionales Agregadas
                 if (currentSnapshot != null) {
@@ -348,6 +682,107 @@ fun EnrollmentCutoffReportScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // Historial Fechado de Movimientos (Bitácora de Movimientos y Correcciones)
+                    if (canViewNominal) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().testTag("card_movements_history"),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "Historial Fechado de Movimientos Escolares (${stateHolder.movementsHistory.size})",
+                                            fontWeight = FontWeight.Bold,
+                                            color = SaseNavy,
+                                            fontSize = 14.sp
+                                        )
+                                        Text(
+                                            text = "Bitácora auditable ordenada por fecha efectiva, registro y folio (conserva correcciones históricas).",
+                                            fontSize = 11.sp,
+                                            color = SaseMuted
+                                        )
+                                    }
+                                    OutlinedButton(
+                                        onClick = { stateHolder.showHistorySection = !stateHolder.showHistorySection },
+                                        modifier = Modifier.testTag("btn_toggle_history")
+                                    ) {
+                                        Text(if (stateHolder.showHistorySection) "Ocultar Historial" else "Mostrar Historial")
+                                    }
+                                }
+
+                                if (stateHolder.showHistorySection) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    HorizontalDivider(color = SaseBorder)
+                                    for (mov in stateHolder.movementsHistory) {
+                                        val isSuperseded = mov.id in supersededIds
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = mov.id,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                color = if (isSuperseded) SaseMuted else SaseNavy,
+                                                modifier = Modifier.weight(1.0f)
+                                            )
+                                            Text(
+                                                text = mov.studentId,
+                                                fontSize = 11.sp,
+                                                color = SaseText,
+                                                modifier = Modifier.weight(1.0f)
+                                            )
+                                            Text(
+                                                text = mov.movementType.displayName,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 11.sp,
+                                                color = if (isSuperseded) SaseMuted else SaseBlue,
+                                                modifier = Modifier.weight(1.6f)
+                                            )
+                                            Text(
+                                                text = mov.effectiveDate,
+                                                fontSize = 11.sp,
+                                                color = SaseText,
+                                                modifier = Modifier.weight(1.0f)
+                                            )
+                                            Text(
+                                                text = mov.recordedBy,
+                                                fontSize = 10.sp,
+                                                color = SaseMuted,
+                                                modifier = Modifier.weight(1.4f)
+                                            )
+                                            Column(modifier = Modifier.weight(2.8f)) {
+                                                if (isSuperseded) {
+                                                    Text("SUSTITUIDO POR CORRECCIÓN POSTERIOR", fontSize = 10.sp, color = SaseRed, fontWeight = FontWeight.Bold)
+                                                } else if (mov.isCorrection) {
+                                                    Text("CORRECCIÓN DE ${mov.supersedesMovementId}: ${mov.correctionReason}", fontSize = 10.sp, color = SaseGreen, fontWeight = FontWeight.Bold)
+                                                }
+                                                val detail = listOfNotNull(
+                                                    mov.destinationSchool?.let { "Destino: $it" },
+                                                    mov.documentationSource?.let { "Doc: $it" },
+                                                    mov.classificationCriteria?.let { "Criterio: $it" }
+                                                ).joinToString(" | ")
+                                                if (detail.isNotBlank()) {
+                                                    Text(detail, fontSize = 10.sp, color = SaseText)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
                     // Padrón Nominal (Solo si el rol cuenta con autorización explícita)
                     if (canViewNominal) {
                         Card(
@@ -379,8 +814,8 @@ fun EnrollmentCutoffReportScreen(
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         listOf("TODOS", "ACTIVO", "TRASLADADO", "BAJA_ADMINISTRATIVA", "ABANDONO_CONFIRMADO", "PENDIENTE_ACLARACION").forEach { st ->
                                             FilterChip(
-                                                selected = selectedFilterStatus == st,
-                                                onClick = { selectedFilterStatus = st },
+                                                selected = stateHolder.selectedFilterStatus == st,
+                                                onClick = { stateHolder.selectedFilterStatus = st },
                                                 label = { Text(st, fontSize = 10.sp) }
                                             )
                                         }
@@ -511,9 +946,9 @@ fun EnrollmentCutoffReportScreen(
             }
         }
 
-        // Modal de Previsualización de Exportación
-        if (exportedCsvContent != null) {
-            Dialog(onDismissRequest = { exportedCsvContent = null }) {
+        // Modal de Confirmación de Descarga y Previsualización de CSV
+        if (stateHolder.exportedCsvContent != null) {
+            Dialog(onDismissRequest = { stateHolder.exportedCsvContent = null }) {
                 Card(
                     modifier = Modifier.fillMaxWidth(0.9f).fillMaxHeight(0.85f),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -525,19 +960,29 @@ fun EnrollmentCutoffReportScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                exportedCsvTitle,
-                                fontWeight = FontWeight.Bold,
-                                color = SaseNavy,
-                                fontSize = 16.sp
-                            )
-                            IconButton(onClick = { exportedCsvContent = null }) {
+                            Column {
+                                Text(
+                                    stateHolder.exportedCsvTitle,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SaseNavy,
+                                    fontSize = 16.sp
+                                )
+                                if (!stateHolder.exportedCsvFilePath.isNullOrBlank()) {
+                                    Text(
+                                        text = "Archivo guardado en disco: ${stateHolder.exportedCsvFilePath}",
+                                        fontSize = 11.sp,
+                                        color = SaseGreen,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                            IconButton(onClick = { stateHolder.exportedCsvContent = null }) {
                                 Icon(Icons.Default.Close, contentDescription = "Cerrar")
                             }
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         OutlinedTextField(
-                            value = exportedCsvContent.orEmpty(),
+                            value = stateHolder.exportedCsvContent.orEmpty(),
                             onValueChange = {},
                             readOnly = true,
                             modifier = Modifier.fillMaxWidth().weight(1f),
@@ -545,7 +990,7 @@ fun EnrollmentCutoffReportScreen(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            Button(onClick = { exportedCsvContent = null }) {
+                            Button(onClick = { stateHolder.exportedCsvContent = null }) {
                                 Text("Aceptar")
                             }
                         }

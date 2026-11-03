@@ -91,6 +91,7 @@ class SupabaseSchoolMovementRepositoryImpl(
     private val apiKey: String,
     private val sessionProvider: () -> AuthSession?,
     private val studentRepository: StudentRepository,
+    private val remoteMigrationVerified: Boolean = false,
     private val httpClient: HttpClient = HttpClient {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
@@ -98,7 +99,28 @@ class SupabaseSchoolMovementRepositoryImpl(
     }
 ) : SchoolMovementRepository {
 
+    override val isAvailableInCurrentEnvironment: Boolean
+        get() = remoteMigrationVerified
+
+    override val unavailabilityReason: String?
+        get() = if (remoteMigrationVerified) {
+            null
+        } else {
+            "Módulo deshabilitado en este entorno conectado: la migración 0029_student_dated_school_movements.sql " +
+                "y sus permisos RLS fueron verificados en la base local efímera de pruebas, pero aún no están " +
+                "aplicados ni comprobados en el servidor remoto de Staging. No se recurre a datos mock."
+        }
+
+    private fun ensureMigrationVerified() {
+        if (!remoteMigrationVerified) {
+            throw IllegalStateException(
+                unavailabilityReason ?: "La migración remota de movimientos escolares no está verificada en este entorno."
+            )
+        }
+    }
+
     override suspend fun recordMovement(movement: SchoolMovementRecord): Result<SchoolMovementRecord> = runCatching {
+        ensureMigrationVerified()
         val session = sessionProvider() ?: error("No hay sesión activa para registrar el movimiento escolar.")
         SchoolMovementEvaluator.validateMovement(movement)
 
@@ -112,7 +134,8 @@ class SupabaseSchoolMovementRepositoryImpl(
         }
 
         if (response.status != HttpStatusCode.Created && response.status != HttpStatusCode.OK) {
-            error("Error al registrar movimiento en Supabase: HTTP ${response.status.value}")
+            val detail = runCatching { response.body<String>() }.getOrDefault("")
+            error("Error al registrar movimiento en Supabase: HTTP ${response.status.value} $detail".trim())
         }
 
         val returned = response.body<List<MovementEventRow>>().firstOrNull()?.toDomain()
@@ -121,6 +144,7 @@ class SupabaseSchoolMovementRepositoryImpl(
     }
 
     override suspend fun getMovementsForStudent(studentId: String): List<SchoolMovementRecord> {
+        ensureMigrationVerified()
         val session = sessionProvider() ?: error("No hay sesión activa para consultar movimientos escolares.")
 
         val response = try {
@@ -149,6 +173,7 @@ class SupabaseSchoolMovementRepositoryImpl(
     }
 
     override suspend fun getAllMovements(): List<SchoolMovementRecord> {
+        ensureMigrationVerified()
         val session = sessionProvider() ?: error("No hay sesión activa para consultar movimientos escolares.")
 
         val response = try {
@@ -179,6 +204,7 @@ class SupabaseSchoolMovementRepositoryImpl(
         cutoffDate: String,
         cohortStartDate: String
     ): EnrollmentCutoffSnapshot {
+        ensureMigrationVerified()
         val students = studentRepository.students.value
         val movements = getAllMovements()
         return SchoolMovementEvaluator.calculateCutoff(

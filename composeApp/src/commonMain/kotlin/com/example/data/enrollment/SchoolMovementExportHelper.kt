@@ -1,6 +1,13 @@
 package com.example.data.enrollment
 
 import com.example.data.auth.StaffRole
+import com.example.exportTextFileToDisk
+
+data class CsvExportArtifact(
+    val fileName: String,
+    val filePath: String,
+    val content: String
+)
 
 /**
  * Generador de reportes institucionales y padrones escolares para el PMC y Control Escolar.
@@ -87,6 +94,33 @@ object SchoolMovementExportHelper {
         }
 
         return sb.toString()
+    }
+
+    /**
+     * Descarga efectiva en disco del Reporte Agregado Institucional PMC (.csv).
+     */
+    fun downloadPmcAggregatedCsv(
+        snapshot: EnrollmentCutoffSnapshot,
+        institutionName: String = "Escuela Secundaria Técnica No. 1"
+    ): CsvExportArtifact {
+        val content = generatePmcAggregatedCsv(snapshot, institutionName)
+        val fileName = "reporte_pmc_agregado_${snapshot.cutoffDate}.csv"
+        val filePath = exportTextFileToDisk(fileName, content)
+        return CsvExportArtifact(fileName = fileName, filePath = filePath, content = content)
+    }
+
+    /**
+     * Descarga efectiva en disco del Padrón Nominal Detallado (.csv) reservado a Secretaría y Dirección.
+     */
+    fun downloadRestrictedNominalCsv(
+        snapshot: EnrollmentCutoffSnapshot,
+        institutionName: String = "Escuela Secundaria Técnica No. 1",
+        requesterRole: StaffRole
+    ): CsvExportArtifact {
+        val content = generateRestrictedNominalCsv(snapshot, institutionName, requesterRole)
+        val fileName = "padron_nominal_restringido_${snapshot.cutoffDate}.csv"
+        val filePath = exportTextFileToDisk(fileName, content)
+        return CsvExportArtifact(fileName = fileName, filePath = filePath, content = content)
     }
 
     /**
