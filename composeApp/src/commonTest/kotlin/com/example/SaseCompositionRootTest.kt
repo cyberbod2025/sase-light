@@ -17,6 +17,7 @@ class SaseCompositionRootTest {
 
         assertEquals(AppEnvironmentMode.DEMO_LOCAL, ready.environment.mode)
         assertTrue(ready.viewModel.demoAccessAvailable)
+        assertIs<com.example.data.attendance.MockAttendanceRepositoryImpl>(ready.viewModel.attendanceRepository)
     }
 
     @Test
@@ -44,6 +45,8 @@ class SaseCompositionRootTest {
         val ready = assertIs<SaseBootstrap.Ready>(bootstrap)
 
         assertFalse(ready.viewModel.demoAccessAvailable)
+        assertIs<com.example.data.attendance.SupabaseAttendanceRepositoryImpl>(ready.viewModel.attendanceRepository)
+        assertFalse(ready.viewModel.attendanceRepository.isAvailableInCurrentEnvironment)
     }
 
     @Test

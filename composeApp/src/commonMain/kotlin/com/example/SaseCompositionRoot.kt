@@ -68,6 +68,9 @@ object SaseCompositionRoot {
             PreApplicationViewModel.configureAuditRepository(auditRepository)
             PreApplicationViewModel.configurePreApplicationRepository(preApplicationRepository)
             val schoolMovementRepository = MockSchoolMovementRepositoryImpl(studentRepository)
+            val attendanceRepository = com.example.data.attendance.MockAttendanceRepositoryImpl(
+                movementsProvider = { kotlinx.coroutines.runBlocking { schoolMovementRepository.getAllMovements() } }
+            )
             SaseBootstrap.Ready(
                 environment = environment,
                 viewModel = LabViewModel(
@@ -75,6 +78,7 @@ object SaseCompositionRoot {
                     authRepository = authRepository,
                     studentRepository = studentRepository,
                     auditRepository = auditRepository,
+                    attendanceRepository = attendanceRepository,
                     schoolMovementRepository = schoolMovementRepository
                 )
             )
@@ -127,6 +131,11 @@ object SaseCompositionRoot {
                 sessionProvider = sessionProvider,
                 studentRepository = studentRepository
             )
+            val attendanceRepository = com.example.data.attendance.SupabaseAttendanceRepositoryImpl(
+                baseUrl = supabase.url,
+                apiKey = supabase.publishableKey,
+                remoteMigrationVerified = false
+            )
             SaseBootstrap.Ready(
                 environment = environment,
                 viewModel = LabViewModel(
@@ -134,6 +143,7 @@ object SaseCompositionRoot {
                     authRepository = authRepository,
                     studentRepository = studentRepository,
                     auditRepository = auditRepository,
+                    attendanceRepository = attendanceRepository,
                     schoolMovementRepository = schoolMovementRepository
                 )
             )

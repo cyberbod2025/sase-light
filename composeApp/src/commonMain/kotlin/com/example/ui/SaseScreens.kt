@@ -1468,6 +1468,18 @@ fun SaseAppContent(viewModel: LabViewModel) {
                         is Screen.StudentCredentialDashboard -> StudentCredentialDashboardScreen(
                             viewModel = viewModel
                         )
+                        is Screen.ClassAttendance -> {
+                            val attendanceVm = remember(activeSession, viewModel.attendanceRepository) {
+                                com.example.viewmodel.ClassAttendanceViewModel(
+                                    repository = viewModel.attendanceRepository,
+                                    session = activeSession
+                                )
+                            }
+                            com.example.ui.attendance.ClassAttendanceScreen(
+                                viewModel = attendanceVm,
+                                onNavigateBack = { viewModel.navigateTo(Screen.SessionHome) }
+                            )
+                        }
                     }
                 }
             }

@@ -19,6 +19,9 @@ import com.example.data.auth.StaffAction
 import com.example.data.auth.StaffPermissions
 import com.example.data.auth.StaffRole
 import com.example.data.auth.SaseArea
+import com.example.data.attendance.AttendanceRepository
+import com.example.data.attendance.MockAttendanceRepositoryImpl
+import com.example.data.attendance.SupabaseAttendanceRepositoryImpl
 import com.example.data.enrollment.SchoolMovementRepository
 import com.example.data.enrollment.MockSchoolMovementRepositoryImpl
 import com.example.data.enrollment.SupabaseSchoolMovementRepositoryImpl
@@ -65,11 +68,13 @@ sealed class Screen {
     data object OfficialEnrollmentDashboard : Screen()
     data class CredentialPreview(val studentId: String) : Screen()
     data object StudentCredentialDashboard : Screen()
+    data object ClassAttendance : Screen()
 }
 
 internal fun secretarySidebarDestination(item: String): Screen? = when (item) {
     "Inicio" -> Screen.SessionHome
     "Expedientes" -> Screen.StudentRecordsDashboard
+    "Asistencia PMC" -> Screen.ClassAttendance
     "Inscripciones" -> Screen.EnrollmentDashboard
     "Corte de Matrícula" -> Screen.EnrollmentCutoffReport
     "Portal Familia" -> Screen.PreApplicationFamilyPortal
@@ -138,6 +143,18 @@ class LabViewModel(
     private val authRepository: AuthRepository,
     private val studentRepository: StudentRepository = MockStudentRepositoryImpl(),
     private val auditRepository: AuditRepository = MockAuditRepositoryImpl(),
+    val attendanceRepository: AttendanceRepository = if (appEnvironment.demoUsersEnabled) {
+        MockAttendanceRepositoryImpl()
+    } else {
+        val supabase = requireNotNull(appEnvironment.supabase) {
+            "El ambiente conectado requiere configuración de Supabase para AttendanceRepository."
+        }
+        SupabaseAttendanceRepositoryImpl(
+            baseUrl = supabase.url,
+            apiKey = supabase.publishableKey,
+            remoteMigrationVerified = false
+        )
+    },
     val schoolMovementRepository: SchoolMovementRepository = if (appEnvironment.demoUsersEnabled) {
         MockSchoolMovementRepositoryImpl(studentRepository)
     } else {
@@ -265,6 +282,7 @@ class LabViewModel(
             try {
                 expirationJob?.cancel()
                 authRepository.resetDemo()
+                attendanceRepository.resetDemoData()
                 PreApplicationViewModel.resetDemoData()
                 _currentScreen.value = Screen.SessionHome
                 _loginState.value = LoginUiState.Idle

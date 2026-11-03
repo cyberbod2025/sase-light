@@ -56,7 +56,9 @@ private val allScreens: List<Screen> = listOf(
     Screen.SecretariaPreApplicationDashboard,
     Screen.OfficialEnrollmentDashboard,
     Screen.CredentialPreview(studentId = "STU-001"),
-    Screen.StudentCredentialDashboard
+    Screen.StudentCredentialDashboard,
+    Screen.EnrollmentCutoffReport,
+    Screen.ClassAttendance
 )
 
 class NavigationAuthorizationTest {
@@ -72,6 +74,8 @@ class NavigationAuthorizationTest {
         assertEquals(SaseArea.ALTA_OFICIAL, screenArea(Screen.OfficialEnrollmentDashboard))
         assertEquals(SaseArea.CREDENCIAL, screenArea(Screen.CredentialPreview(studentId = "STU-001")))
         assertEquals(SaseArea.CREDENCIAL, screenArea(Screen.StudentCredentialDashboard))
+        assertEquals(SaseArea.SECRETARIA, screenArea(Screen.EnrollmentCutoffReport))
+        assertEquals(SaseArea.DOCENCIA, screenArea(Screen.ClassAttendance))
     }
 
     @Test
