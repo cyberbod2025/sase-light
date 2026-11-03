@@ -79,6 +79,28 @@ class SaseCompositionRootTest {
     }
 
     @Test
+    fun stagingKeepsSchoolMovementsDisabledUntilRemoteMigrationIsVerifiedWithoutMockFallback() {
+        val ready = assertIs<SaseBootstrap.Ready>(
+            SaseCompositionRoot.create(
+                mapOf(
+                    AppEnvironment.ENVIRONMENT_KEY to AppEnvironmentMode.SUPABASE_STAGING.name,
+                    AppEnvironment.APP_VERSION_KEY to "test",
+                    AppEnvironment.SUPABASE_URL_KEY to "https://project-ref.supabase.co",
+                    AppEnvironment.SUPABASE_PUBLISHABLE_KEY to "publishable-test-key"
+                )
+            )
+        )
+
+        assertFalse(
+            ready.viewModel.schoolMovementRepository.isAvailableInCurrentEnvironment,
+            "SUPABASE_STAGING debe mantener deshabilitado el módulo de movimientos hasta comprobar la migración remota"
+        )
+        assertTrue(
+            ready.viewModel.schoolMovementRepository.unavailabilityReason?.contains("0029_student_dated_school_movements.sql") == true
+        )
+    }
+
+    @Test
     fun demoLocalKeepsServingTheInMemoryRepositories() {
         MockSaseData.resetForTests()
 

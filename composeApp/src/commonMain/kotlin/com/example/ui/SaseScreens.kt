@@ -32,6 +32,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.data.*
 import com.example.util.LocalToast
 import com.example.ui.enrollment.SmartEnrollmentTable
+import com.example.ui.enrollment.EnrollmentCutoffReportScreen
 import com.example.ui.enrollment.digital.SecretariaEnrollmentDashboard
 import com.example.data.presolicitud.*
 import com.example.ui.student.StudentRecordScreen
@@ -1267,10 +1268,21 @@ fun EnrollmentDashboardScreen(
                             )
                         }
                     }
-                    ReturnToDashboardButton(
-                        onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) },
-                        label = if (isMobile) "Inicio" else "Volver al inicio"
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = { viewModel.navigateTo(Screen.EnrollmentCutoffReport) },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SaseNavy)
+                        ) {
+                            Text("Corte PMC", fontSize = if (isMobile) 11.sp else 12.sp)
+                        }
+                        ReturnToDashboardButton(
+                            onClick = { viewModel.navigateTo(Screen.SecretaryDashboard) },
+                            label = if (isMobile) "Inicio" else "Volver al inicio"
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
@@ -1431,6 +1443,9 @@ fun SaseAppContent(viewModel: LabViewModel) {
                             studentId = screen.studentId,
                             institutionalKey = screen.institutionalKey,
                             returnTo = screen.returnTo,
+                            viewModel = viewModel
+                        )
+                        is Screen.EnrollmentCutoffReport -> EnrollmentCutoffReportScreen(
                             viewModel = viewModel
                         )
                         is Screen.EnrollmentDashboard -> EnrollmentDashboardScreen(

@@ -19,6 +19,9 @@ import com.example.data.auth.StaffAction
 import com.example.data.auth.StaffPermissions
 import com.example.data.auth.StaffRole
 import com.example.data.auth.SaseArea
+import com.example.data.enrollment.SchoolMovementRepository
+import com.example.data.enrollment.MockSchoolMovementRepositoryImpl
+import com.example.data.enrollment.SupabaseSchoolMovementRepositoryImpl
 import com.example.data.repository.AuditRepository
 import com.example.data.repository.MockAuditRepositoryImpl
 import com.example.data.repository.MockStudentRepositoryImpl
@@ -45,6 +48,7 @@ sealed class Screen {
     data object SecretaryDashboard : Screen()
     data object StudentRecordsDashboard : Screen()
     data object EnrollmentDashboard : Screen()
+    data object EnrollmentCutoffReport : Screen()
     data class StudentRecord(
         val studentId: String,
         val institutionalKey: InstitutionalStudentRecordKey? = null,
@@ -67,6 +71,7 @@ internal fun secretarySidebarDestination(item: String): Screen? = when (item) {
     "Inicio" -> Screen.SessionHome
     "Expedientes" -> Screen.StudentRecordsDashboard
     "Inscripciones" -> Screen.EnrollmentDashboard
+    "Corte de Matrícula" -> Screen.EnrollmentCutoffReport
     "Portal Familia" -> Screen.PreApplicationFamilyPortal
     "Pre-Solicitudes" -> Screen.SecretariaPreApplicationDashboard
     "Altas Oficiales" -> Screen.OfficialEnrollmentDashboard
@@ -133,6 +138,20 @@ class LabViewModel(
     private val authRepository: AuthRepository,
     private val studentRepository: StudentRepository = MockStudentRepositoryImpl(),
     private val auditRepository: AuditRepository = MockAuditRepositoryImpl(),
+    val schoolMovementRepository: SchoolMovementRepository = if (appEnvironment.demoUsersEnabled) {
+        MockSchoolMovementRepositoryImpl(studentRepository)
+    } else {
+        val supabase = requireNotNull(appEnvironment.supabase) {
+            "El ambiente conectado requiere configuración de Supabase para SchoolMovementRepository."
+        }
+        SupabaseSchoolMovementRepositoryImpl(
+            baseUrl = supabase.url,
+            apiKey = supabase.publishableKey,
+            sessionProvider = { authRepository.session.value },
+            studentRepository = studentRepository,
+            remoteMigrationVerified = false
+        )
+    },
     coroutineScope: CoroutineScope? = null,
     private val nowMillis: () -> Long = ::currentEpochMillis
 ) {

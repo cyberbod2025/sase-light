@@ -5,3 +5,5 @@ expect fun getPlatformName(): String
 expect fun formatTimestamp(pattern: String): String
 
 expect fun currentEpochMillis(): Long
+
+expect fun exportTextFileToDisk(fileName: String, content: String): String

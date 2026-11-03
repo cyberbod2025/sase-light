@@ -33,7 +33,13 @@ enum class StaffAction {
      * rol reales (migracion 0009), asi que se autoriza por acceso al area
      * EXPEDIENTE, no por poder editarlo.
      */
-    LOG_STUDENT_RECORD_EVENT
+    LOG_STUDENT_RECORD_EVENT,
+
+    /**
+     * Registrar movimientos oficiales de matricula fechados (alta inicial/extemporanea,
+     * cambio de grupo, traslado con destino o baja definitiva).
+     */
+    RECORD_SCHOOL_MOVEMENT
 }
 
 /**
@@ -87,7 +93,11 @@ object StaffPermissions {
      *    PREFECTURA/TUTOR (roles que no existen en este cliente).
      */
     private val actionMatrix: Map<StaffRole, Set<StaffAction>> = mapOf(
-        StaffRole.DIRECCION to setOf(StaffAction.ESCALATE_CASE, StaffAction.LOG_STUDENT_RECORD_EVENT),
+        StaffRole.DIRECCION to setOf(
+            StaffAction.ESCALATE_CASE,
+            StaffAction.LOG_STUDENT_RECORD_EVENT,
+            StaffAction.RECORD_SCHOOL_MOVEMENT
+        ),
         StaffRole.SECRETARIA to setOf(
             StaffAction.CREATE_STUDENT,
             StaffAction.UPDATE_STUDENT,
@@ -95,7 +105,8 @@ object StaffPermissions {
             StaffAction.REPORT_INCIDENT,
             StaffAction.ADVANCE_INCIDENT,
             StaffAction.ESCALATE_CASE,
-            StaffAction.LOG_STUDENT_RECORD_EVENT
+            StaffAction.LOG_STUDENT_RECORD_EVENT,
+            StaffAction.RECORD_SCHOOL_MOVEMENT
         ),
         StaffRole.TRABAJO_SOCIAL to emptySet(),
         StaffRole.MEDICO_ESCOLAR to emptySet(),
