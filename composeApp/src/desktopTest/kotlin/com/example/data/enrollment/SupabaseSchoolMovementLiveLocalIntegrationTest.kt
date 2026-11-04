@@ -120,10 +120,10 @@ class SupabaseSchoolMovementLiveLocalIntegrationTest {
 
     @Test
     fun testLiveLocalSupabaseDatabaseRlsConstraintsReconnectionAndCutoff() = runBlocking {
-        if (!isLocalSupabaseReachable()) {
-            println("SKIP: Base local efímera de Supabase no detectada en 127.0.0.1:55321.")
-            return@runBlocking
-        }
+        org.junit.Assume.assumeTrue(
+            "OMITIDA: Base local efímera de Supabase no detectada en 127.0.0.1:55321 (requiere pila Docker de pruebas)",
+            isLocalSupabaseReachable()
+        )
 
         val json = Json { ignoreUnknownKeys = true }
         val authClient = HttpClient(CIO) {

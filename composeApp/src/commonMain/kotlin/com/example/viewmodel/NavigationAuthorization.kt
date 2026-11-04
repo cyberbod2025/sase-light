@@ -26,6 +26,7 @@ fun screenArea(screen: Screen): SaseArea? = when (screen) {
     is Screen.StudentRecord -> SaseArea.EXPEDIENTE
     is Screen.EnrollmentDashboard -> SaseArea.ALTA_OFICIAL
     is Screen.EnrollmentCutoffReport -> SaseArea.SECRETARIA
+    is Screen.ClassAttendance -> SaseArea.DOCENCIA
     is Screen.SecretariaPreApplicationDashboard -> SaseArea.PRE_SOLICITUD
     is Screen.OfficialEnrollmentDashboard -> SaseArea.ALTA_OFICIAL
     is Screen.CredentialPreview -> SaseArea.CREDENCIAL

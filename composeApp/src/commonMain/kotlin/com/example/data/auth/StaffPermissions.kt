@@ -55,7 +55,8 @@ object StaffPermissions {
             SaseArea.EXPEDIENTE,
             SaseArea.SECRETARIA,
             SaseArea.ALTA_OFICIAL,
-            SaseArea.CREDENCIAL
+            SaseArea.CREDENCIAL,
+            SaseArea.DOCENCIA
         ),
         StaffRole.SECRETARIA to setOf(
             SaseArea.SESSION,
