@@ -235,14 +235,23 @@ class MockAttendanceRepositoryImpl(
             )
         }
 
+        val totalApplicableOpportunities = studentMetrics.sumOf { it.applicableSessions }
         val totalAttendanceEvents = studentMetrics.sumOf { it.attendedSessions }
         val totalAbsenceEvents = studentMetrics.sumOf { it.absentSessions }
+        val totalCapturedRecords = totalAttendanceEvents + totalAbsenceEvents
+        val totalPendingRecords = studentMetrics.sumOf { it.pendingSessions }
         val totalTardinessEvents = studentMetrics.sumOf { it.tardinessEvents }
         val distinctStudentsWithTardiness = studentMetrics.count { it.tardinessEvents > 0 }
 
-        val totalDecided = totalAttendanceEvents + totalAbsenceEvents
-        val overallRate = if (totalDecided > 0) {
-            (totalAttendanceEvents.toDouble() / totalDecided.toDouble()) * 100.0
+        val coveragePct = if (totalApplicableOpportunities > 0) {
+            ((totalCapturedRecords.toDouble() / totalApplicableOpportunities.toDouble()) * 1000.0).toInt() / 10.0
+        } else {
+            100.0
+        }
+        val isCompleteCoverage = totalApplicableOpportunities > 0 && totalCapturedRecords == totalApplicableOpportunities
+
+        val overallRate = if (totalCapturedRecords > 0) {
+            (totalAttendanceEvents.toDouble() / totalCapturedRecords.toDouble()) * 100.0
         } else {
             100.0
         }
@@ -257,8 +266,13 @@ class MockAttendanceRepositoryImpl(
                 sessionsHeld = heldSessions.size,
                 sessionsCancelled = cancelledCount,
                 sessionsNonTeaching = nonTeachingCount,
+                totalApplicableOpportunities = totalApplicableOpportunities,
+                totalCapturedRecords = totalCapturedRecords,
                 totalAttendanceEvents = totalAttendanceEvents,
                 totalAbsenceEvents = totalAbsenceEvents,
+                totalPendingRecords = totalPendingRecords,
+                coveragePct = coveragePct,
+                isCompleteCoverage = isCompleteCoverage,
                 totalTardinessEvents = totalTardinessEvents,
                 distinctStudentsWithTardiness = distinctStudentsWithTardiness,
                 overallAttendanceRatePct = (overallRate * 10.0).toInt() / 10.0,
@@ -314,11 +328,13 @@ class MockAttendanceRepositoryImpl(
 
     private fun resolveRosterForGroupAndDate(groupId: String, date: String): List<GroupStudent> {
         customRosterProvider?.let { return it(groupId, date) }
-        val defaultList = MockAttendanceData.defaultRosters[groupId].orEmpty()
         val movements = movementsProvider?.invoke().orEmpty()
-        if (movements.isEmpty()) return defaultList
+        if (movements.isEmpty()) return MockAttendanceData.defaultRosters[groupId].orEmpty()
 
-        return defaultList.filter { student ->
+        val allStudents = (MockAttendanceData.defaultRosters[MockAttendanceData.GROUP_1A_ID].orEmpty() +
+                           MockAttendanceData.defaultRosters[MockAttendanceData.GROUP_2B_ID].orEmpty()).distinctBy { it.id }
+
+        return allStudents.filter { student ->
             isStudentActiveInGroupOnDate(student.id, groupId, date)
         }
     }
@@ -328,16 +344,21 @@ class MockAttendanceRepositoryImpl(
         startDate: String,
         endDate: String
     ): List<GroupStudent> {
-        val defaultList = MockAttendanceData.defaultRosters[groupId].orEmpty()
+        val allStudents = (MockAttendanceData.defaultRosters[MockAttendanceData.GROUP_1A_ID].orEmpty() +
+                           MockAttendanceData.defaultRosters[MockAttendanceData.GROUP_2B_ID].orEmpty()).distinctBy { it.id }
         val movements = movementsProvider?.invoke().orEmpty()
-        if (movements.isEmpty()) return defaultList
+        if (movements.isEmpty()) {
+            return MockAttendanceData.defaultRosters[groupId].orEmpty()
+        }
 
-        // Incluye a cualquier alumno que haya estado activo al menos un día en el periodo
-        return defaultList.filter { student ->
-            val moves = movements.filter { it.studentId == student.id }
-            if (moves.isEmpty()) return@filter true
-            // Evaluar si estuvo activo en alguna fecha del rango
-            moves.any { it.effectiveDate <= endDate }
+        return allStudents.filter { student ->
+            isStudentActiveInGroupOnDate(student.id, groupId, startDate) ||
+            isStudentActiveInGroupOnDate(student.id, groupId, endDate) ||
+            movements.any { move ->
+                move.studentId == student.id &&
+                move.effectiveDate in startDate..endDate &&
+                isStudentActiveInGroupOnDate(student.id, groupId, move.effectiveDate)
+            }
         }
     }
 
@@ -347,7 +368,18 @@ class MockAttendanceRepositoryImpl(
         date: String
     ): Boolean {
         val movements = movementsProvider?.invoke().orEmpty()
-        if (movements.isEmpty()) return true
+        val defaultList1A = MockAttendanceData.defaultRosters[MockAttendanceData.GROUP_1A_ID].orEmpty().map { it.id }
+        val defaultList2B = MockAttendanceData.defaultRosters[MockAttendanceData.GROUP_2B_ID].orEmpty().map { it.id }
+
+        val originalGroupId = when {
+            studentId in defaultList1A -> MockAttendanceData.GROUP_1A_ID
+            studentId in defaultList2B -> MockAttendanceData.GROUP_2B_ID
+            else -> groupId
+        }
+
+        if (movements.isEmpty()) {
+            return originalGroupId == groupId
+        }
 
         val supersededIds = movements
             .filter { it.isCorrection && !it.supersedesMovementId.isNullOrBlank() }
@@ -356,29 +388,57 @@ class MockAttendanceRepositoryImpl(
 
         val allMovesForStudent = movements
             .filter { it.studentId == studentId && it.id !in supersededIds }
+            .sortedWith(SchoolMovementEvaluator.DETERMINISTIC_ORDER)
 
-        if (allMovesForStudent.isEmpty()) return true
+        if (allMovesForStudent.isEmpty()) {
+            return originalGroupId == groupId
+        }
 
         val studentMovesUntilDate = allMovesForStudent
             .filter { it.effectiveDate <= date }
-            .sortedWith(SchoolMovementEvaluator.DETERMINISTIC_ORDER)
 
-        if (studentMovesUntilDate.isEmpty()) return false // Aún no ingresa a la fecha
-
-        val lastMove = studentMovesUntilDate.last()
-        return when (lastMove.movementType) {
-            SchoolMovementType.INSCRIPCION_INICIAL,
-            SchoolMovementType.ALTA_EXTEMPORANEA,
-            SchoolMovementType.REINCORPORACION -> true
-            SchoolMovementType.CAMBIO_DE_GRUPO -> {
-                val targetGroup = lastMove.toGroup.orEmpty()
-                targetGroup.contains("A") && groupId.contains("1a", ignoreCase = true) ||
-                targetGroup.contains("B") && groupId.contains("2b", ignoreCase = true)
-            }
-            SchoolMovementType.TRASLADO_SALIENTE,
-            SchoolMovementType.BAJA_ADMINISTRATIVA,
-            SchoolMovementType.ABANDONO_CONFIRMADO -> false
-            SchoolMovementType.PENDIENTE_ACLARACION -> false
+        if (studentMovesUntilDate.isEmpty()) {
+            return false // Ingreso futuro a la fecha evaluada
         }
+
+        var currentActive = false
+        var currentGroupId: String = originalGroupId
+
+        for (move in studentMovesUntilDate) {
+            when (move.movementType) {
+                SchoolMovementType.INSCRIPCION_INICIAL,
+                SchoolMovementType.ALTA_EXTEMPORANEA,
+                SchoolMovementType.REINCORPORACION -> {
+                    currentActive = true
+                    val target = move.toGroup.orEmpty()
+                    if (target.isNotBlank()) {
+                        currentGroupId = if (target.contains("2-B") || target.contains("2B") || target.contains("2° B")) {
+                            MockAttendanceData.GROUP_2B_ID
+                        } else {
+                            MockAttendanceData.GROUP_1A_ID
+                        }
+                    }
+                }
+                SchoolMovementType.CAMBIO_DE_GRUPO -> {
+                    currentActive = true
+                    val target = move.toGroup.orEmpty()
+                    if (target.isNotBlank()) {
+                        currentGroupId = if (target.contains("2-B") || target.contains("2B") || target.contains("2° B")) {
+                            MockAttendanceData.GROUP_2B_ID
+                        } else {
+                            MockAttendanceData.GROUP_1A_ID
+                        }
+                    }
+                }
+                SchoolMovementType.TRASLADO_SALIENTE,
+                SchoolMovementType.BAJA_ADMINISTRATIVA,
+                SchoolMovementType.ABANDONO_CONFIRMADO,
+                SchoolMovementType.PENDIENTE_ACLARACION -> {
+                    currentActive = false
+                }
+            }
+        }
+
+        return currentActive && currentGroupId == groupId
     }
 }

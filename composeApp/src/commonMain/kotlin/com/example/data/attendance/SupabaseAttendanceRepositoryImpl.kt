@@ -302,6 +302,18 @@ class SupabaseAttendanceRepositoryImpl(
                     hasTardinessAlert = row.getValue("has_tardiness_alert").jsonPrimitive.content.toBoolean()
                 )
             }
+            val totalAtt = root.getValue("total_attendance_events").jsonPrimitive.int
+            val totalAbs = root.getValue("total_absence_events").jsonPrimitive.int
+            val totalApplicable = root["total_applicable_opportunities"]?.jsonPrimitive?.content?.toIntOrNull()
+                ?: metrics.sumOf { it.applicableSessions }
+            val totalCaptured = root["total_captured_records"]?.jsonPrimitive?.content?.toIntOrNull()
+                ?: (totalAtt + totalAbs)
+            val totalPending = root["total_pending_records"]?.jsonPrimitive?.content?.toIntOrNull()
+                ?: metrics.sumOf { it.pendingSessions }
+            val coverage = root["coverage_pct"]?.jsonPrimitive?.content?.toDoubleOrNull()
+                ?: if (totalApplicable > 0) ((totalCaptured.toDouble() / totalApplicable.toDouble()) * 1000.0).toInt() / 10.0 else 100.0
+            val isComplete = totalApplicable > 0 && totalCaptured == totalApplicable
+
             AttendanceResult.Success(
                 ClassAttendanceReport(
                     groupId = root.getValue("group_id").jsonPrimitive.content,
@@ -312,8 +324,13 @@ class SupabaseAttendanceRepositoryImpl(
                     sessionsHeld = root.getValue("sessions_held").jsonPrimitive.int,
                     sessionsCancelled = root.getValue("sessions_cancelled").jsonPrimitive.int,
                     sessionsNonTeaching = root.getValue("sessions_non_teaching").jsonPrimitive.int,
-                    totalAttendanceEvents = root.getValue("total_attendance_events").jsonPrimitive.int,
-                    totalAbsenceEvents = root.getValue("total_absence_events").jsonPrimitive.int,
+                    totalApplicableOpportunities = totalApplicable,
+                    totalCapturedRecords = totalCaptured,
+                    totalAttendanceEvents = totalAtt,
+                    totalAbsenceEvents = totalAbs,
+                    totalPendingRecords = totalPending,
+                    coveragePct = coverage,
+                    isCompleteCoverage = isComplete,
                     totalTardinessEvents = root.getValue("total_tardiness_events").jsonPrimitive.int,
                     distinctStudentsWithTardiness = root.getValue("distinct_students_with_tardiness").jsonPrimitive.int,
                     overallAttendanceRatePct = root.getValue("overall_attendance_rate_pct").jsonPrimitive.content.toDouble(),

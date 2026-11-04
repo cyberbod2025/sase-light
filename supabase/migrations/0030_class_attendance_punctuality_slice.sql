@@ -141,7 +141,7 @@ AS $$
     JOIN public.school_groups g ON g.id = p_group_id AND g.institution_id = m.institution_id
     JOIN public.membership_roles mr ON mr.membership_id = m.id
     JOIN public.roles r ON r.id = mr.role_id
-    WHERE m.user_id = auth.uid()
+    WHERE m.profile_id = (SELECT auth.uid())
       AND m.active = true
       AND (
           (r.code = 'DOCENTE' AND EXISTS (
@@ -162,7 +162,7 @@ CREATE POLICY school_groups_select ON public.school_groups
         EXISTS (
             SELECT 1 FROM public.institutional_memberships m
             WHERE m.institution_id = school_groups.institution_id
-              AND m.user_id = auth.uid()
+              AND m.profile_id = (SELECT auth.uid())
               AND m.active = true
         )
     );
@@ -175,7 +175,7 @@ CREATE POLICY group_students_select ON public.group_students
             SELECT 1 FROM public.school_groups g
             JOIN public.institutional_memberships m ON m.institution_id = g.institution_id
             WHERE g.id = group_students.group_id
-              AND m.user_id = auth.uid()
+              AND m.profile_id = (SELECT auth.uid())
               AND m.active = true
         )
     );

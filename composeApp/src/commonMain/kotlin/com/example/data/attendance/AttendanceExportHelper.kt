@@ -42,11 +42,16 @@ object AttendanceExportHelper {
         sb.appendLine("Sesiones Realizadas (Lectivas),${report.sessionsHeld},Sesiones de clase efectivamente impartidas")
         sb.appendLine("Sesiones Canceladas / Suspendidas,${report.sessionsCancelled},Sesiones canceladas (no computan inasistencia a los alumnos)")
         sb.appendLine("Sesiones No Lectivas / CTE,${report.sessionsNonTeaching},Actividades no lectivas o CTE (no computan inasistencia)")
+        sb.appendLine("Oportunidades Aplicables Totales,${report.totalApplicableOpportunities},Suma de sesiones lectivas aplicables a cada alumno segun su vigencia")
+        sb.appendLine("Registros Efectivamente Capturados,${report.totalCapturedRecords},Total de registros con presencia o inasistencia decidida")
+        sb.appendLine("Capturas Pendientes de Pase de Lista,${report.totalPendingRecords},Registros pendientes (no se computan como inasistencia)")
+        sb.appendLine("Cobertura de Captura,${report.coveragePct}%,(Registros Capturados / Oportunidades Aplicables) * 100")
         sb.appendLine("Total de Presencias Registradas,${report.totalAttendanceEvents},Suma total de asistencias de alumnos en sesiones realizadas")
         sb.appendLine("Total de Inasistencias Registradas,${report.totalAbsenceEvents},Suma total de faltas efectivas en sesiones realizadas")
         sb.appendLine("Eventos Totales de Retardo,${report.totalTardinessEvents},Numero acumulado de llegadas tarde en personas presentes")
         sb.appendLine("Alumnos Distintos con Retardo,${report.distinctStudentsWithTardiness},Cantidad de estudiantes individuales que tuvieron al menos un retardo")
-        sb.appendLine("Tasa de Asistencia Colectiva,${report.overallAttendanceRatePct}%,(Presencias Registradas / (Presencias + Inasistencias)) * 100")
+        sb.appendLine("Estatus del Porcentaje Colectivo,${if (report.isCompleteCoverage) "DEFINITIVO" else "PRELIMINAR_INCOMPLETO"},${if (report.isCompleteCoverage) "Cobertura del 100%" else "No definitiva por capturas pendientes"}")
+        sb.appendLine("Tasa de Asistencia Colectiva,${report.overallAttendanceRatePct}%,${if (report.isCompleteCoverage) "Tasa definitiva" else "Tasa preliminar basada en registros capturados"}")
         sb.appendLine("Umbral Referencial de Asistencia,${report.thresholds.minAttendanceRatePct}%,${report.thresholds.statusNotice}")
         sb.appendLine("Umbral Referencial de Retardos,${report.thresholds.maxTardinessEvents} retardos,${report.thresholds.statusNotice}")
         return sb.toString()
@@ -68,7 +73,7 @@ object AttendanceExportHelper {
         sb.appendLine("Clasificacion,CONFIDENCIAL - USO INTERNO EXCLUSIVO")
         sb.appendLine()
 
-        sb.appendLine("Numero_Lista,ID_Alumno,Nombre_Completo,Grupo,Sesiones_Aplicables,Asistencias,Inasistencias,Pendientes,Eventos_Retardo,Porcentaje_Asistencia,Alerta_Asistencia,Alerta_Puntualidad,Resumen_Estatus")
+        sb.appendLine("Numero_Lista,ID_Alumno,Nombre_Completo,Grupo,Sesiones_Aplicables,Registros_Capturados,Capturas_Pendientes,Cobertura_Pct,Estatus_Porcentaje,Asistencias,Inasistencias,Eventos_Retardo,Porcentaje_Asistencia,Alerta_Asistencia,Alerta_Puntualidad,Resumen_Estatus")
         for (item in report.studentMetrics.sortedBy { it.listNumber }) {
             sb.appendLine(
                 listOf(
@@ -77,9 +82,12 @@ object AttendanceExportHelper {
                     "\"${item.fullName}\"",
                     item.assignedGroup,
                     item.applicableSessions.toString(),
+                    item.capturedRecords.toString(),
+                    item.pendingSessions.toString(),
+                    "${item.coveragePct}%",
+                    if (item.isDefinitive) "DEFINITIVO" else "PRELIMINAR",
                     item.attendedSessions.toString(),
                     item.absentSessions.toString(),
-                    item.pendingSessions.toString(),
                     item.tardinessEvents.toString(),
                     "${item.attendanceRatePct}%",
                     if (item.hasAttendanceAlert) "SI" else "NO",

@@ -447,8 +447,20 @@ fun ClassAttendanceScreen(
                         ) {
                             MetricCardItem("Sesiones Realizadas", rep.sessionsHeld.toString(), Color(0xFF38BDF8), "report_sessions_held", Modifier.weight(1f))
                             MetricCardItem("Sesiones Canceladas", rep.sessionsCancelled.toString(), Color(0xFFFBBF24), "report_sessions_cancelled", Modifier.weight(1f))
+                            MetricCardItem("Oportunidades Aplicables", rep.totalApplicableOpportunities.toString(), Color(0xFF818CF8), "report_applicable_opportunities", Modifier.weight(1f))
+                            MetricCardItem("Registros Capturados", rep.totalCapturedRecords.toString(), Color(0xFF34D399), "report_captured_records", Modifier.weight(1f))
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            MetricCardItem("Cobertura de Captura", "${rep.coveragePct}%", if (rep.isCompleteCoverage) Color(0xFF4ADE80) else Color(0xFFFBBF24), "report_coverage_pct", Modifier.weight(1f))
                             MetricCardItem("Presencias Totales", rep.totalAttendanceEvents.toString(), Color(0xFF4ADE80), "report_total_presences", Modifier.weight(1f))
                             MetricCardItem("Inasistencias Totales", rep.totalAbsenceEvents.toString(), Color(0xFFF87171), "report_total_absences", Modifier.weight(1f))
+                            MetricCardItem("Capturas Pendientes", rep.totalPendingRecords.toString(), Color(0xFF94A3B8), "report_pending_records", Modifier.weight(1f))
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -464,7 +476,15 @@ fun ClassAttendanceScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Aviso de Umbrales Colegiados
+                        // Aviso de Estatus de Cobertura y Umbrales Colegiados
+                        Text(
+                            text = "ℹ ${rep.rateStatusNotice}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (rep.isCompleteCoverage) Color(0xFF86EFAC) else Color(0xFFFCD34D),
+                            modifier = Modifier.testTag("report_coverage_status_note")
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "ℹ ${rep.thresholds.statusNotice}",
                             fontSize = 11.sp,

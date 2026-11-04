@@ -196,6 +196,9 @@ data class AttendanceThresholds(
 
 /**
  * Métrica individual de asistencia calculada por sesiones aplicables al estudiante.
+ *
+ * Muestra por separado oportunidades aplicables, registros capturados, presentes, ausentes y cobertura.
+ * Si [isDefinitive] es false, el porcentaje [attendanceRatePct] corresponde a una captura incompleta/preliminar.
  */
 data class StudentAttendanceMetric(
     val studentId: String,
@@ -209,7 +212,10 @@ data class StudentAttendanceMetric(
     val tardinessEvents: Int,
     val attendanceRatePct: Double,
     val hasAttendanceAlert: Boolean,
-    val hasTardinessAlert: Boolean
+    val hasTardinessAlert: Boolean,
+    val capturedRecords: Int = attendedSessions + absentSessions,
+    val coveragePct: Double = if (applicableSessions > 0) ((capturedRecords.toDouble() / applicableSessions.toDouble()) * 1000.0).toInt() / 10.0 else 100.0,
+    val isDefinitive: Boolean = applicableSessions > 0 && capturedRecords == applicableSessions
 ) {
     val alertSummary: String
         get() = when {
@@ -222,6 +228,9 @@ data class StudentAttendanceMetric(
 
 /**
  * Reporte consolidado de asistencia por grupo para el Programa de Mejora Continua (PMC).
+ *
+ * Desglosa oportunidades aplicables, registros capturados, presentes, ausentes y cobertura.
+ * [isCompleteCoverage] acredita si el reporte es definitivo o preliminar por capturas incompletas.
  */
 data class ClassAttendanceReport(
     val groupId: String,
@@ -232,14 +241,26 @@ data class ClassAttendanceReport(
     val sessionsHeld: Int,
     val sessionsCancelled: Int,
     val sessionsNonTeaching: Int,
+    val totalApplicableOpportunities: Int,
+    val totalCapturedRecords: Int,
     val totalAttendanceEvents: Int,
     val totalAbsenceEvents: Int,
+    val totalPendingRecords: Int,
+    val coveragePct: Double,
+    val isCompleteCoverage: Boolean,
     val totalTardinessEvents: Int,
     val distinctStudentsWithTardiness: Int,
     val overallAttendanceRatePct: Double,
     val thresholds: AttendanceThresholds,
     val studentMetrics: List<StudentAttendanceMetric>
-)
+) {
+    val rateStatusNotice: String
+        get() = if (isCompleteCoverage) {
+            "Asistencia Definitiva (100% de cobertura de captura)"
+        } else {
+            "Asistencia Preliminar (Cobertura: $coveragePct% — No definitiva por capturas incompletas)"
+        }
+}
 
 /** Motivo de fallo expresado en vocabulario del dominio institucional. */
 enum class AttendanceFailureReason {

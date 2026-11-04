@@ -359,4 +359,133 @@ class AttendanceDomainAndEvaluatorTest {
         assertTrue(nominalCsv.contains("PADRON NOMINAL RESTRINGIDO"))
         assertTrue(nominalCsv.contains("CONFIDENCIAL - USO INTERNO EXCLUSIVO"))
     }
+
+    @Test
+    fun testCambioDeGrupoRespetaPertenenciaAntesYDespuesDeFechaEfectivaSinDuplicarSesiones() = runBlocking {
+        // Alumno 1 inicia en 1-A y el 2026-10-01 cambia a 2-B
+        val moves = listOf(
+            SchoolMovementRecord(
+                id = "MOV-INI-01",
+                studentId = "1",
+                movementType = SchoolMovementType.INSCRIPCION_INICIAL,
+                effectiveDate = "2026-08-28",
+                recordedAt = "2026-08-28T09:00:00Z",
+                recordedBy = "SECRETARIA",
+                toGroup = "1-A"
+            ),
+            SchoolMovementRecord(
+                id = "MOV-CHG-01",
+                studentId = "1",
+                movementType = SchoolMovementType.CAMBIO_DE_GRUPO,
+                effectiveDate = "2026-10-01",
+                recordedAt = "2026-09-29T10:00:00Z",
+                recordedBy = "DIRECCION",
+                fromGroup = "1-A",
+                toGroup = "2-B",
+                classificationCriteria = "Reasignación académica solicitada por tutor"
+            )
+        )
+
+        val repo = MockAttendanceRepositoryImpl(movementsProvider = { moves })
+        val teacher1ASession = createTeacherSession(MockAttendanceData.TEACHER_1A_MEMBERSHIP_ID)
+        val teacher2BSession = createTeacherSession(MockAttendanceData.TEACHER_2B_MEMBERSHIP_ID)
+
+        // 1. Sesión en Grupo 1-A ANTES del cambio de grupo (2026-09-15)
+        repo.scheduleOrOpenSession(teacher1ASession, MockAttendanceData.GROUP_1A_ID, "2026-09-15", 1)
+        repo.saveAttendance(
+            teacher1ASession,
+            "session-${MockAttendanceData.GROUP_1A_ID}-2026-09-15-m1",
+            listOf(AttendanceRecordEntry(studentId = "1", presence = AttendancePresence.PRESENTE))
+        )
+
+        // 2. Sesión en Grupo 1-A DESPUÉS del cambio de grupo (2026-10-10)
+        repo.scheduleOrOpenSession(teacher1ASession, MockAttendanceData.GROUP_1A_ID, "2026-10-10", 1)
+        val snap1AOct = repo.scheduleOrOpenSession(teacher1ASession, MockAttendanceData.GROUP_1A_ID, "2026-10-10", 1)
+        val roster1AOct = assertIs<AttendanceResult.Success<ClassAttendanceSnapshot>>(snap1AOct).value.entries
+        assertFalse(
+            roster1AOct.any { it.student.id == "1" },
+            "El alumno 1 no debe aparecer en la lista de 1-A después de su fecha efectiva de cambio"
+        )
+
+        // 3. Sesión en Grupo 2-B DESPUÉS del cambio de grupo (2026-10-10)
+        val snap2BOct = repo.scheduleOrOpenSession(teacher2BSession, MockAttendanceData.GROUP_2B_ID, "2026-10-10", 1)
+        val roster2BOct = assertIs<AttendanceResult.Success<ClassAttendanceSnapshot>>(snap2BOct).value.entries
+        assertTrue(
+            roster2BOct.any { it.student.id == "1" },
+            "El alumno 1 debe figurar activo en el Grupo 2-B en fecha posterior a su cambio"
+        )
+        repo.saveAttendance(
+            teacher2BSession,
+            "session-${MockAttendanceData.GROUP_2B_ID}-2026-10-10-m1",
+            listOf(AttendanceRecordEntry(studentId = "1", presence = AttendancePresence.PRESENTE))
+        )
+
+        // 4. Reporte de 1-A (septiembre a octubre): el alumno solo tiene 1 sesión aplicable en 1-A (la de septiembre)
+        val rep1ARes = repo.getGroupAttendanceReport(teacher1ASession, MockAttendanceData.GROUP_1A_ID, "2026-09-01", "2026-10-31")
+        val rep1A = assertIs<AttendanceResult.Success<ClassAttendanceReport>>(rep1ARes).value
+        val metricStudent1In1A = rep1A.studentMetrics.first { it.studentId == "1" }
+        assertEquals(1, metricStudent1In1A.applicableSessions, "En 1-A solo le aplica la sesión anterior al cambio")
+        assertEquals(1, metricStudent1In1A.attendedSessions)
+        assertEquals(0, metricStudent1In1A.absentSessions)
+
+        // 5. Reporte de 2-B (septiembre a octubre): el alumno solo tiene 1 sesión aplicable en 2-B (la de octubre)
+        val rep2BRes = repo.getGroupAttendanceReport(teacher2BSession, MockAttendanceData.GROUP_2B_ID, "2026-09-01", "2026-10-31")
+        val rep2B = assertIs<AttendanceResult.Success<ClassAttendanceReport>>(rep2BRes).value
+        val metricStudent1In2B = rep2B.studentMetrics.first { it.studentId == "1" }
+        assertEquals(1, metricStudent1In2B.applicableSessions, "En 2-B solo le aplica la sesión posterior al cambio")
+        assertEquals(1, metricStudent1In2B.attendedSessions)
+        assertEquals(0, metricStudent1In2B.absentSessions)
+
+        // Total consolidado: 2 sesiones distintas aplicadas (1 en cada grupo), CERO duplicidades
+        assertEquals(2, metricStudent1In1A.applicableSessions + metricStudent1In2B.applicableSessions)
+    }
+
+    @Test
+    fun testPorcentajeConCapturasIncompletasMuestraCoberturaYNoEsDefinitivo() = runBlocking {
+        val repo = MockAttendanceRepositoryImpl()
+        val session = createTeacherSession()
+
+        // 2 sesiones lectivas en Grupo 1-A (5 alumnos en lista = 10 oportunidades aplicables en total)
+        repo.scheduleOrOpenSession(session, MockAttendanceData.GROUP_1A_ID, "2026-10-01", 1)
+        repo.scheduleOrOpenSession(session, MockAttendanceData.GROUP_1A_ID, "2026-10-02", 1)
+
+        // En la sesión 1, solo se capturan 3 de los 5 alumnos (captura parcial)
+        repo.saveAttendance(
+            session,
+            "session-${MockAttendanceData.GROUP_1A_ID}-2026-10-01-m1",
+            listOf(
+                AttendanceRecordEntry("1", AttendancePresence.PRESENTE),
+                AttendanceRecordEntry("2", AttendancePresence.PRESENTE),
+                AttendanceRecordEntry("3", AttendancePresence.AUSENTE)
+            )
+        )
+        // En la sesión 2, no se captura a nadie (sesión pendiente de captura)
+
+        val repRes = repo.getGroupAttendanceReport(session, MockAttendanceData.GROUP_1A_ID, "2026-10-01", "2026-10-02")
+        val report = assertIs<AttendanceResult.Success<ClassAttendanceReport>>(repRes).value
+
+        // Oportunidades aplicables vs capturadas vs cobertura
+        assertEquals(10, report.totalApplicableOpportunities, "5 alumnos x 2 sesiones = 10 oportunidades")
+        assertEquals(3, report.totalCapturedRecords, "Solo 3 alumnos capturados en sesión 1")
+        assertEquals(7, report.totalPendingRecords, "2 pendientes en sesión 1 + 5 pendientes en sesión 2 = 7")
+        assertEquals(2, report.totalAttendanceEvents, "2 presentes")
+        assertEquals(1, report.totalAbsenceEvents, "1 ausente")
+        assertEquals(30.0, report.coveragePct, "3 capturados de 10 aplicables = 30% cobertura")
+        assertFalse(report.isCompleteCoverage, "Con capturas pendientes la cobertura no es completa")
+        assertTrue(report.rateStatusNotice.contains("Preliminar"), "El reporte debe presentarse explícitamente como preliminar")
+        assertTrue(report.rateStatusNotice.contains("No definitiva"))
+
+        // La tasa se calcula exclusivamente sobre los 3 decididos (2 presentes de 3 capturados = 66.6%)
+        assertEquals(66.6, report.overallAttendanceRatePct)
+
+        // Verificación individual: las capturas pendientes NO se imputan como inasistencia
+        val student4 = report.studentMetrics.first { it.studentId == "4" }
+        assertEquals(2, student4.applicableSessions)
+        assertEquals(0, student4.attendedSessions)
+        assertEquals(0, student4.absentSessions, "No debe tener faltas imputadas por falta de pase de lista")
+        assertEquals(2, student4.pendingSessions)
+        assertEquals(0, student4.capturedRecords)
+        assertEquals(0.0, student4.coveragePct)
+        assertFalse(student4.isDefinitive)
+    }
 }
